@@ -106,7 +106,7 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
 
     // Use relative path for API calls - this works on both localhost and Render automatically
     const API_BASE = ''; 
-    const APP_VERSION = "2.4-STRIPE-FIX-MARCH-08-07:00"; // Version indicator to verify deployment
+    const APP_VERSION = "2.5-STABLE-MARCH-08-08:00"; // Version indicator to verify deployment
 
     const handleSubscribe = async (priceId: string) => {
         const targetUrl = `${API_BASE}/api/create-checkout-session`;
@@ -203,6 +203,22 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
         } catch (err) {
             console.error("Simulation failed:", err);
             alert("Simulation failed. Check console for details.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handlePasswordReset = async () => {
+        if (!currentUser?.email) return;
+        try {
+            setIsLoading(true);
+            const { auth } = await import('../src/lib/firebase');
+            const { sendPasswordResetEmail } = await import('firebase/auth');
+            await sendPasswordResetEmail(auth, currentUser.email);
+            alert(`A password reset email has been sent to ${currentUser.email}. Please check your inbox.`);
+        } catch (error: any) {
+            console.error("Password reset error:", error);
+            alert(`Failed to send password reset email: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -458,17 +474,14 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                             <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-8">Security Settings</h3>
                             <div className="space-y-4">
-                                <button className="w-full flex items-center justify-between p-6 bg-slate-950 border border-white/5 rounded-3xl hover:bg-white/5 transition-all group text-left">
+                                <button 
+                                    onClick={handlePasswordReset}
+                                    disabled={isLoading}
+                                    className="w-full flex items-center justify-between p-6 bg-slate-950 border border-white/5 rounded-3xl hover:bg-white/5 transition-all group text-left disabled:opacity-50"
+                                >
                                     <div>
                                         <h4 className="text-sm font-black text-white uppercase tracking-wider mb-1">Change Password</h4>
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Update your account credentials</p>
-                                    </div>
-                                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-white transition-all">→</div>
-                                </button>
-                                <button className="w-full flex items-center justify-between p-6 bg-slate-950 border border-white/5 rounded-3xl hover:bg-white/5 transition-all group text-left">
-                                    <div>
-                                        <h4 className="text-sm font-black text-white uppercase tracking-wider mb-1">Two-Factor Auth</h4>
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Add an extra layer of security</p>
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Send a password reset email to your inbox</p>
                                     </div>
                                     <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-white transition-all">→</div>
                                 </button>

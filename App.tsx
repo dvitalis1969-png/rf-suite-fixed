@@ -544,6 +544,7 @@ const App: React.FC = () => {
         setUser(null);
         setIsAuthenticated(false); 
         setProjectDashboardOpen(false);
+        setIsAccountDashboardOpen(false);
         setActiveApp(null); 
         setCurrentProject(null);
         loadAppState(initialState);
@@ -600,6 +601,7 @@ const App: React.FC = () => {
                     setIsAuthenticated(false);
                     setUser(null);
                     setProjectDashboardOpen(false); // Ensure dashboard is closed
+                    setIsAccountDashboardOpen(false);
                 }
                 setIsAuthLoading(false);
             }, (error: any) => {
@@ -746,7 +748,7 @@ const App: React.FC = () => {
             />}
             
             <div className="fixed bottom-1 right-1 text-[10px] text-slate-600 opacity-50 pointer-events-none z-50">
-                v2.4-STRIPE-FIX-MARCH-08-07:00
+                v2.5-STABLE-MARCH-08-08:00
             </div>
         </div>
     );
