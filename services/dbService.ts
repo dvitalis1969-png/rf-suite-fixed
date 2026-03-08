@@ -11,15 +11,36 @@ let db: IDBDatabase;
 
 export const initDB = (): Promise<boolean> => {
   return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      console.error('IndexedDB is not supported in this browser.');
+      reject(new Error('IndexedDB is not supported in this browser.'));
+      return;
+    }
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => {
-      console.error('Error opening IndexedDB:', request.error);
-      reject(false);
+    request.onerror = (event) => {
+      const error = (event.target as IDBOpenDBRequest).error;
+      console.error('Error opening IndexedDB:', error);
+      reject(error || new Error('Unknown error opening IndexedDB'));
+    };
+
+    request.onblocked = () => {
+      console.warn('IndexedDB opening is blocked by another connection.');
+      // We don't necessarily reject here, but we can log it.
+      // If it stays blocked, the promise will never resolve/reject unless we timeout.
     };
 
     request.onsuccess = () => {
       db = request.result;
+      
+      // Handle database closing unexpectedly
+      db.onversionchange = () => {
+        db.close();
+        console.warn('Database version changed elsewhere, closing connection.');
+        window.location.reload();
+      };
+
       resolve(true);
     };
 

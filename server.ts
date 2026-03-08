@@ -71,7 +71,7 @@ async function startServer() {
 
   // Global middleware
   app.use((req, res, next) => {
-    res.setHeader('X-App-Version', '2.5-STABLE-MARCH-08-11:50');
+    res.setHeader('X-App-Version', '2.5-STABLE-MARCH-08-12:12');
     if (req.url.includes('/api/health')) {
       console.log(`[Health Check] Request for ${req.url} from ${req.ip}`);
     }
@@ -85,7 +85,7 @@ async function startServer() {
     
     res.json({ 
       status: "ok",
-      version: "2.5-STABLE-MARCH-08-11:50",
+      version: "2.5-STABLE-MARCH-08-12:12",
       firebaseAdminInitialized,
       config: {
         stripeSecret: !!process.env.STRIPE_SECRET_KEY,
@@ -181,7 +181,7 @@ async function startServer() {
 
   // API routes FIRST
   app.get("/api", (req, res) => {
-    res.json({ message: "RF Suite API is running", version: "2.5-STABLE-MARCH-08-11:50" });
+    res.json({ message: "RF Suite API is running", version: "2.5-STABLE-MARCH-08-12:12" });
   });
 
   app.get("/api/checkout-success", async (req, res) => {
@@ -539,12 +539,22 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Serve static files in production
-    // When running from dist/server.js, the static files are in the same directory (dist)
-    // Use process.cwd() + 'dist' if running from root, or __dirname if running from dist
     const staticPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(staticPath));
+    app.use(express.static(staticPath, {
+      setHeaders: (res, path) => {
+        // Ensure index.html is never cached so users always get the latest version
+        if (path.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        }
+      }
+    }));
     app.use((req, res, next) => {
       if (req.method === 'GET') {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.sendFile(path.join(staticPath, "index.html"));
       } else {
         next();

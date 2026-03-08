@@ -222,7 +222,7 @@ const App: React.FC = () => {
     }, [isSunlightMode]);
 
     useEffect(() => {
-        const init = async () => {
+        const init = async (retries = 3) => {
             try {
                 const ready = await dbService.initDB();
                 if (ready) {
@@ -241,11 +241,30 @@ const App: React.FC = () => {
                     }
                     setIsDbReady(true);
                 } else {
-                    setDbError("Database initialization failed. This usually happens if you are in Private/Incognito mode or if the site's security certificate is still being verified. Please wait a few minutes and refresh.");
+                    throw new Error("Database returned not ready");
                 }
             } catch (error: any) {
-                console.error("Database initialization error:", error);
-                setDbError(`Database initialization error: ${error?.message || String(error)}. This can be caused by browser security settings, Private/Incognito mode, or an unverified SSL certificate. Please try refreshing in a few minutes.`);
+                console.error(`Database initialization attempt failed (${retries} retries left):`, error);
+                
+                if (retries > 0) {
+                    // Wait 1 second and retry
+                    setTimeout(() => init(retries - 1), 1000);
+                } else {
+                    const errorName = error?.name || 'UnknownError';
+                    const errorMessage = error?.message || String(error);
+                    
+                    let userMessage = `Database initialization error: ${errorName} - ${errorMessage}.`;
+                    
+                    if (errorName === 'SecurityError') {
+                        userMessage += " This is usually caused by browser security settings or blocking cookies/site data.";
+                    } else if (errorName === 'QuotaExceededError') {
+                        userMessage += " Your device is out of storage space.";
+                    } else {
+                        userMessage += " This can be caused by Private/Incognito mode, browser security settings, or an unverified SSL certificate.";
+                    }
+                    
+                    setDbError(userMessage + " Please try refreshing or opening the site in a new window.");
+                }
             }
         };
         init();
@@ -632,12 +651,25 @@ const App: React.FC = () => {
             <div className="text-red-500 text-4xl mb-4">⚠️</div>
             <h1 className="text-xl font-bold mb-2">Initialization Error</h1>
             <p className="text-slate-400 mb-6 max-w-md">{dbError}</p>
-            <button 
-                onClick={() => window.location.reload()}
-                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition-colors"
-            >
-                Reload Application
-            </button>
+            <div className="flex flex-col sm:flex-row gap-4">
+                <button 
+                    onClick={() => window.location.reload()}
+                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition-colors"
+                >
+                    Reload Application
+                </button>
+                <button 
+                    onClick={() => {
+                        if (window.confirm("This will clear all local projects and settings. Are you sure?")) {
+                            indexedDB.deleteDatabase('RFFrequencySuiteDB');
+                            window.location.reload();
+                        }
+                    }}
+                    className="px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold transition-colors text-slate-400"
+                >
+                    Clear Local Data
+                </button>
+            </div>
         </div>
     );
 
@@ -748,7 +780,7 @@ const App: React.FC = () => {
             />}
             
             <div className="fixed bottom-1 right-1 text-[10px] text-slate-600 opacity-50 pointer-events-none z-50">
-                v2.5-STABLE-MARCH-08-11:50
+                v2.5-STABLE-MARCH-08-12:12
             </div>
         </div>
     );
