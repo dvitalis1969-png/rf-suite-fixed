@@ -746,7 +746,7 @@ const App: React.FC = () => {
             />}
             
             <div className="fixed bottom-1 right-1 text-[10px] text-slate-600 opacity-50 pointer-events-none z-50">
-                v2.3-STRIPE-FIX-MARCH-08-06:30
+                v2.4-STRIPE-FIX-MARCH-08-07:00
             </div>
         </div>
     );

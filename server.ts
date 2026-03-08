@@ -71,7 +71,7 @@ async function startServer() {
 
   // Global middleware
   app.use((req, res, next) => {
-    res.setHeader('X-App-Version', '2.3-STRIPE-FIX-MARCH-08-06:30');
+    res.setHeader('X-App-Version', '2.4-STRIPE-FIX-MARCH-08-07:00');
     if (req.url.includes('/api/health')) {
       console.log(`[Health Check] Request for ${req.url} from ${req.ip}`);
     }
@@ -80,9 +80,12 @@ async function startServer() {
 
   // Health check at the VERY top
   app.get(["/api/health", "/api/healt", "/health"], (req, res) => {
+    // Attempt initialization so we can verify it works
+    initFirebaseAdmin();
+    
     res.json({ 
       status: "ok",
-      version: "2.3-STRIPE-FIX-MARCH-08-06:30",
+      version: "2.4-STRIPE-FIX-MARCH-08-07:00",
       firebaseAdminInitialized,
       config: {
         stripeSecret: !!process.env.STRIPE_SECRET_KEY,
@@ -178,7 +181,7 @@ async function startServer() {
 
   // API routes FIRST
   app.get("/api", (req, res) => {
-    res.json({ message: "RF Suite API is running", version: "2.3-STRIPE-FIX-MARCH-08-06:30" });
+    res.json({ message: "RF Suite API is running", version: "2.4-STRIPE-FIX-MARCH-08-07:00" });
   });
 
   app.get("/api/checkout-success", async (req, res) => {
