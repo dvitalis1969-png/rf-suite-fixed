@@ -241,11 +241,11 @@ const App: React.FC = () => {
                     }
                     setIsDbReady(true);
                 } else {
-                    setDbError("Database initialization failed. Please try refreshing or check your browser settings.");
+                    setDbError("Database initialization failed. This usually happens if you are in Private/Incognito mode or if the site's security certificate is still being verified. Please wait a few minutes and refresh.");
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Database initialization error:", error);
-                setDbError("Database initialization error. Please try refreshing or check your browser settings.");
+                setDbError(`Database initialization error: ${error?.message || String(error)}. This can be caused by browser security settings, Private/Incognito mode, or an unverified SSL certificate. Please try refreshing in a few minutes.`);
             }
         };
         init();
@@ -746,7 +746,7 @@ const App: React.FC = () => {
             />}
             
             <div className="fixed bottom-1 right-1 text-[10px] text-slate-600 opacity-50 pointer-events-none z-50">
-                v2.1-STRIPE-FIX-MARCH-07-20:22
+                v2.3-STRIPE-FIX-MARCH-08-06:30
             </div>
         </div>
     );

@@ -28,14 +28,28 @@ function initFirebaseAdmin() {
   if (!firebaseAdminInitialized) {
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (privateKey) {
+      // Remove quotes if present
+      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+        privateKey = privateKey.substring(1, privateKey.length - 1);
+      }
+      // Handle escaped newlines
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
 
     if (!projectId || !clientEmail || !privateKey) {
-      console.warn("Firebase Admin credentials not fully provided. Webhooks will fail.");
+      console.warn("Firebase Admin credentials missing:", { 
+        projectId: !!projectId, 
+        clientEmail: !!clientEmail, 
+        privateKey: !!privateKey 
+      });
       return;
     }
 
     try {
+      console.log("Initializing Firebase Admin with Project ID:", projectId);
       initializeApp({
         credential: cert({
           projectId,
@@ -44,8 +58,9 @@ function initFirebaseAdmin() {
         }),
       });
       firebaseAdminInitialized = true;
+      console.log("✅ Firebase Admin successfully initialized");
     } catch (err) {
-      console.error("Firebase Admin initialization error:", err);
+      console.error("❌ Firebase Admin initialization error:", err);
     }
   }
 }
@@ -53,6 +68,30 @@ function initFirebaseAdmin() {
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+
+  // Global middleware
+  app.use((req, res, next) => {
+    res.setHeader('X-App-Version', '2.3-STRIPE-FIX-MARCH-08-06:30');
+    if (req.url.includes('/api/health')) {
+      console.log(`[Health Check] Request for ${req.url} from ${req.ip}`);
+    }
+    next();
+  });
+
+  // Health check at the VERY top
+  app.get(["/api/health", "/api/healt", "/health"], (req, res) => {
+    res.json({ 
+      status: "ok",
+      version: "2.3-STRIPE-FIX-MARCH-08-06:30",
+      firebaseAdminInitialized,
+      config: {
+        stripeSecret: !!process.env.STRIPE_SECRET_KEY,
+        stripePublishable: !!process.env.VITE_STRIPE_PUBLISHABLE_KEY,
+        stripeWebhook: !!process.env.STRIPE_WEBHOOK_SECRET,
+        firebaseAdmin: !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY)
+      }
+    });
+  });
 
   // Enable CORS for all routes
   app.use((req, res, next) => {
@@ -138,16 +177,24 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true }));
 
   // API routes FIRST
+  app.get("/api", (req, res) => {
+    res.json({ message: "RF Suite API is running", version: "2.3-STRIPE-FIX-MARCH-08-06:30" });
+  });
+
   app.get("/api/checkout-success", async (req, res) => {
     const sessionId = req.query.session_id as string;
+    console.log(`[Success Route] Received session_id: ${sessionId}`);
+    
     if (sessionId) {
       try {
         initFirebaseAdmin();
         const stripe = getStripe();
+        console.log(`[Success Route] Retrieving Stripe session...`);
         const session = await stripe.checkout.sessions.retrieve(sessionId, {
           expand: ['line_items.data.price.product'],
         });
         const userId = session.client_reference_id;
+        console.log(`[Success Route] Session retrieved. UserID: ${userId}, FirebaseReady: ${firebaseAdminInitialized}`);
         
         if (userId && firebaseAdminInitialized) {
           const db = getFirestore();
@@ -165,10 +212,14 @@ async function startServer() {
           if (session.customer) updateData.stripeCustomerId = session.customer;
           if (session.subscription) updateData.stripeSubscriptionId = session.subscription;
           
+          console.log(`[Success Route] Updating Firestore for user ${userId}...`, updateData);
           await db.collection('users').doc(userId).set(updateData, { merge: true });
+          console.log(`[Success Route] ✅ Firestore update successful`);
+        } else {
+          console.warn(`[Success Route] ⚠️ Skipping Firestore update: userId=${userId}, firebaseAdminInitialized=${firebaseAdminInitialized}`);
         }
       } catch (err) {
-        console.error("Error verifying session on success route:", err);
+        console.error("[Success Route] ❌ Error verifying session on success route:", err);
       }
     }
 
@@ -185,22 +236,22 @@ async function startServer() {
 
   app.post("/api/create-checkout-session", async (req, res) => {
     try {
-      console.log("Creating checkout session...");
+      console.log("[Checkout] Creating session request received");
       const stripe = getStripe();
       const { priceId, userId, email, returnUrl } = req.body;
       
-      console.log("Request params:", { priceId, userId, email, returnUrl });
+      console.log("[Checkout] Params:", { priceId, userId, email, returnUrl });
 
       if (!priceId || !userId || !email || !returnUrl) {
-        console.error("Missing required parameters for checkout session");
+        console.error("[Checkout] ❌ Missing required parameters");
         return res.status(400).json({ error: "Missing required parameters" });
       }
 
       // Fetch the price to determine if it's recurring or one-time
-      console.log("Retrieving price details for:", priceId);
+      console.log("[Checkout] Retrieving price details for:", priceId);
       const price = await stripe.prices.retrieve(priceId);
       const mode = price.type === 'recurring' ? 'subscription' : 'payment';
-      console.log("Price mode:", mode);
+      console.log("[Checkout] Price mode determined:", mode);
       
       const session = await stripe.checkout.sessions.create({
         mode: mode,
@@ -217,15 +268,10 @@ async function startServer() {
         customer_email: email,
       });
 
-      console.log("Checkout session created:", session.id);
+      console.log("[Checkout] ✅ Session created successfully:", session.id);
       res.json({ url: session.url });
     } catch (err: any) {
-      console.error("Stripe session creation failed:", {
-        message: err.message,
-        type: err.type,
-        code: err.code,
-        param: err.param
-      });
+      console.error("[Checkout] ❌ Stripe session creation failed:", err.message);
       res.status(500).json({ 
         error: err.message,
         details: process.env.NODE_ENV !== 'production' ? err : undefined
@@ -248,19 +294,6 @@ async function startServer() {
       console.error("Stripe portal error:", err);
       res.status(500).json({ error: err.message });
     }
-  });
-
-  app.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok",
-      version: "2.1-STRIPE-FIX-MARCH-07-20:22",
-      config: {
-        stripeSecret: !!process.env.STRIPE_SECRET_KEY,
-        stripePublishable: !!process.env.VITE_STRIPE_PUBLISHABLE_KEY,
-        stripeWebhook: !!process.env.STRIPE_WEBHOOK_SECRET,
-        firebaseAdmin: !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY)
-      }
-    });
   });
 
   app.get("/api/backup-json", (req, res) => {

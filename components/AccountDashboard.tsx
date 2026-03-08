@@ -9,9 +9,10 @@ interface AccountDashboardProps {
     onLogout: () => void;
     onUpgrade: (tier: string) => void;
     onLoadProject?: (project: any) => void;
+    onRefreshUser?: () => void;
 }
 
-const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLogout, onUpgrade, onLoadProject }) => {
+const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLogout, onUpgrade, onLoadProject, onRefreshUser }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'security' | 'projects'>('profile');
     const [isLoading, setIsLoading] = useState(false);
     const [lastError, setLastError] = useState<string | null>(null);
@@ -105,7 +106,7 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
 
     // Use relative path for API calls - this works on both localhost and Render automatically
     const API_BASE = ''; 
-    const APP_VERSION = "2.1-STRIPE-FIX-MARCH-07-20:22"; // Version indicator to verify deployment
+    const APP_VERSION = "2.3-STRIPE-FIX-MARCH-08-06:30"; // Version indicator to verify deployment
 
     const handleSubscribe = async (priceId: string) => {
         const targetUrl = `${API_BASE}/api/create-checkout-session`;
@@ -274,7 +275,10 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                                             <div className="flex items-center space-x-3">
                                                 <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20 uppercase tracking-widest">v{APP_VERSION}</span>
                                                 <button 
-                                                    onClick={fetchLatestUser}
+                                                    onClick={() => {
+                                                        fetchLatestUser();
+                                                        if (onRefreshUser) onRefreshUser();
+                                                    }}
                                                     className="text-[9px] font-black text-indigo-400 hover:text-indigo-300 uppercase tracking-widest transition-all"
                                                 >
                                                     Refresh Status
