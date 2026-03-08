@@ -106,7 +106,7 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
 
     // Use relative path for API calls - this works on both localhost and Render automatically
     const API_BASE = ''; 
-    const APP_VERSION = "2.5-STABLE-MARCH-08-08:00"; // Version indicator to verify deployment
+    const APP_VERSION = "2.5-STABLE-MARCH-08-11:50"; // Version indicator to verify deployment
 
     const handleSubscribe = async (priceId: string) => {
         const targetUrl = `${API_BASE}/api/create-checkout-session`;

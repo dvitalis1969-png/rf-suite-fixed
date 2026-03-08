@@ -748,7 +748,7 @@ const App: React.FC = () => {
             />}
             
             <div className="fixed bottom-1 right-1 text-[10px] text-slate-600 opacity-50 pointer-events-none z-50">
-                v2.5-STABLE-MARCH-08-08:00
+                v2.5-STABLE-MARCH-08-11:50
             </div>
         </div>
     );
