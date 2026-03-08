@@ -79,7 +79,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
             {/* Version Banner - Sticky and High Contrast */}
             <div className="sticky top-0 bg-yellow-400 text-black text-[12px] font-black uppercase tracking-[0.2em] py-3 text-center z-[100] shadow-xl border-b border-black/10">
-                🚀 VERSION 2.1-STRIPE-FIX - BUILD: MARCH-07-20:22
+                🚀 VERSION 2.4-STRIPE-FIX - BUILD: MARCH-08-07:00
             </div>
 
             <div className="relative z-10">
@@ -89,7 +89,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-xl shadow-[0_0_20px_rgba(79,70,229,0.4)]">📡</div>
                         <div className="flex flex-col">
                             <span className="text-xl font-black uppercase tracking-[0.3em] text-white">RF SUITE</span>
-                            <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">Version 2.1 - Payment Fix Active</span>
+                            <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">Version 2.4 - Payment Fix Active</span>
                         </div>
                     </div>
                     <div className="hidden md:flex items-center gap-10">
@@ -198,7 +198,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                         </div>
                     </div>
                     <div className="flex gap-8">
-                        <span className="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em]">V2.5.0 STABLE</span>
+                        <span className="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em]">V2.4.0 STABLE</span>
                         <a href="#" className="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] hover:text-slate-400 transition-colors">Privacy</a>
                         <a href="#" className="text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] hover:text-slate-400 transition-colors">Terms</a>
                     </div>
