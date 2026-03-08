@@ -273,7 +273,9 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                                         <div className="flex items-center justify-between">
                                             <h4 className="text-xl font-black text-white uppercase tracking-wider">{currentUser?.name || 'User'}</h4>
                                             <div className="flex items-center space-x-3">
-                                                <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20 uppercase tracking-widest">v{APP_VERSION}</span>
+                                                {currentUser?.email === 'dvitalis1969@gmail.com' && (
+                                                    <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20 uppercase tracking-widest">v{APP_VERSION}</span>
+                                                )}
                                                 <button 
                                                     onClick={() => {
                                                         fetchLatestUser();
@@ -297,45 +299,49 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Member Since</p>
                                         <p className="text-white font-bold">Today</p>
                                     </div>
-                                    <div className="p-6 bg-slate-950 border border-white/5 rounded-3xl">
-                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">System Status</p>
-                                        <div className="flex gap-2 mt-1">
-                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${configStatus.stripe ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                Stripe: {configStatus.stripe ? 'Ready' : 'Not Set'}
-                                            </span>
-                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${configStatus.firebase ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                Firebase: {configStatus.firebase ? 'Ready' : 'Not Set'}
-                                            </span>
-                                        </div>
-                                        {lastError && currentUser?.email === 'dvitalis1969@gmail.com' && (
-                                            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                                                <p className="text-[8px] font-black text-red-400 uppercase tracking-widest mb-1">Last Error (Admin Only)</p>
-                                                <p className="text-[10px] text-red-300 font-mono break-all">{lastError}</p>
+                                    {currentUser?.email === 'dvitalis1969@gmail.com' && (
+                                        <div className="p-6 bg-slate-950 border border-white/5 rounded-3xl">
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">System Status</p>
+                                            <div className="flex gap-2 mt-1">
+                                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${configStatus.stripe ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                    Stripe: {configStatus.stripe ? 'Ready' : 'Not Set'}
+                                                </span>
+                                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${configStatus.firebase ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                    Firebase: {configStatus.firebase ? 'Ready' : 'Not Set'}
+                                                </span>
                                             </div>
-                                        )}
-                                    </div>
+                                            {lastError && (
+                                                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                                                    <p className="text-[8px] font-black text-red-400 uppercase tracking-widest mb-1">Last Error (Admin Only)</p>
+                                                    <p className="text-[10px] text-red-300 font-mono break-all">{lastError}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 
-                                <div className="p-6 bg-indigo-600/10 border border-indigo-600/20 rounded-3xl">
-                                    <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4">Test & Debug Tools</h4>
-                                    <div className="flex flex-wrap gap-3">
-                                        <button 
-                                            onClick={() => simulateSubscription('48 Hour Pass')}
-                                            className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-600/30 rounded-xl text-[9px] font-black text-white uppercase tracking-widest transition-all"
-                                        >
-                                            Simulate 48h Pass
-                                        </button>
-                                        <button 
-                                            onClick={() => simulateSubscription('1 Month Pro')}
-                                            className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-600/30 rounded-xl text-[9px] font-black text-white uppercase tracking-widest transition-all"
-                                        >
-                                            Simulate Pro Month
-                                        </button>
+                                {currentUser?.email === 'dvitalis1969@gmail.com' && (
+                                    <div className="p-6 bg-indigo-600/10 border border-indigo-600/20 rounded-3xl">
+                                        <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4">Test & Debug Tools</h4>
+                                        <div className="flex flex-wrap gap-3">
+                                            <button 
+                                                onClick={() => simulateSubscription('48 Hour Pass')}
+                                                className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-600/30 rounded-xl text-[9px] font-black text-white uppercase tracking-widest transition-all"
+                                            >
+                                                Simulate 48h Pass
+                                            </button>
+                                            <button 
+                                                onClick={() => simulateSubscription('1 Month Pro')}
+                                                className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-600/30 rounded-xl text-[9px] font-black text-white uppercase tracking-widest transition-all"
+                                            >
+                                                Simulate Pro Month
+                                            </button>
+                                        </div>
+                                        <p className="mt-3 text-[9px] text-slate-500 font-medium italic">
+                                            * These buttons bypass Stripe for testing the membership logic in Firestore.
+                                        </p>
                                     </div>
-                                    <p className="mt-3 text-[9px] text-slate-500 font-medium italic">
-                                        * These buttons bypass Stripe for testing the membership logic in Firestore.
-                                    </p>
-                                </div>
+                                )}
                             </div>
                         </div>
                     )}
