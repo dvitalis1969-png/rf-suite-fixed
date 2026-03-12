@@ -7,6 +7,7 @@ import { generateFestivalPlan, generateConstantFrequencies, generateHouseSystems
 import { EQUIPMENT_DATABASE, COMPATIBILITY_PROFILES, UK_TV_CHANNELS, US_TV_CHANNELS, WMAS_PRESET_PROFILES } from '../constants';
 import Card, { CardTitle } from './Card';
 import SpectrumVisualizer from './SpectrumVisualizer';
+import LiveScanAnalyzer from './LiveScanAnalyzer';
 
 // Helper to parse dates in multiple formats, specifically handling DD/MM/YYYY
 const parseFlexibleDate = (dateStr: string): Date => {
@@ -44,20 +45,22 @@ interface FestivalCoordinationTabProps {
     compatibilityMatrix: boolean[][];
     setCompatibilityMatrix: React.Dispatch<React.SetStateAction<boolean[][]>>;
     scanData: ScanDataPoint[] | null;
+    setScanData?: (data: ScanDataPoint[] | null) => void;
     siteMapState: SiteMapState;
     equipmentOverrides?: Record<string, Partial<Thresholds>>;
     tvChannelStates: Record<number, TVChannelState>;
     setTvChannelStates: (states: Record<number, TVChannelState>) => void;
+    onSimulateScan?: () => void;
     wmasState?: WMASState;
 }
 
 const buttonBase = "px-4 py-2 rounded-lg font-semibold uppercase tracking-wide transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-[10px]";
-const primaryButton = `bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-b-4 border-blue-800 hover:border-blue-700 hover:brightness-110 ${buttonBase}`;
-const generateButton = `bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 border-b-4 border-amber-700 hover:border-amber-600 hover:brightness-110 shadow-[0_0_20px_rgba(245,158,11,0.2)] ${buttonBase}`;
-const secondaryButton = `bg-slate-700 text-slate-200 border-b-4 border-slate-900 hover:border-slate-800 hover:bg-slate-600 ${buttonBase}`;
-const greenButton = `bg-green-500 text-white border-b-4 border-green-700 hover:bg-green-400 hover:border-green-600 ${buttonBase}`;
-const actionButton = `bg-cyan-600/80 text-white border-b-4 border-cyan-800 hover:border-cyan-700 hover:bg-cyan-600 ${buttonBase}`;
-const yellowButton = `bg-yellow-400 text-slate-950 border-b-4 border-yellow-700 hover:border-yellow-300 hover:border-yellow-600 shadow-[0_4px_12px_rgba(234,179,8,0.3)] ${buttonBase}`;
+const primaryButton = `bg-slate-700 text-slate-200 border-b-4 border-slate-900 hover:bg-slate-600 ${buttonBase}`;
+const generateButton = `bg-amber-900/40 text-amber-200 border-b-4 border-amber-950 hover:bg-amber-900/60 ${buttonBase}`;
+const secondaryButton = `bg-slate-800 text-slate-400 border-b-4 border-slate-950 hover:bg-slate-700 ${buttonBase}`;
+const greenButton = `bg-emerald-900/40 text-emerald-200 border-b-4 border-emerald-950 hover:bg-emerald-900/60 ${buttonBase}`;
+const actionButton = `bg-slate-700 text-slate-300 border-b-4 border-slate-900 hover:bg-slate-600 ${buttonBase}`;
+const yellowButton = `bg-yellow-900/40 text-yellow-200 border-b-4 border-yellow-950 hover:bg-yellow-900/60 ${buttonBase}`;
 
 const ensureValidDate = (d: any): Date => {
     const parsed = new Date(d);
@@ -175,7 +178,7 @@ const RequestManager: React.FC<{
     return (
         <div className="space-y-3">
             <div className="flex justify-between items-center mb-1 px-1">
-                <h5 className={`text-[10px] font-black uppercase tracking-widest ${type === 'mic' ? 'text-emerald-400' : 'text-rose-400'}`}>{title} Box</h5>
+                <h5 className={`text-[10px] font-black uppercase tracking-widest ${type === 'mic' ? 'text-emerald-400' : 'text-rose-400'}`}>{title}</h5>
                 <button onClick={handleAdd} className={`text-[9px] px-2 py-0.5 rounded font-bold transition-all border ${type === 'mic' ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-600' : 'bg-rose-600/20 text-rose-300 border-rose-500/30 hover:bg-rose-600'} hover:text-white`}>+ Add</button>
             </div>
             <div className="space-y-2">
@@ -769,8 +772,8 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     zoneConfigs, setZoneConfigs, numZones, setNumZones, distances, setDistances,
     initialThresholds, customEquipment, compatibilityMatrix, 
     setCompatibilityMatrix,
-    scanData, siteMapState, equipmentOverrides = {},
-    tvChannelStates: initialTvStates = {}, setTvChannelStates, wmasState
+    scanData, setScanData, siteMapState, equipmentOverrides = {},
+    tvChannelStates: initialTvStates = {}, setTvChannelStates, onSimulateScan, wmasState
 }) => {
     const [activeSubTab, setActiveSubTab] = useState<'acts' | 'constant' | 'house'>('acts');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -787,6 +790,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
     const [numZonesInput, setNumZonesInput] = useState(numZones.toString());
     const [isConverterOpen, setIsConverterOpen] = useState(false);
+    const [exclusionThreshold, setExclusionThreshold] = useState(-85);
     
     // Global Distance State
     const [globalDistInput, setGlobalDistInput] = useState<string>("150");
@@ -801,6 +805,33 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     useEffect(() => {
         setNumZonesInput(numZones.toString());
     }, [numZones]);
+
+    // Automatically block TV channels based on exclusion threshold and scan data (Sticky Blocks)
+    useEffect(() => {
+        if (!scanData) return;
+        const channelMap = tvRegion === 'uk' ? UK_TV_CHANNELS : US_TV_CHANNELS;
+        
+        const nextStates = { ...tvStates };
+        let changed = false;
+
+        Object.entries(channelMap).forEach(([chStr, [start, end]]) => {
+            const ch = parseInt(chStr);
+            const chData = scanData.filter(p => p.freq >= start && p.freq <= end);
+            if (chData.length > 0) {
+                const maxChAmp = Math.max(...chData.map(p => p.amp));
+                if (maxChAmp > exclusionThreshold) {
+                    if (nextStates[ch] !== 'blocked') {
+                        nextStates[ch] = 'blocked';
+                        changed = true;
+                    }
+                }
+            }
+        });
+
+        if (changed) {
+            setTvStates(nextStates);
+        }
+    }, [scanData, exclusionThreshold, tvRegion, tvStates]);
 
     // Automatic synchronization between zoneConfigs (Topology) and the Constant/House system gear ledgers.
     useEffect(() => {
@@ -1276,43 +1307,43 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 />
             )}
             
-            <div className={`fixed bottom-4 right-4 z-[100] w-[calc(100vw-2rem)] sm:w-[340px] md:w-[400px] transition-all duration-500 transform ${isGenerating ? 'scale-95' : 'scale-100'}`}>
-                <div className={`bg-slate-950/95 backdrop-blur-3xl border-2 shadow-[0_40px_120px_rgba(0,0,0,0.7)] rounded-2xl overflow-y-auto transition-all duration-300 ${isHudMinimized ? 'h-14' : 'h-auto max-h-[850px] md:max-h-[85vh]'} custom-scrollbar`} style={{ borderColor: optimizationReport ? (optimizationReport.shortfall === 0 ? '#10b981' : '#ef4444') : '#3b82f6' }}>
-                    <div className={`sticky top-0 z-[110] flex items-center justify-between p-3.5 cursor-pointer select-none border-b border-white/10 ${optimizationReport ? (optimizationReport.shortfall === 0 ? 'bg-emerald-500/20' : 'bg-red-500/20') : 'bg-blue-600/20'}`} onClick={() => setIsHudMinimized(!isHudMinimized)}>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-sm ${isGenerating ? 'animate-spin' : ''}`}>{isGenerating ? '⚙️' : (optimizationReport ? (optimizationReport.shortfall === 0 ? '✅' : '👨‍🔧') : '📊')}</span>
-                            <h5 className="text-[10px] font-black uppercase tracking-[0.15em] text-white">Festival Command Center</h5>
+            <div className={`fixed bottom-4 right-4 z-[100] w-[calc(100vw-2rem)] sm:w-[240px] md:w-[260px] transition-all duration-500 transform ${isGenerating ? 'scale-95' : 'scale-100'}`}>
+                <div className={`bg-slate-950/95 backdrop-blur-3xl border-2 shadow-[0_40px_120px_rgba(0,0,0,0.7)] rounded-xl overflow-y-auto transition-all duration-300 ${isHudMinimized ? 'h-10' : 'h-auto max-h-[400px] md:max-h-[50vh]'} custom-scrollbar`} style={{ borderColor: optimizationReport ? (optimizationReport.shortfall === 0 ? '#10b981' : '#ef4444') : '#3b82f6' }}>
+                    <div className={`sticky top-0 z-[110] flex items-center justify-between p-2 cursor-pointer select-none border-b border-white/10 ${optimizationReport ? (optimizationReport.shortfall === 0 ? 'bg-emerald-500/20' : 'bg-red-500/20') : 'bg-blue-600/20'}`} onClick={() => setIsHudMinimized(!isHudMinimized)}>
+                        <div className="flex items-center gap-1.5">
+                            <span className={`text-xs ${isGenerating ? 'animate-spin' : ''}`}>{isGenerating ? '⚙️' : (optimizationReport ? (optimizationReport.shortfall === 0 ? '✅' : '👨‍🔧') : '📊')}</span>
+                            <h5 className="text-[9px] font-black uppercase tracking-[0.1em] text-white">Command Center</h5>
                         </div>
-                        <div className="flex items-center gap-2">
-                            {optimizationReport && <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${optimizationReport.shortfall === 0 ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>{optimizationReport.found}/{optimizationReport.requested} OK</span>}
-                            <button className="text-white opacity-60 hover:opacity-100 text-xl leading-none transition-opacity">{isHudMinimized ? '↑' : '↓'}</button>
+                        <div className="flex items-center gap-1.5">
+                            {optimizationReport && <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm ${optimizationReport.shortfall === 0 ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>{optimizationReport.found}/{optimizationReport.requested} OK</span>}
+                            <button className="text-white opacity-60 hover:opacity-100 text-lg leading-none transition-opacity">{isHudMinimized ? '↑' : '↓'}</button>
                         </div>
                     </div>
                     {!isHudMinimized && (
-                        <div className="p-4 space-y-4 overflow-y-visible">
-                            <button onClick={handleGenerate} disabled={isGenerating} className={`${generateButton} w-full !py-4 !text-xs !rounded-xl flex items-center justify-center gap-3 shadow-[0_10px_30px_rgba(245,158,11,0.3)] ring-1 ring-amber-400/30`}>{isGenerating ? <><span className="w-4 h-4 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING SITE...</> : 'GENERATE SITE PLAN'}</button>
+                        <div className="p-2 space-y-2 overflow-y-visible">
+                            <button onClick={handleGenerate} disabled={isGenerating} className={`${generateButton} w-full !py-1.5 !text-[9px] !rounded-lg flex items-center justify-center gap-1.5 shadow-[0_5px_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-400/30`}>{isGenerating ? <><span className="w-3 h-3 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING...</> : 'GENERATE PLAN'}</button>
                             
                             {isGenerating && (
-                                <div className="space-y-2 p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20 animate-in fade-in duration-300">
-                                    <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-indigo-300">
-                                        <span>Engine Progress</span>
+                                <div className="space-y-1.5 p-1.5 bg-indigo-500/10 rounded-lg border border-indigo-500/20 animate-in fade-in duration-300">
+                                    <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest text-indigo-300">
+                                        <span>Progress</span>
                                         <span className="font-mono">{Math.round((progress.processed / (progress.totalRequested || 1)) * 100)}%</span>
                                     </div>
-                                    <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-white/5 shadow-inner">
+                                    <div className="h-1 bg-slate-950 rounded-full overflow-hidden border border-white/5 shadow-inner">
                                         <div 
                                             className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300" 
                                             style={{ width: `${(progress.processed / (progress.totalRequested || 1)) * 100}%` }}
                                         />
                                     </div>
-                                    <p className="text-[7px] text-slate-500 uppercase font-black text-center tracking-tighter">
-                                        {progress.status || `Patching ${progress.processed} of ${progress.totalRequested} channels...`}
+                                    <p className="text-[6px] text-slate-500 uppercase font-black text-center tracking-tighter">
+                                        {progress.status || `Patching ${progress.processed}/${progress.totalRequested}...`}
                                     </p>
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-2">
-                                <button onClick={() => handleLockAllSite(!anyFrequenciesLocked)} className={`${greenButton} !py-2.5 !text-[9px] !rounded-xl flex items-center justify-center gap-2`}><span className="text-xs">{anyFrequenciesLocked ? '🔓' : '🔒'}</span>{anyFrequenciesLocked ? 'UNLOCK ALL SITE' : 'LOCK ALL SITE'}</button>
-                                <button onClick={() => setShowTabulation(!showTabulation)} className={`${greenButton} !py-2.5 !text-[9px] !rounded-xl flex items-center justify-center gap-2`}><span className="text-xs">📋</span> TABULATE PLAN</button>
+                            <div className="grid grid-cols-2 gap-1.5">
+                                <button onClick={() => handleLockAllSite(!anyFrequenciesLocked)} className={`${greenButton} !py-1 !text-[8px] !rounded-lg flex items-center justify-center gap-1`}><span className="text-[10px]">{anyFrequenciesLocked ? '🔓' : '🔒'}</span>{anyFrequenciesLocked ? 'UNLOCK ALL' : 'LOCK ALL'}</button>
+                                <button onClick={() => setShowTabulation(!showTabulation)} className={`${greenButton} !py-1 !text-[8px] !rounded-lg flex items-center justify-center gap-1`}><span className="text-[10px]">📋</span> TABULATE</button>
                             </div>
                         </div>
                     )}
@@ -1497,6 +1528,25 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 </div>
             </Card>
 
+            <LiveScanAnalyzer 
+                scanData={scanData}
+                tvRegion={tvRegion}
+                tvChannelStates={tvStates}
+                onBlockChannel={(ch, state) => {
+                    const next = { ...tvStates, [ch]: state };
+                    setTvStates(next);
+                    setTvChannelStates(next);
+                }}
+                onBulkUpdateChannels={(updates) => {
+                    setTvStates(updates);
+                    setTvChannelStates(updates);
+                }}
+                onSimulate={onSimulateScan || (() => {})}
+                onScanDataUpdate={setScanData}
+                threshold={exclusionThreshold}
+                onThresholdChange={setExclusionThreshold}
+            />
+
             {showTabulation && (
                 <Card className="!bg-black/40 border-cyan-500/30 shadow-[0_0_50px_rgba(34,211,238,0.1)] relative z-20 animate-in fade-in slide-in-from-top-2 duration-300">
                     <div className="flex justify-between items-center mb-4">
@@ -1582,9 +1632,9 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
             {activeSubTab === 'acts' && (
                 <div className="space-y-4 mt-4">
                     <div className="flex gap-2">
-                        <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className={`${yellowButton} flex-1`}>+ Add Act</button>
-                        <button onClick={() => fileInputRef.current?.click()} className={`${actionButton} flex-1`}>Import CSV</button>
-                        <button onClick={() => setIsConverterOpen(true)} className={`${actionButton} flex-1 !bg-indigo-600 border-indigo-400`}>🧮 EXCEL CONVERTER</button>
+                        <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className={`${actionButton} flex-1`}>+ Add Act</button>
+                        <button onClick={() => fileInputRef.current?.click()} className={`flex-1 px-4 py-2.5 bg-slate-800 text-slate-400 border-b-4 border-slate-950 hover:bg-slate-700 ${buttonBase}`}>Import CSV</button>
+                        <button onClick={() => setIsConverterOpen(true)} className={`${actionButton} flex-1`}>🧮 EXCEL CONVERTER</button>
                         <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={e => {
                                 const file = e.target.files?.[0]; if (!file) return;
                                 const r = new FileReader(); r.onload = () => {
@@ -1616,13 +1666,13 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                         <div className="flex gap-2 w-full md:w-auto">
                             <button 
                                 onClick={handleAddGlobalMics}
-                                className="flex-1 md:flex-none px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-lg font-black uppercase tracking-widest text-[9px] border-b-4 border-emerald-800 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                                className="flex-1 md:flex-none px-4 py-2.5 bg-emerald-600/20 text-white border-emerald-500/30 hover:bg-emerald-600 rounded-lg font-black uppercase tracking-widest text-[9px] border transition-all flex items-center justify-center gap-2"
                             >
                                 <span className="text-xs">🎤</span> + ADD 1x MIC SLOT TO ALL ACTS
                             </button>
                             <button 
                                 onClick={handleAddGlobalIems}
-                                className="flex-1 md:flex-none px-4 py-2.5 bg-gradient-to-r from-rose-600 to-pink-500 hover:from-rose-500 hover:to-pink-400 text-white rounded-lg font-black uppercase tracking-widest text-[9px] border-b-4 border-rose-800 shadow-lg shadow-rose-900/20 transition-all flex items-center justify-center gap-2"
+                                className="flex-1 md:flex-none px-4 py-2.5 bg-rose-600/20 text-white border-rose-500/30 hover:bg-rose-600 rounded-lg font-black uppercase tracking-widest text-[9px] border transition-all flex items-center justify-center gap-2"
                             >
                                 <span className="text-xs">🎧</span> + ADD 1x IEM SLOT TO ALL ACTS
                             </button>
@@ -1731,11 +1781,11 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
-                                    <RequestManager title="Stage Mics" type="mic" requests={act.micRequests} onUpdate={(reqs) => setFestivalActs(prev => prev.map(a => a.id === act.id ? { ...a, micRequests: reqs } : a))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
+                                    <RequestManager title="Wireless Microphones" type="mic" requests={act.micRequests} onUpdate={(reqs) => setFestivalActs(prev => prev.map(a => a.id === act.id ? { ...a, micRequests: reqs } : a))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
                                     <FrequencyGrid frequencies={act.frequencies?.filter(f => f.type !== 'iem')} onToggleLock={id => handleFreqAction(act.id, id, 'lock')} onRemove={id => handleFreqAction(act.id, id, 'remove')} onValueChange={(id, v) => handleFreqAction(act.id, id, 'value', v)} onLabelChange={(id, v) => handleFreqAction(act.id, id, 'label', v)} onTypeChange={(id, v) => handleFreqAction(act.id, id, 'type', v)} />
                                 </div>
                                 <div className="p-3 bg-rose-500/5 rounded-xl border border-rose-500/20">
-                                    <RequestManager title="Monitoring" type="iem" requests={act.iemRequests} onUpdate={(reqs) => setFestivalActs(prev => prev.map(a => a.id === act.id ? { ...a, iemRequests: reqs } : a))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
+                                    <RequestManager title="In Ear Monitors" type="iem" requests={act.iemRequests} onUpdate={(reqs) => setFestivalActs(prev => prev.map(a => a.id === act.id ? { ...a, iemRequests: reqs } : a))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
                                     <FrequencyGrid frequencies={act.frequencies?.filter(f => f.type === 'iem')} onToggleLock={id => handleFreqAction(act.id, id, 'lock')} onRemove={id => handleFreqAction(act.id, id, 'remove')} onValueChange={(id, v) => handleFreqAction(act.id, id, 'value', v)} onLabelChange={(id, v) => handleFreqAction(act.id, id, 'label', v)} onTypeChange={(id, v) => handleFreqAction(act.id, id, 'type', v)} />
                                 </div>
                             </div>
@@ -1751,7 +1801,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                             <h4 className="font-bold text-indigo-400 mb-4 border-b border-white/5 pb-1 uppercase text-xs tracking-widest">{sys.stageName} - Static Gear</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
-                                    <RequestManager title="Constant Mics" type="mic" requests={sys.micRequests} onUpdate={(reqs) => setConstantSystems(prev => prev.map((s, i) => i === idx ? { ...s, micRequests: reqs } : s))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
+                                    <RequestManager title="Constant Tx Microphones" type="mic" requests={sys.micRequests} onUpdate={(reqs) => setConstantSystems(prev => prev.map((s, i) => i === idx ? { ...s, micRequests: reqs } : s))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
                                     <FrequencyGrid 
                                         frequencies={sys.frequencies?.filter(f => f.type === 'mic' || f.type === 'generic' || !f.type)} 
                                         onToggleLock={id => setConstantSystems(prev => prev.map((s, i) => i === idx ? { ...s, frequencies: s.frequencies?.map(f => f.id === id ? { ...f, locked: !f.locked } : f) } : s))}
@@ -1762,7 +1812,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                     />
                                 </div>
                                 <div className="p-3 bg-rose-500/5 rounded-xl border border-rose-500/20">
-                                    <RequestManager title="Monitoring" type="iem" requests={sys.iemRequests} onUpdate={(reqs) => setConstantSystems(prev => prev.map((s, i) => i === idx ? { ...s, iemRequests: reqs } : s))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
+                                    <RequestManager title="Constant Tx IEMs" type="iem" requests={sys.iemRequests} onUpdate={(reqs) => setConstantSystems(prev => prev.map((s, i) => i === idx ? { ...s, iemRequests: reqs } : s))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
                                     <FrequencyGrid 
                                         frequencies={sys.frequencies?.filter(f => f.type === 'iem')} 
                                         onToggleLock={id => setConstantSystems(prev => prev.map((s, i) => i === idx ? { ...s, frequencies: s.frequencies?.map(f => f.id === id ? { ...f, locked: !f.locked } : f) } : s))}
@@ -1785,7 +1835,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                             <h4 className="font-bold text-yellow-400 mb-4 border-b border-white/5 pb-1 uppercase text-xs tracking-widest">{sys.stageName} - House Gear</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
-                                    <RequestManager title="House Mics" type="mic" requests={sys.micRequests} onUpdate={(reqs) => setHouseSystems(prev => prev.map((s, i) => i === idx ? { ...s, micRequests: reqs } : s))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
+                                    <RequestManager title="House Microphones" type="mic" requests={sys.micRequests} onUpdate={(reqs) => setHouseSystems(prev => prev.map((s, i) => i === idx ? { ...s, micRequests: reqs } : s))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
                                     <FrequencyGrid 
                                         frequencies={sys.frequencies?.filter(f => f.type === 'mic' || f.type === 'generic' || !f.type)} 
                                         onToggleLock={id => setHouseSystems(prev => prev.map((s, i) => i === idx ? { ...s, frequencies: s.frequencies?.map(f => f.id === id ? { ...f, locked: !f.locked } : f) } : s))}
@@ -1796,7 +1846,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                     />
                                 </div>
                                 <div className="p-3 bg-rose-500/5 rounded-xl border border-rose-500/20">
-                                    <RequestManager title="Monitoring" type="iem" requests={sys.iemRequests} onUpdate={(reqs) => setHouseSystems(prev => prev.map((s, i) => i === idx ? { ...s, iemRequests: reqs } : s))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
+                                    <RequestManager title="House IEMs" type="iem" requests={sys.iemRequests} onUpdate={(reqs) => setHouseSystems(prev => prev.map((s, i) => i === idx ? { ...s, iemRequests: reqs } : s))} db={fullEquipmentDatabase} overrides={equipmentOverrides} />
                                     <FrequencyGrid 
                                         frequencies={sys.frequencies?.filter(f => f.type === 'iem')} 
                                         onToggleLock={id => setHouseSystems(prev => prev.map((s, i) => i === idx ? { ...s, frequencies: s.frequencies?.map(f => f.id === id ? { ...f, locked: !f.locked } : f) } : s))}

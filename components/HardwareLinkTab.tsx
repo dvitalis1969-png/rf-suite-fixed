@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ScanDataPoint } from '../types';
 import Card, { CardTitle } from './Card';
-import { MockHardwareService } from '../services/mockHardwareService';
+import { requestSerialPort, connectToTinySA, readTinySAScan, SerialDevice } from '../services/serialService';
 
 interface HardwareLinkTabProps {
     setScanData: (data: ScanDataPoint[] | null) => void;
@@ -13,31 +13,48 @@ const HardwareLinkTab: React.FC<HardwareLinkTabProps> = ({ setScanData }) => {
     const [deviceInfo, setDeviceInfo] = useState<string | null>(null);
     const [status, setStatus] = useState('Ready to connect.');
     const [lastDataTimestamp, setLastDataTimestamp] = useState<Date | null>(null);
-
-    // This would be a real hardware service in a full implementation
-    const [hardwareService] = useState(() => new MockHardwareService());
+    const deviceRef = useRef<SerialDevice | null>(null);
+    const intervalRef = useRef<number | null>(null);
 
     useEffect(() => {
         // Cleanup on unmount
         return () => {
-            if (hardwareService.isConnected) {
-                hardwareService.disconnect();
-            }
+            handleDisconnect();
         };
-    }, [hardwareService]);
+    }, []);
 
     const handleConnect = async () => {
         setStatus('Connecting...');
         try {
-            // In a real app, this would use WebUSB: `await navigator.usb.requestDevice(...)`
-            const connectedDevice = await hardwareService.connect(data => {
-                setScanData(data);
-                setLastDataTimestamp(new Date());
-            });
+            const port = await requestSerialPort();
+            const device = await connectToTinySA(port);
+            deviceRef.current = device;
             
             setIsConnected(true);
-            setDeviceInfo(connectedDevice.productName);
-            setStatus(`Streaming data from ${connectedDevice.productName}.`);
+            setDeviceInfo("TinySA Connected");
+            setStatus(`Streaming data from TinySA.`);
+
+            // Use a recursive timeout instead of setInterval for async tasks
+            const streamLoop = async () => {
+                if (!deviceRef.current) return;
+                
+                try {
+                    const data = await readTinySAScan(deviceRef.current, 470, 700, 200);
+                    if (data && data.length > 0) {
+                        setScanData(data);
+                        setLastDataTimestamp(new Date());
+                    }
+                } catch (e) {
+                    console.error("Error reading data:", e);
+                    // Don't disconnect immediately on one error, maybe it's transient
+                }
+                
+                if (deviceRef.current) {
+                    intervalRef.current = window.setTimeout(streamLoop, 100);
+                }
+            };
+            
+            streamLoop();
 
         } catch (error: any) {
             console.error("Connection failed:", error);
@@ -48,18 +65,29 @@ const HardwareLinkTab: React.FC<HardwareLinkTabProps> = ({ setScanData }) => {
     };
 
     const handleDisconnect = () => {
-        hardwareService.disconnect();
+        if (intervalRef.current) {
+            clearTimeout(intervalRef.current);
+            intervalRef.current = null;
+        }
+        if (deviceRef.current) {
+            try {
+                // The reader/writer are now managed inside readTinySAScan
+                deviceRef.current.port.close();
+            } catch (e) {
+                console.error("Error during disconnect:", e);
+            }
+            deviceRef.current = null;
+        }
         setIsConnected(false);
         setDeviceInfo(null);
         setStatus('Disconnected. Scan data is paused.');
-        // We leave the last scan data in the app state intentionally
     };
 
     return (
         <Card fullWidth>
             <CardTitle>🔗 Hardware Analyzer Integration</CardTitle>
             <p className="text-slate-300 mb-6 text-sm">
-                Connect to a compatible hardware spectrum analyzer to view live RF data in the Spectrum and Waterfall tabs. This is currently a simulation.
+                Connect to a compatible hardware spectrum analyzer to view live RF data in the Spectrum and Waterfall tabs.
             </p>
             <div className="bg-slate-900/50 p-6 rounded-lg border border-indigo-500/30 max-w-lg mx-auto text-center">
                 <div className="mb-6">
@@ -83,7 +111,6 @@ const HardwareLinkTab: React.FC<HardwareLinkTabProps> = ({ setScanData }) => {
                 <div className="mt-6 border-t border-slate-700 pt-4 text-left text-xs text-slate-500 font-mono space-y-2">
                     <p>&gt; {status}</p>
                     {lastDataTimestamp && <p>&gt; Last data packet received: {lastDataTimestamp.toLocaleTimeString()}</p>}
-                    <p className="text-cyan-400/50">&gt; NOTE: This feature uses a mock hardware service to simulate a live data stream. In a real-world scenario, this would use the WebUSB API to connect to devices like an RF Explorer or TinySA.</p>
                 </div>
             </div>
         </Card>

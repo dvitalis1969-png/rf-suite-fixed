@@ -72,6 +72,7 @@ async function startServer() {
   // Global middleware
   app.use((req, res, next) => {
     res.setHeader('X-App-Version', '2.5-STABLE-MARCH-08-12:12');
+    res.setHeader('Permissions-Policy', 'serial=*');
     if (req.url.includes('/api/health')) {
       console.log(`[Health Check] Request for ${req.url} from ${req.ip}`);
     }

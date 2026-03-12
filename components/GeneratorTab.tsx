@@ -256,13 +256,18 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                     if (updated.manualThreeTone === undefined) updated.manualThreeTone = standardTh.threeTone;
                 }
 
-                if (field === 'key' && value !== 'custom') {
+                if (field === 'key') {
                     const profile = fullEquipmentDatabase[value as string];
                     if (profile) {
-                        updated.customMin = profile.minFreq.toFixed(3);
-                        updated.customMax = profile.maxFreq.toFixed(3);
+                        if (value !== 'custom') {
+                            updated.customMin = profile.minFreq.toFixed(3);
+                            updated.customMax = profile.maxFreq.toFixed(3);
+                        }
                         if (profile.recommendedThresholds?.threeTone !== 0) {
                             updated.linearMode = false;
+                        }
+                        if (profile.type) {
+                            updated.type = profile.type;
                         }
                     }
                 }
@@ -329,6 +334,7 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                 manualFundamental: req.useManualParams ? Number(req.manualFundamental) : undefined,
                 manualTwoTone: req.useManualParams ? Number(req.manualTwoTone) : undefined,
                 manualThreeTone: req.useManualParams ? Number(req.manualThreeTone) : undefined,
+                type: req.type,
             }
         });
 
@@ -390,6 +396,16 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
         }, {} as Record<string, Frequency[]>);
         return { manual, allocations };
     }, [generatedFrequencies]);
+
+    const handleLockAll = () => {
+        if (!generatedFrequencies) return;
+        setGeneratorFrequencies(generatedFrequencies.map(f => ({ ...f, locked: true })));
+    };
+
+    const handleUnlockAll = () => {
+        if (!generatedFrequencies) return;
+        setGeneratorFrequencies(generatedFrequencies.map(f => ({ ...f, locked: false })));
+    };
 
     const handleLockToggle = (id: string) => {
         setGeneratorFrequencies(
@@ -461,16 +477,16 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                             <CardTitle className="!mb-0">✍️ Existing Site Frequencies</CardTitle>
                             <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Manual Constraints & Protected Channels</p>
                         </div>
-                        <label className="flex items-center gap-3 cursor-pointer p-2 bg-rose-500/10 rounded-lg border border-rose-500/20">
+                        <label className="flex items-center gap-3 cursor-pointer p-2 bg-green-500/10 rounded-lg border border-green-500/20">
                             <input 
                                 type="checkbox" 
                                 checked={ignoreManualIMD} 
                                 onChange={e => setIgnoreManualIMD(e.target.checked)} 
-                                className="w-4 h-4 rounded accent-rose-500" 
+                                className="w-4 h-4 rounded accent-green-500" 
                             />
                             <div className="flex flex-col">
-                                <span className="text-rose-300 text-[10px] font-black uppercase tracking-tighter leading-none">Parameters Unknown</span>
-                                <span className="text-[8px] text-slate-500 font-bold uppercase mt-0.5">Use Fundamental Spacing Only</span>
+                                <span className="text-white text-[10px] font-black uppercase tracking-tighter leading-none">Parameters Unknown</span>
+                                <span className="text-[8px] text-white/70 font-bold uppercase mt-0.5">Use Fundamental Spacing Only</span>
                             </div>
                         </label>
                     </div>
@@ -511,7 +527,7 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                     <div className="p-4 bg-slate-950/50 border border-white/5 rounded-2xl mb-4">
                         <div className="flex justify-between items-center mb-3">
                             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Site Protection Parameters</span>
-                            {ignoreManualIMD && <span className="text-[8px] text-rose-400 font-black uppercase">IMD Disabled</span>}
+                            {ignoreManualIMD && <span className="text-[8px] text-green-400 font-black uppercase">IMD Disabled</span>}
                         </div>
                         <div className={`grid grid-cols-3 gap-4 transition-opacity ${ignoreManualIMD ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                             <div className="flex flex-col">
@@ -716,15 +732,19 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                     <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
                         <CardTitle className="!mb-0 text-lg font-black flex items-center gap-2"><span>📊</span> Plan Yield</CardTitle>
                         {generatedFrequencies && (
-                            <div className="relative">
-                                <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="text-[9px] font-black tracking-widest px-3 py-1.5 rounded-lg border-2 border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-600 hover:text-white transition-all">EXPORT</button>
-                                {isExportMenuOpen && (
-                                    <div className="absolute top-full right-0 mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-[110] overflow-hidden min-w-[180px] animate-in slide-in-from-top-2">
-                                        <button onClick={() => handleExport('pdf')} className="w-full text-left p-3 hover:bg-indigo-600 text-[10px] font-black text-white uppercase border-b border-white/5">PDF Plan</button>
-                                        <button onClick={() => handleExport('wwb')} className="w-full text-left p-3 hover:bg-indigo-600 text-[10px] font-black text-white uppercase border-b border-white/5">WWB Inventory</button>
-                                        <button onClick={() => handleExport('csv')} className="w-full text-left p-3 hover:bg-indigo-600 text-[10px] font-black text-white uppercase">CSV Data</button>
-                                    </div>
-                                )}
+                            <div className="flex gap-2">
+                                <button onClick={handleLockAll} className="text-[9px] font-black tracking-widest px-3 py-1.5 rounded-lg border-2 border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-600 hover:text-white transition-all">LOCK ALL</button>
+                                <button onClick={handleUnlockAll} className="text-[9px] font-black tracking-widest px-3 py-1.5 rounded-lg border-2 border-slate-500/50 bg-slate-500/10 text-slate-400 hover:bg-slate-600 hover:text-white transition-all">UNLOCK ALL</button>
+                                <div className="relative">
+                                    <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className="text-[9px] font-black tracking-widest px-3 py-1.5 rounded-lg border-2 border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-600 hover:text-white transition-all">EXPORT</button>
+                                    {isExportMenuOpen && (
+                                        <div className="absolute top-full right-0 mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-[110] overflow-hidden min-w-[180px] animate-in slide-in-from-top-2">
+                                            <button onClick={() => handleExport('pdf')} className="w-full text-left p-3 hover:bg-indigo-600 text-[10px] font-black text-white uppercase border-b border-white/5">PDF Plan</button>
+                                            <button onClick={() => handleExport('wwb')} className="w-full text-left p-3 hover:bg-indigo-600 text-[10px] font-black text-white uppercase border-b border-white/5">WWB Inventory</button>
+                                            <button onClick={() => handleExport('csv')} className="w-full text-left p-3 hover:bg-indigo-600 text-[10px] font-black text-white uppercase">CSV Data</button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

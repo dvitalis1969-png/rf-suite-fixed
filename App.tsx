@@ -45,6 +45,8 @@ import AudioToneGeneratorTab from './components/AudioToneGeneratorTab';
 import * as dbService from './services/dbService';
 import { exportToJson } from './services/fileService';
 
+import { generateMockScanData } from './services/serialService';
+
 const initialFrequencies: Frequency[] = Array.from({ length: 8 }, (_, i) => ({
     id: `F${i + 1}`, value: 0, label: '', locked: false, type: 'generic'
 }));
@@ -89,7 +91,7 @@ const initialMultizoneState: MultizonePlanningState = {
 };
 
 const initialBandState: BandState = { id: `band-init`, min: '470.000', max: '550.000', count: '6', equipmentKey: 'custom', compatibilityLevel: 'standard', useManual: false, manualParams: { fundamental: '0.350', twoTone: '0.050', threeTone: '0.050' } };
-const initialGeneratorRequests: GeneratorRequest[] = [{ id: Date.now(), key: 'shure-ad-g56', count: '8', customMin: '470.000', customMax: '636.000', compatibilityLevel: 'standard' }];
+const initialGeneratorRequests: GeneratorRequest[] = [{ id: Date.now(), key: 'shure-ad-g56', count: '8', customMin: '470.000', customMax: '636.000', compatibilityLevel: 'standard', type: 'mic' }];
 const initialCommsState: CommsAppState = { numZones: 2, zoneConfigs: [{ name: 'Zone 1', count: 4 }, { name: 'Zone 2', count: 4 }], distances: [[0, 0.1], [0.1, 0]], compatibilityMatrix: Array(2).fill(false).map(() => Array(2).fill(false)), siteMapState: { image: null, positions: [], scale: null }, manualPairs: [], results: null };
 
 const initialTourPlanningState: TourPlanningState = {
@@ -194,11 +196,13 @@ const App: React.FC = () => {
     const [wmasState, setWmasState] = useState<WMASState>(initialWMASState);
 
     const [isProjectDashboardOpen, setProjectDashboardOpen] = useState(false);
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
     const [isCustomEquipmentManagerOpen, setCustomEquipmentManagerOpen] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [isAccountDashboardOpen, setIsAccountDashboardOpen] = useState(false);
     const [user, setUser] = useState<any>(null);
     const [dbError, setDbError] = useState<string | null>(null);
+    const [isSimulatingScan, setIsSimulatingScan] = useState(false);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -220,6 +224,23 @@ const App: React.FC = () => {
         if (isSunlightMode) document.documentElement.classList.add('sunlight-mode');
         else document.documentElement.classList.remove('sunlight-mode');
     }, [isSunlightMode]);
+
+    useEffect(() => {
+        if (!isSimulatingScan) {
+            setScanData(null);
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setScanData(generateMockScanData(470, 700, 200));
+        }, 500);
+
+        return () => clearInterval(interval);
+    }, [isSimulatingScan]);
+
+    const handleSimulateScan = useCallback(() => {
+        setIsSimulatingScan(prev => !prev);
+    }, []);
 
     useEffect(() => {
         const init = async (retries = 3) => {
@@ -492,23 +513,54 @@ const App: React.FC = () => {
         setTimeout(() => { isProjectLoading.current = false; }, 100);
     };
 
+    const getCurrentAppState = (): AppState => ({
+        activeTab, activeApp, isSunlightMode, frequencies, thresholds, generatorFrequencies, scanData, inclusionRanges, snapshots, scenes,
+        multiBandState: { bands: mbBands, results: mbResults },
+        generatorState: { requests: genRequests, exclusions: genExclusions, useGlobalThresholds: genUseGlobalThresholds, globalThresholds: genGlobalThresholds, manualConstraints: genManualConstraints, ignoreManualIMD: genIgnoreManualIMD, siteThresholds: genSiteThresholds, tvChannelStates: genTvStates, tvRegion: genTvRegion } as any,
+        festivalState: { numZones: festivalNumZones, zoneConfigs: festivalZoneConfigs, distances: festivalDistances, acts: festivalActs, constantSystems: festivalConstantSystems, houseSystems: festivalHouseSystems, siteMapState: festivalSiteMap, compatibilityMatrix: festivalMatrix, tvChannelStates: festivalTvStates },
+        multizoneState: { numZones: multizoneNumZones, zoneConfigs: multizoneZoneConfigs, equipmentGroups: multizoneGroups, distances: multizoneDistances, results: multizoneResults, siteMapState: multizoneSiteMap, compatibilityMatrix: multizoneMatrix, tvChannelStates: multizoneTvStates },
+        commsState: { numZones: commsNumZones, zoneConfigs: commsZoneConfigs, distances: commsDistances, compatibilityMatrix: commsCompatibilityMatrix, siteMapState: commsSiteMapState, manualPairs: tbManualPairs, results: tbResults },
+        tourPlanningState: tourPlanningState,
+        wmasState: wmasState
+    });
+
+    const handleSaveAsNewProject = async (name: string) => {
+        setSaveStatus('saving');
+        const stateToSave = getCurrentAppState();
+        const newProject: Omit<Project, 'id'> = {
+            name,
+            lastModified: new Date(),
+            data: stateToSave,
+            ...(isAuthenticated && user?.id ? { userId: user.id } : {})
+        };
+        try {
+            let finalProject = { ...newProject } as Project;
+            if (isAuthenticated && user?.id) {
+                const { saveProjectToCloud } = await import('./services/cloudDbService');
+                const cloudId = await saveProjectToCloud(user.id, newProject);
+                finalProject.id = cloudId as any;
+            }
+            const localId = await dbService.saveProject(finalProject);
+            if (!finalProject.id) finalProject.id = localId as any;
+            
+            setCurrentProject(finalProject);
+            dbService.setLastProjectId(finalProject.id!);
+            setSaveStatus('saved');
+        } catch (error) {
+            console.error("Save failed", error);
+            setSaveStatus('idle');
+            alert("Database write error.");
+        }
+        setTimeout(() => setSaveStatus('idle'), 3000);
+    };
+
     const saveCurrentProject = async () => {
         if (!currentProject) {
-            setSaveStatus('no-project');
-            setTimeout(() => setSaveStatus('idle'), 3000);
+            setIsSaveModalOpen(true);
             return;
         }
         setSaveStatus('saving');
-        const stateToSave: AppState = {
-            activeTab, activeApp, isSunlightMode, frequencies, thresholds, generatorFrequencies, scanData, inclusionRanges, snapshots, scenes,
-            multiBandState: { bands: mbBands, results: mbResults },
-            generatorState: { requests: genRequests, exclusions: genExclusions, useGlobalThresholds: genUseGlobalThresholds, globalThresholds: genGlobalThresholds, manualConstraints: genManualConstraints, ignoreManualIMD: genIgnoreManualIMD, siteThresholds: genSiteThresholds, tvChannelStates: genTvStates, tvRegion: genTvRegion } as any,
-            festivalState: { numZones: festivalNumZones, zoneConfigs: festivalZoneConfigs, distances: festivalDistances, acts: festivalActs, constantSystems: festivalConstantSystems, houseSystems: festivalHouseSystems, siteMapState: festivalSiteMap, compatibilityMatrix: festivalMatrix, tvChannelStates: festivalTvStates },
-            multizoneState: { numZones: multizoneNumZones, zoneConfigs: multizoneZoneConfigs, equipmentGroups: multizoneGroups, distances: multizoneDistances, results: multizoneResults, siteMapState: multizoneSiteMap, compatibilityMatrix: multizoneMatrix, tvChannelStates: multizoneTvStates },
-            commsState: { numZones: commsNumZones, zoneConfigs: commsZoneConfigs, distances: commsDistances, compatibilityMatrix: commsCompatibilityMatrix, siteMapState: commsSiteMapState, manualPairs: tbManualPairs, results: tbResults },
-            tourPlanningState: tourPlanningState,
-            wmasState: wmasState
-        };
+        const stateToSave = getCurrentAppState();
         const updatedProject: Project = { 
             ...currentProject, 
             lastModified: new Date(), 
@@ -726,7 +778,7 @@ const App: React.FC = () => {
                                 {activeTab === 'multizoneSiteMap' && <SiteMapTab activeApp={activeApp} festivalState={{ zones: festivalZoneConfigs, map: festivalSiteMap, setMap: setFestivalSiteMap, setDist: setFestivalDistances }} multizoneState={{ zones: multizoneZoneConfigs, map: multizoneSiteMap, setMap: setMultizoneSiteMap, setDist: setMultizoneDistances }} />}
                                 
                                 {/* Festival & Event Coordination */}
-                                {activeTab === 'festival' && <FestivalCoordinationTab festivalActs={festivalActs} setFestivalActs={setFestivalActs} constantSystems={festivalConstantSystems} setConstantSystems={setFestivalConstantSystems} houseSystems={festivalHouseSystems} setHouseSystems={setFestivalHouseSystems} zoneConfigs={festivalZoneConfigs} setZoneConfigs={setFestivalZoneConfigs} numZones={festivalNumZones} setNumZones={setFestivalNumZones} distances={festivalDistances} setDistances={setFestivalDistances} initialThresholds={initialThresholds} customEquipment={customEquipment} compatibilityMatrix={festivalMatrix} setCompatibilityMatrix={setFestivalMatrix} scanData={scanData} siteMapState={festivalSiteMap} equipmentOverrides={equipmentOverrides} tvChannelStates={festivalTvStates} setTvChannelStates={setFestivalTvStates} wmasState={wmasState} />}
+                                {activeTab === 'festival' && <FestivalCoordinationTab festivalActs={festivalActs} setFestivalActs={setFestivalActs} constantSystems={festivalConstantSystems} setConstantSystems={setFestivalConstantSystems} houseSystems={festivalHouseSystems} setHouseSystems={setFestivalHouseSystems} zoneConfigs={festivalZoneConfigs} setZoneConfigs={setFestivalZoneConfigs} numZones={festivalNumZones} setNumZones={setFestivalNumZones} distances={festivalDistances} setDistances={setFestivalDistances} initialThresholds={initialThresholds} customEquipment={customEquipment} compatibilityMatrix={festivalMatrix} setCompatibilityMatrix={setFestivalMatrix} scanData={scanData} setScanData={setScanData} siteMapState={festivalSiteMap} equipmentOverrides={equipmentOverrides} tvChannelStates={festivalTvStates} setTvChannelStates={setFestivalTvStates} onSimulateScan={handleSimulateScan} wmasState={wmasState} />}
                                 {activeTab === 'timeline' && <TimelineTab frequencies={frequencies} scenes={scenes} setScenes={setScenes} />}
                                 {activeTab === 'festivalSiteMap' && <SiteMapTab activeApp={activeApp} festivalState={{ zones: festivalZoneConfigs, map: festivalSiteMap, setMap: setFestivalSiteMap, setDist: setFestivalDistances }} multizoneState={{ zones: multizoneZoneConfigs, map: multizoneSiteMap, setMap: setMultizoneSiteMap, setDist: setMultizoneDistances }} />}
                                 
@@ -760,6 +812,7 @@ const App: React.FC = () => {
                     </main>
                 </>
             )}
+            <SaveProjectModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSaveAsNewProject} />
             {isProjectDashboardOpen && <ProjectDashboard onLoadProject={p => { setCurrentProject(p); loadAppState(p.data); dbService.setLastProjectId(p.id); setProjectDashboardOpen(false); }} onCreateProject={async n => { const p = { name: n, lastModified: new Date(), data: initialState }; const id = await dbService.saveProject(p); setCurrentProject({...p, id}); loadAppState(p.data); dbService.setLastProjectId(id); setProjectDashboardOpen(false); }} onDeleteProject={async id => { await dbService.deleteProject(id); if(currentProject?.id === id){ setCurrentProject(null); dbService.clearLastProjectId(); } }} onClose={() => setProjectDashboardOpen(false)} />}
             {isCustomEquipmentManagerOpen && <div className="no-invert"><CustomEquipmentManager customProfiles={customEquipment} setCustomProfiles={setCustomEquipment} onClose={() => setCustomEquipmentManagerOpen(false)} /></div>}
             {isAuthModalOpen && <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onSuccess={handleLogin} />}
@@ -781,6 +834,37 @@ const App: React.FC = () => {
             
             <div className="fixed bottom-1 right-1 text-[10px] text-slate-600 opacity-50 pointer-events-none z-50">
                 v2.5-STABLE-MARCH-08-12:12
+            </div>
+        </div>
+    );
+};
+
+const SaveProjectModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onClose: () => void, onSave: (name: string) => void }) => {
+    const [name, setName] = useState('');
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <div className="bg-slate-800 border border-indigo-500/30 rounded-xl shadow-2xl w-full max-w-md p-6 text-white">
+                <h3 className="text-xl font-bold mb-4">Save Project As</h3>
+                <input 
+                    type="text" 
+                    value={name} 
+                    onChange={e => setName(e.target.value)} 
+                    placeholder="Project Name" 
+                    className="w-full bg-slate-900 border border-slate-700 rounded-md p-2 text-slate-200 mb-4 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter' && name.trim()) { onSave(name.trim()); onClose(); } }}
+                />
+                <div className="flex justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2 rounded-md text-slate-400 hover:text-white">Cancel</button>
+                    <button 
+                        onClick={() => { if (name.trim()) { onSave(name.trim()); onClose(); } }} 
+                        disabled={!name.trim()}
+                        className="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white"
+                    >
+                        Save
+                    </button>
+                </div>
             </div>
         </div>
     );
