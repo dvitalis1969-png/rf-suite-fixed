@@ -70,16 +70,16 @@ const FAQItem = ({ question, answer }: { question: string, answer: string }) => 
 const EcosystemAccordion = ({ title, icon: Icon, colorClass, children }: { title: string, icon: any, colorClass: string, children: React.ReactNode }) => {
     const [isOpen, setIsOpen] = useState(false);
     return (
-        <div className="border border-white/5 rounded-3xl bg-slate-900/50 overflow-hidden">
+        <div className="border border-white/5 rounded-2xl bg-slate-900/50 overflow-hidden">
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full p-6 md:p-8 flex justify-between items-center text-left hover:bg-white/5 transition-colors group"
+                className="w-full p-4 md:p-5 flex justify-between items-center text-left hover:bg-white/5 transition-colors group"
             >
-                <div className="flex items-center gap-4 md:gap-6">
-                    <div className={`p-3 md:p-4 rounded-2xl ${colorClass}`}><Icon size={24} className="md:w-8 md:h-8" /></div>
+                <div className="flex items-center gap-4">
+                    <div className={`p-2.5 rounded-xl ${colorClass}`}><Icon size={20} className="md:w-6 md:h-6" /></div>
                     <h4 className="text-sm font-black text-white uppercase tracking-widest">{title}</h4>
                 </div>
-                <ChevronDown className={`text-slate-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} size={24} />
+                <ChevronDown className={`text-slate-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} size={20} />
             </button>
             <AnimatePresence>
                 {isOpen && (
@@ -89,7 +89,7 @@ const EcosystemAccordion = ({ title, icon: Icon, colorClass, children }: { title
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                     >
-                        <div className="p-6 md:p-8 pt-0 border-t border-white/5 mt-2 md:mt-4">
+                        <div className="p-4 md:p-5 pt-0 border-t border-white/5 mt-2">
                             {children}
                         </div>
                     </motion.div>
@@ -252,7 +252,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                                 RF Suite isn't just a calculator; it's a comprehensive spectral management ecosystem. Our engine is designed to solve the most complex interference challenges in real-time, leveraging advanced combinatorial logic that accounts for the physical realities of the stage.
                             </p>
                             <p className="text-slate-400 mb-12 leading-relaxed">
-                                Whether you're managing a 200-channel festival or a critical corporate broadcast, our logic prioritizes stability. We calculate 3rd, 5th, and 7th order intermodulation products with a focus on the "noise floor of the real world," not just theoretical math.
+                                Whether you're managing a 200-channel festival or a critical corporate broadcast, our logic prioritizes stability. We calculate 3rd, 5th, and 7th order intermodulation products with a focus on the "noise floor of the real world," not just theoretical mathematics.
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                                 {[
@@ -272,21 +272,129 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                             </div>
                         </div>
                         <div className="lg:w-1/2 relative">
-                            <div className="aspect-video rounded-3xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl group">
-                                <img 
-                                    src="https://picsum.photos/seed/rf-spectrum/1200/800" 
-                                    alt="RF Spectrum Analysis" 
-                                    className="w-full h-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-700"
-                                    referrerPolicy="no-referrer"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
-                                <div className="absolute bottom-8 left-8">
+                            <div className="aspect-video rounded-3xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl group relative">
+                                {/* Mockup composite instead of img */}
+                                <div className="absolute inset-0 bg-slate-950 overflow-hidden group">
+                                    {/* Glow */}
+                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_70%,rgba(56,189,248,0.15),transparent_60%)]"></div>
+
+                                    {/* Grid */}
+                                    <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(rgba(99, 102, 241, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(99, 102, 241, 0.15) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+                                    <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(rgba(99, 102, 241, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(99, 102, 241, 0.05) 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
+
+                                    {/* SVG Canvas */}
+                                    <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 100">
+                                        <defs>
+                                            <linearGradient id="noiseFill" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.4" />
+                                                <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.0" />
+                                            </linearGradient>
+                                            <linearGradient id="wmasFill" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#a855f7" stopOpacity="0.5" />
+                                                <stop offset="100%" stopColor="#a855f7" stopOpacity="0.0" />
+                                            </linearGradient>
+                                            <linearGradient id="dtvFill" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor="#ef4444" stopOpacity="0.3" />
+                                                <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+                                            </linearGradient>
+                                        </defs>
+
+                                        {/* DTV Block */}
+                                        <path d="M100,100 L100,50 L110,48 L120,52 L130,49 L140,51 L150,47 L160,50 L170,100 Z" fill="url(#dtvFill)" stroke="#ef4444" strokeWidth="1" />
+
+                                        {/* WMAS Block */}
+                                        <rect x="600" y="0" width="50" height="100" fill="rgba(168, 85, 247, 0.2)" stroke="rgba(168, 85, 247, 0.6)" strokeWidth="1" />
+                                        <text x="625" y="20" fill="#d8b4fe" fontSize="9" textAnchor="middle" fontWeight="bold">WMAS</text>
+
+                                        {/* Main Noise Floor / Scan Data */}
+                                        <path d="M0,100 L0,85 L15,82 L30,88 L45,84 L60,89 L75,83 L90,87 L100,45 L115,42 L130,48 L145,44 L160,49 L170,85 L185,81 L200,87 L215,83 L230,88 L245,82 L260,86 L275,81 L290,87 L305,83 L320,89 L335,84 L350,88 L365,82 L380,87 L395,83 L410,89 L425,84 L440,88 L455,82 L470,87 L485,83 L500,89 L515,84 L530,88 L545,82 L560,87 L575,83 L590,89 L600,25 L650,25 L660,85 L675,81 L690,87 L705,83 L720,88 L735,82 L750,86 L765,81 L780,87 L795,83 L810,89 L825,84 L840,88 L855,82 L870,87 L885,83 L900,89 L915,84 L930,88 L945,82 L960,87 L975,83 L990,89 L1000,85 L1000,100 Z" fill="url(#noiseFill)" stroke="#38bdf8" strokeWidth="1.5" />
+
+                                        {/* Peak Hold (faint line above) */}
+                                        <path d="M0,80 L20,77 L40,83 L60,75 L80,80 L95,81 L100,40 L110,37 L120,43 L130,40 L140,42 L150,37 L160,40 L170,81 L190,75 L210,83 L230,77 L250,82 L270,75 L290,80 L310,73 L330,77 L350,81 L370,75 L390,79 L410,72 L430,76 L450,80 L470,74 L490,78 L510,71 L530,75 L550,79 L570,73 L590,77 L600,20 L650,20 L660,75 L680,79 L700,72 L720,76 L740,80 L760,74 L780,78 L800,71 L820,75 L840,79 L860,73 L880,77 L900,80 L920,74 L940,78 L960,72 L980,76 L1000,79" fill="none" stroke="#0284c7" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
+
+                                        {/* Signal Spikes (Glowing) */}
+                                        <g style={{ filter: 'drop-shadow(0px 0px 4px rgba(52,211,153,0.8))' }}>
+                                            <line x1="250" y1="100" x2="250" y2="15" stroke="#34d399" strokeWidth="3" />
+                                            <line x1="280" y1="100" x2="280" y2="20" stroke="#34d399" strokeWidth="3" />
+                                            <line x1="320" y1="100" x2="320" y2="10" stroke="#34d399" strokeWidth="3" />
+                                        </g>
+
+                                        <g style={{ filter: 'drop-shadow(0px 0px 4px rgba(251,146,60,0.8))' }}>
+                                            <line x1="450" y1="100" x2="450" y2="25" stroke="#fb923c" strokeWidth="3" />
+                                            <line x1="470" y1="100" x2="470" y2="35" stroke="#fb923c" strokeWidth="3" />
+                                            <line x1="490" y1="100" x2="490" y2="20" stroke="#fb923c" strokeWidth="3" />
+                                            <line x1="520" y1="100" x2="520" y2="40" stroke="#fb923c" strokeWidth="3" />
+                                        </g>
+
+                                        {/* IMD Spikes (Red/Purple) */}
+                                        <g style={{ filter: 'drop-shadow(0px 0px 3px rgba(244,63,94,0.8))' }}>
+                                            <line x1="220" y1="100" x2="220" y2="60" stroke="#f43f5e" strokeWidth="1.5" />
+                                            <line x1="350" y1="100" x2="350" y2="55" stroke="#f43f5e" strokeWidth="1.5" />
+                                            <line x1="430" y1="100" x2="430" y2="65" stroke="#f43f5e" strokeWidth="1.5" />
+                                            <line x1="540" y1="100" x2="540" y2="50" stroke="#f43f5e" strokeWidth="1.5" />
+                                        </g>
+                                        <g style={{ filter: 'drop-shadow(0px 0px 3px rgba(192,132,252,0.8))' }}>
+                                            <line x1="190" y1="100" x2="190" y2="75" stroke="#c084fc" strokeWidth="1.5" />
+                                            <line x1="380" y1="100" x2="380" y2="70" stroke="#c084fc" strokeWidth="1.5" />
+                                            <line x1="560" y1="100" x2="560" y2="65" stroke="#c084fc" strokeWidth="1.5" />
+                                        </g>
+
+                                        {/* Active Marker Line */}
+                                        <line x1="320" y1="100" x2="320" y2="0" stroke="#ffffff" strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
+                                    </svg>
+
+                                    {/* UI Overlays to fill space */}
+                                    {/* Top Left: Live Status */}
+                                    <div className="absolute top-4 left-4 flex items-center gap-2 bg-slate-900/80 backdrop-blur-md border border-slate-700 px-3 py-1.5 rounded-full shadow-lg">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></div>
+                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">Live Spectrum</span>
+                                    </div>
+
+                                    {/* Top Right: Peak Info */}
+                                    <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-md border border-slate-700 px-3 py-1.5 rounded-lg shadow-lg flex flex-col items-end">
+                                        <span className="text-[8px] text-slate-400 uppercase font-bold tracking-wider">Peak Hold</span>
+                                        <span className="text-xs font-mono text-emerald-400 font-bold">512.400 MHz</span>
+                                        <span className="text-[10px] font-mono text-white">-12.4 dBm</span>
+                                    </div>
+
+                                    {/* Tooltip over the active marker */}
+                                    <div className="absolute top-1/4 left-[33%] bg-slate-800/90 backdrop-blur-md border border-emerald-500/50 p-2 rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-10">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Main Stage</span>
+                                        </div>
+                                        <div className="text-xs font-mono text-emerald-300 font-bold">CH 1: 512.400</div>
+                                        <div className="text-[9px] text-slate-400 font-mono mt-1">Margin: 24dB</div>
+                                    </div>
+
+                                    {/* Bottom Left: Legend */}
+                                    <div className="absolute bottom-10 left-4 bg-slate-900/80 backdrop-blur-md border border-slate-700 p-2 rounded-lg shadow-lg flex flex-col gap-1.5">
+                                        <div className="flex items-center gap-2"><div className="w-2 h-0.5 bg-emerald-400 shadow-[0_0_4px_#34d399]"></div><span className="text-[8px] text-slate-300 uppercase font-bold">Mics</span></div>
+                                        <div className="flex items-center gap-2"><div className="w-2 h-0.5 bg-orange-400 shadow-[0_0_4px_#fb923c]"></div><span className="text-[8px] text-slate-300 uppercase font-bold">IEMs</span></div>
+                                        <div className="flex items-center gap-2"><div className="w-2 h-0.5 bg-rose-500 shadow-[0_0_4px_#f43f5e]"></div><span className="text-[8px] text-slate-300 uppercase font-bold">IMD 3</span></div>
+                                        <div className="flex items-center gap-2"><div className="w-2 h-0.5 bg-purple-500 shadow-[0_0_4px_#a855f7]"></div><span className="text-[8px] text-slate-300 uppercase font-bold">WMAS</span></div>
+                                    </div>
+
+                                    {/* X-Axis Labels */}
+                                    <div className="absolute bottom-0 left-0 right-0 h-6 bg-slate-950/80 backdrop-blur-sm border-t border-slate-800 flex justify-between items-center px-4 text-[8px] font-mono text-slate-400">
+                                        <span>470.000</span>
+                                        <span>490.000</span>
+                                        <span>510.000</span>
+                                        <span>530.000</span>
+                                        <span>550.000</span>
+                                        <span>570.000</span>
+                                        <span>590.000</span>
+                                        <span>610.000</span>
+                                    </div>
+                                </div>
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent pointer-events-none"></div>
+                                <div className="absolute bottom-8 left-8 pointer-events-none">
                                     <div className="flex items-center gap-2 mb-2">
                                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                                         <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Live Analysis Active</span>
                                     </div>
                                     <h3 className="text-xl font-black text-white uppercase tracking-wider">High-Fidelity Visualization</h3>
-                                    <p className="text-slate-400 text-xs mt-2 uppercase tracking-widest">Real-time waterfall and 2D spectral mapping</p>
+                                    <p className="text-slate-400 text-xs mt-2 uppercase tracking-widest">Live 2D spectral analysis</p>
                                 </div>
                             </div>
                         </div>
@@ -558,16 +666,91 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                                 <div className="lg:w-1/3 sticky top-32">
                                     <div className="relative">
                                         <div className="absolute -inset-4 bg-indigo-500/20 blur-2xl rounded-full"></div>
-                                        <div className="relative aspect-square rounded-3xl bg-slate-800 border border-white/10 flex items-center justify-center text-6xl overflow-hidden">
-                                            <img 
-                                                src="https://picsum.photos/seed/engineer/400/400" 
-                                                alt="Lead Engineer" 
-                                                className="w-full h-full object-cover opacity-80"
-                                                referrerPolicy="no-referrer"
-                                            />
+                                        <div className="relative aspect-square rounded-3xl bg-slate-900 border border-white/10 flex items-center justify-center overflow-hidden group">
+                                            <div className="absolute inset-0 bg-slate-950 p-3 grid grid-cols-2 grid-rows-2 gap-3 opacity-90 group-hover:opacity-100 transition-opacity duration-700">
+                                                {/* Top Half: Co-Channel Sandbox */}
+                                                <div className="col-span-2 row-span-1 bg-slate-950 rounded-2xl border border-white/5 relative overflow-hidden shadow-inner flex items-center justify-center">
+                                                    {/* Grid Background */}
+                                                    <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(#38bdf8 1px, transparent 1px), linear-gradient(90deg, #38bdf8 1px, transparent 1px)', backgroundSize: '15px 15px' }}></div>
+                                                    
+                                                    {/* Interference Radius */}
+                                                    <div className="absolute w-28 h-28 rounded-full border-2 border-red-500/60 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.2)]"></div>
+                                                    
+                                                    {/* RX Node */}
+                                                    <div className="absolute flex flex-col items-center gap-1">
+                                                        <div className="w-8 h-4 bg-slate-800 rounded border border-slate-600 flex items-center justify-center z-10">
+                                                            <div className="text-[6px] font-bold text-emerald-400">RX</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* TX Node (Interferer) */}
+                                                    <div className="absolute flex flex-col items-center gap-1 top-3 right-8 z-10">
+                                                        <div className="w-5 h-5 rounded-full border border-slate-500 bg-slate-700 flex items-center justify-center shadow-lg">
+                                                            <span className="text-[6px]">🎤</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Distance Line */}
+                                                    <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                                                        <line x1="50%" y1="50%" x2="75%" y2="25%" stroke="rgba(255,255,255,0.4)" strokeWidth="1" strokeDasharray="2,2" />
+                                                    </svg>
+                                                    <div className="absolute top-[30%] right-[30%] bg-slate-900/80 px-1 rounded text-[5px] font-mono text-white border border-white/20">2.4m</div>
+
+                                                    {/* Labels */}
+                                                    <div className="absolute top-2 left-3 text-[8px] font-black uppercase tracking-widest text-indigo-400 bg-slate-950/80 px-1 rounded">Proximity Simulator</div>
+                                                </div>
+
+                                                {/* Bottom Left: IMD Physics */}
+                                                <div className="col-span-1 row-span-1 bg-slate-900 rounded-2xl border border-white/5 p-3 relative overflow-hidden shadow-inner flex flex-col justify-end">
+                                                    <div className="absolute top-2 left-3 text-[8px] font-black uppercase tracking-widest text-cyan-400">IMD Physics</div>
+                                                    
+                                                    {/* Chart Area */}
+                                                    <div className="relative w-full h-16 flex items-end justify-center gap-1.5 border-b border-slate-700 pb-0">
+                                                        {/* Noise Floor / Threshold */}
+                                                        <div className="absolute w-full border-t border-dashed border-rose-500/50 bottom-4"></div>
+                                                        
+                                                        {/* 5th Order */}
+                                                        <div className="w-1 bg-purple-500/60 h-3 rounded-t-sm"></div>
+                                                        {/* 3rd Order */}
+                                                        <div className="w-1.5 bg-rose-400 h-6 rounded-t-sm"></div>
+                                                        {/* Fundamental A */}
+                                                        <div className="w-2 bg-emerald-400 h-14 rounded-t-sm shadow-[0_0_5px_rgba(52,211,153,0.5)]"></div>
+                                                        {/* Fundamental B */}
+                                                        <div className="w-2 bg-emerald-400 h-14 rounded-t-sm shadow-[0_0_5px_rgba(52,211,153,0.5)]"></div>
+                                                        {/* 3rd Order */}
+                                                        <div className="w-1.5 bg-rose-400 h-6 rounded-t-sm"></div>
+                                                        {/* 5th Order */}
+                                                        <div className="w-1 bg-purple-500/60 h-3 rounded-t-sm"></div>
+                                                    </div>
+                                                    <div className="flex justify-between w-full mt-1 px-2">
+                                                        <span className="text-[5px] text-slate-500 font-mono">3rd</span>
+                                                        <span className="text-[5px] text-emerald-500 font-mono">TX</span>
+                                                        <span className="text-[5px] text-slate-500 font-mono">3rd</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Bottom Right: Link Budget / Readout */}
+                                                <div className="col-span-1 row-span-1 bg-slate-900 rounded-2xl border border-white/5 p-3 relative overflow-hidden shadow-inner flex flex-col justify-center gap-2">
+                                                    <div className="text-[8px] font-black uppercase tracking-widest text-amber-400 absolute top-3 left-3">Link Budget</div>
+                                                    <div className="mt-4 space-y-1.5">
+                                                        <div className="flex justify-between items-center border-b border-white/5 pb-1">
+                                                            <span className="text-[6px] text-slate-500 uppercase font-bold">TX Power</span>
+                                                            <span className="text-[7px] text-slate-300 font-mono">50 mW</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center border-b border-white/5 pb-1">
+                                                            <span className="text-[6px] text-slate-500 uppercase font-bold">Path Loss</span>
+                                                            <span className="text-[7px] text-amber-400 font-mono">-84 dB</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-[6px] text-slate-500 uppercase font-bold">Margin</span>
+                                                            <span className="text-[7px] text-emerald-400 font-mono">+22 dB</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="absolute -bottom-4 -right-4 bg-indigo-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl">
-                                            25 Years Exp
+                                            Advanced Analytics
                                         </div>
                                     </div>
                                     

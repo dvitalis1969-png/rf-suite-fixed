@@ -242,7 +242,7 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
 
     const handleCalculate = async () => {
         setIsLoading(true); setProgress(0); await new Promise(resolve => setTimeout(resolve, 50));
-        const serviceConfigs = talkbackZoneConfigs.map(c => ({ name: c.name, pairCount: c.pairCount, txBands: Array.from(c.txBands), rxBands: Array.from(c.rxBands) }));
+        const serviceConfigs = talkbackZoneConfigs.map(c => ({ name: c.name, pairCount: c.pairCount, txBands: Array.from(c.txBands), rxBands: Array.from(c.rxBands), customTxMin: c.customTxMin, customTxMax: c.customTxMax, customRxMin: c.customRxMin, customRxMax: c.customRxMax, customBw: c.customBw }));
         try {
             const zonalResults = await generateZonalTalkbackPairs(serviceConfigs, 0.01875, distances, compatibilityMatrix, results, (p) => setProgress(p), mode);
             setResults(zonalResults);
