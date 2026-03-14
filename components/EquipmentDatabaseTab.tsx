@@ -146,7 +146,6 @@ const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquip
                                 <th className="p-4 text-center">FF Guard</th>
                                 <th className="p-4 text-center">2T Guard</th>
                                 <th className="p-4 text-center">3T Guard</th>
-                                <th className="p-4 text-center">Purchase</th>
                                 <th className="p-4 w-10 text-right">State</th>
                             </tr>
                         </thead>
@@ -215,22 +214,6 @@ const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquip
                                                     onChange={e => handleValueChange(key, 'threeTone', e.target.value)}
                                                     className={`w-24 text-center font-mono text-xs p-1.5 rounded bg-slate-900 border ${override?.threeTone !== undefined ? 'border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.05)]' : 'border-slate-700 text-slate-400 opacity-80'}`}
                                                 />
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex justify-center">
-                                                {p.affiliateUrl ? (
-                                                    <a 
-                                                        href={p.affiliateUrl} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-[9px] font-black text-emerald-400 uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all shadow-lg shadow-emerald-500/5"
-                                                    >
-                                                        🛒 Buy
-                                                    </a>
-                                                ) : (
-                                                    <span className="text-[8px] text-slate-700 font-black uppercase tracking-widest italic opacity-20">N/A</span>
-                                                )}
                                             </div>
                                         </td>
                                         <td className="p-4 text-right">

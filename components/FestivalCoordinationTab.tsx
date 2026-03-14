@@ -1564,7 +1564,6 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                     <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('stage')}>Stage <SortIcon field="stage" /></th>
                                     <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('times')}>Date & Times <SortIcon field="times" /></th>
                                     <th className="p-3">Status</th>
-                                    <th className="p-3">Purchase</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
@@ -1576,20 +1575,6 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                         <td className="p-3 text-indigo-300 font-bold uppercase tracking-tighter">{row.stage}</td>
                                         <td className="p-3 font-mono text-slate-400">{row.times}</td>
                                         <td className="p-3 text-center text-sm">{row.status}</td>
-                                        <td className="p-3">
-                                            {row.affiliateUrl ? (
-                                                <a 
-                                                    href={row.affiliateUrl} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded text-[9px] font-black text-emerald-400 uppercase tracking-tighter hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                                                >
-                                                    🛒 Order Gear
-                                                </a>
-                                            ) : (
-                                                <span className="text-[8px] text-slate-600 font-black uppercase tracking-tighter italic opacity-30">N/A</span>
-                                            )}
-                                        </td>
                                     </tr>
                                 ))}
                                 {processedTabulatedPlan.length === 0 && (

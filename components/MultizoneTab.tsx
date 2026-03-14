@@ -1157,7 +1157,6 @@ const MultizoneTab: React.FC<MultizoneTabProps> = ({
                                         <th className="p-4 cursor-pointer hover:bg-white/5" onClick={() => handleSort('zone')}>Location <SortArrow field="zone" /></th>
                                         <th className="p-4 cursor-pointer hover:bg-white/5" onClick={() => handleSort('modelName')}>Hardware <SortArrow field="modelName" /></th>
                                         <th className="p-4 text-center">Status</th>
-                                        <th className="p-4 text-center">Purchase</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
@@ -1168,22 +1167,6 @@ const MultizoneTab: React.FC<MultizoneTabProps> = ({
                                             <td className="p-4 text-indigo-300 font-bold uppercase tracking-tighter">{row.zone}</td>
                                             <td className="p-4 text-slate-400">{row.modelName} <span className="text-[10px] opacity-50">[{row.bandName}]</span></td>
                                             <td className="p-4 text-center text-sm">{row.locked ? '🔒' : '🔓'}</td>
-                                            <td className="p-4">
-                                                <div className="flex justify-center">
-                                                    {row.affiliateUrl ? (
-                                                        <a 
-                                                            href={row.affiliateUrl} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer"
-                                                            className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded text-[9px] font-black text-emerald-400 uppercase tracking-tighter hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                                                        >
-                                                            🛒 Order
-                                                        </a>
-                                                    ) : (
-                                                        <span className="text-[8px] text-slate-600 font-black uppercase tracking-tighter italic opacity-30">N/A</span>
-                                                    )}
-                                                </div>
-                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
