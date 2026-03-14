@@ -41,8 +41,12 @@ const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquip
         
         allProfiles.forEach(p => {
             const parts = p.name.split(' ');
-            const manufacturer = parts[0];
+            let manufacturer = parts[0];
             const model = parts.slice(1).join(' ');
+            
+            if (manufacturer === 'My') {
+                manufacturer = 'My Custom Profiles';
+            }
             
             if (!groups[manufacturer]) groups[manufacturer] = {};
             if (!groups[manufacturer][model]) groups[manufacturer][model] = [];

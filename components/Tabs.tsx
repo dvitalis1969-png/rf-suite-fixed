@@ -11,6 +11,7 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
     // Calculator App
     { id: 'analyzer', label: 'Frequency Analyzer', category: 'calculator' },
     { id: 'generator', label: 'Batch Generator', category: 'calculator' },
+    { id: 'timeline', label: 'Timeline', category: 'calculator' },
     { id: 'multiband', label: 'Multi-Band', category: 'calculator' },
     { id: 'whitespace', label: 'TV Channels', category: 'calculator' },
     
@@ -19,8 +20,7 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
 
     // Coordination App (Festival)
     { id: 'festival', label: 'Site Coordinator', category: 'coordination' },
-    { id: 'timeline', label: 'Timeline', category: 'coordination' },
-    { id: 'festivalSiteMap', label: 'Spatial Map', category: 'coordination' },
+    { id: 'festivalSiteMap', label: 'Site Map', category: 'coordination' },
     
     // Exhibition Planner (Multizone)
     { id: 'multizone', label: 'Booth Ledger', category: 'multizone' },

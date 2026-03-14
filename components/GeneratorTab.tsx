@@ -80,6 +80,7 @@ interface GeneratorTabProps {
     setIgnoreManualIMD: (ignore: boolean) => void;
     siteThresholds: Thresholds;
     setSiteThresholds: (th: Thresholds) => void;
+    setFrequencies: React.Dispatch<React.SetStateAction<Frequency[]>>;
     equipmentOverrides?: Record<string, Partial<Thresholds>>;
     tvChannelStates?: Record<number, TVChannelState>;
     setTvChannelStates?: (states: Record<number, TVChannelState>) => void;
@@ -119,6 +120,7 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
     setIgnoreManualIMD,
     siteThresholds,
     setSiteThresholds,
+    setFrequencies,
     equipmentOverrides,
     tvChannelStates: initialTvStates = {},
     setTvChannelStates: setInitialTvStates,
@@ -362,6 +364,7 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
 
             // The engine now returns the FULL unified pool
             setGeneratorFrequencies(results);
+            setFrequencies(results);
 
             const totalRequested: number = requests.reduce((s, r) => s + (Number(r.count) || 0), 0);
             const totalFound: number = results.filter(f => f.sourceRequestId).length;
