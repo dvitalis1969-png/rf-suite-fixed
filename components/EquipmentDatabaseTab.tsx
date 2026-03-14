@@ -16,6 +16,8 @@ const secondaryButton = `bg-slate-700 text-slate-200 hover:bg-slate-600 ${button
 const dangerButton = `bg-red-600/80 text-white hover:bg-red-500 ${buttonBase}`;
 
 const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquipment, overrides, setOverrides, onManageCustomEquipment }) => {
+    const [expandedManufacturers, setExpandedManufacturers] = useState<Set<string>>(new Set());
+    const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
     const [bulkOffset, setBulkOffset] = useState<string>("0.025");
@@ -33,6 +35,41 @@ const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquip
             p.band.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [customEquipment, searchTerm]);
+
+    const groupedProfiles = useMemo(() => {
+        const groups: Record<string, Record<string, any[]>> = {};
+        
+        allProfiles.forEach(p => {
+            const parts = p.name.split(' ');
+            const manufacturer = parts[0];
+            const model = parts.slice(1).join(' ');
+            
+            if (!groups[manufacturer]) groups[manufacturer] = {};
+            if (!groups[manufacturer][model]) groups[manufacturer][model] = [];
+            
+            groups[manufacturer][model].push(p);
+        });
+        
+        return groups;
+    }, [allProfiles]);
+
+    const toggleManufacturer = (m: string) => {
+        setExpandedManufacturers(prev => {
+            const next = new Set(prev);
+            if (next.has(m)) next.delete(m);
+            else next.add(m);
+            return next;
+        });
+    };
+
+    const toggleModel = (m: string) => {
+        setExpandedModels(prev => {
+            const next = new Set(prev);
+            if (next.has(m)) next.delete(m);
+            else next.add(m);
+            return next;
+        });
+    };
 
     const handleValueChange = (key: string, field: keyof Thresholds, value: string) => {
         const numVal = parseFloat(value);
@@ -150,84 +187,102 @@ const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquip
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                            {allProfiles.map(p => {
-                                const key = p.id!;
-                                const override = overrides[key];
-                                const defaults = p.recommendedThresholds || {};
-                                
-                                return (
-                                    <tr key={key} className={`hover:bg-slate-800/40 transition-colors ${selectedKeys.has(key) ? 'bg-indigo-500/5' : ''}`}>
-                                        <td className="p-4">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={selectedKeys.has(key)} 
-                                                onChange={() => toggleSelect(key)}
-                                                className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-indigo-500"
-                                            />
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-white text-sm">{p.name}</span>
-                                                <div className="flex gap-1.5 mt-1">
-                                                    {p.isUserHardcoded ? (
-                                                        <span className="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black tracking-widest uppercase shadow-[0_0_10px_rgba(16,185,129,0.1)]">Permanent (Source)</span>
-                                                    ) : p.isStandard ? (
-                                                        <span className="text-[8px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded font-black tracking-widest uppercase">Factory Preset</span>
-                                                    ) : (
-                                                        <span className="text-[8px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-black tracking-widest uppercase">Local Entry</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-xs font-mono text-slate-400">{p.band}</td>
-                                        <td className="p-4">
-                                            <div className="flex flex-col items-center gap-1">
-                                                <span className="text-[7px] font-black text-slate-600 uppercase tracking-tighter">FF</span>
-                                                <input 
-                                                    type="number" 
-                                                    step="0.025" 
-                                                    value={override?.fundamental ?? defaults.fundamental ?? 0.350} 
-                                                    onChange={e => handleValueChange(key, 'fundamental', e.target.value)}
-                                                    className={`w-24 text-center font-mono text-xs p-1.5 rounded bg-slate-900 border ${override?.fundamental !== undefined ? 'border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.05)]' : 'border-slate-700 text-slate-400 opacity-80'}`}
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex flex-col items-center gap-1">
-                                                <span className="text-[7px] font-black text-slate-600 uppercase tracking-tighter">2T</span>
-                                                <input 
-                                                    type="number" 
-                                                    step="0.025" 
-                                                    value={override?.twoTone ?? defaults.twoTone ?? 0.050} 
-                                                    onChange={e => handleValueChange(key, 'twoTone', e.target.value)}
-                                                    className={`w-24 text-center font-mono text-xs p-1.5 rounded bg-slate-900 border ${override?.twoTone !== undefined ? 'border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.05)]' : 'border-slate-700 text-slate-400 opacity-80'}`}
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex flex-col items-center gap-1">
-                                                <span className="text-[7px] font-black text-slate-600 uppercase tracking-tighter">3T</span>
-                                                <input 
-                                                    type="number" 
-                                                    step="0.025" 
-                                                    value={override?.threeTone ?? defaults.threeTone ?? 0.050} 
-                                                    onChange={e => handleValueChange(key, 'threeTone', e.target.value)}
-                                                    className={`w-24 text-center font-mono text-xs p-1.5 rounded bg-slate-900 border ${override?.threeTone !== undefined ? 'border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.05)]' : 'border-slate-700 text-slate-400 opacity-80'}`}
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-right">
-                                            <button 
-                                                onClick={() => resetOverride(key)} 
-                                                disabled={!override}
-                                                className={`text-[9px] font-black uppercase tracking-tighter transition-all ${override ? 'text-red-400 hover:text-red-300' : 'text-slate-700 opacity-20'}`}
-                                            >
-                                                Seed
-                                            </button>
+                            {Object.entries(groupedProfiles).map(([manufacturer, models]) => (
+                                <React.Fragment key={manufacturer}>
+                                    <tr className="bg-slate-800/50 cursor-pointer" onClick={() => toggleManufacturer(manufacturer)}>
+                                        <td colSpan={7} className="p-4 font-bold text-white">
+                                            {expandedManufacturers.has(manufacturer) ? '▼' : '▶'} {manufacturer}
                                         </td>
                                     </tr>
-                                );
-                            })}
+                                    {expandedManufacturers.has(manufacturer) && Object.entries(models).map(([model, profiles]) => (
+                                        <React.Fragment key={model}>
+                                            <tr className="bg-slate-800/30 cursor-pointer" onClick={() => toggleModel(model)}>
+                                                <td colSpan={7} className="p-4 pl-8 font-semibold text-slate-300">
+                                                    {expandedModels.has(model) ? '▼' : '▶'} {model}
+                                                </td>
+                                            </tr>
+                                            {expandedModels.has(model) && profiles.map(p => {
+                                                const key = p.id!;
+                                                const override = overrides[key];
+                                                const defaults = p.recommendedThresholds || {};
+                                                
+                                                return (
+                                                    <tr key={key} className={`hover:bg-slate-800/40 transition-colors ${selectedKeys.has(key) ? 'bg-indigo-500/5' : ''}`}>
+                                                        <td className="p-4">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={selectedKeys.has(key)} 
+                                                                onChange={() => toggleSelect(key)}
+                                                                className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-indigo-500"
+                                                            />
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-bold text-white text-sm">{p.name}</span>
+                                                                <div className="flex gap-1.5 mt-1">
+                                                                    {p.isUserHardcoded ? (
+                                                                        <span className="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black tracking-widest uppercase shadow-[0_0_10px_rgba(16,185,129,0.1)]">Permanent (Source)</span>
+                                                                    ) : p.isStandard ? (
+                                                                        <span className="text-[8px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded font-black tracking-widest uppercase">Factory Preset</span>
+                                                                    ) : (
+                                                                        <span className="text-[8px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-black tracking-widest uppercase">Local Entry</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-xs font-mono text-slate-400">{p.band}</td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className="text-[7px] font-black text-slate-600 uppercase tracking-tighter">FF</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.025" 
+                                                                    value={override?.fundamental ?? defaults.fundamental ?? 0.350} 
+                                                                    onChange={e => handleValueChange(key, 'fundamental', e.target.value)}
+                                                                    className={`w-24 text-center font-mono text-xs p-1.5 rounded bg-slate-900 border ${override?.fundamental !== undefined ? 'border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.05)]' : 'border-slate-700 text-slate-400 opacity-80'}`}
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className="text-[7px] font-black text-slate-600 uppercase tracking-tighter">2T</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.025" 
+                                                                    value={override?.twoTone ?? defaults.twoTone ?? 0.050} 
+                                                                    onChange={e => handleValueChange(key, 'twoTone', e.target.value)}
+                                                                    className={`w-24 text-center font-mono text-xs p-1.5 rounded bg-slate-900 border ${override?.twoTone !== undefined ? 'border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.05)]' : 'border-slate-700 text-slate-400 opacity-80'}`}
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className="text-[7px] font-black text-slate-600 uppercase tracking-tighter">3T</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.025" 
+                                                                    value={override?.threeTone ?? defaults.threeTone ?? 0.050} 
+                                                                    onChange={e => handleValueChange(key, 'threeTone', e.target.value)}
+                                                                    className={`w-24 text-center font-mono text-xs p-1.5 rounded bg-slate-900 border ${override?.threeTone !== undefined ? 'border-amber-500/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.05)]' : 'border-slate-700 text-slate-400 opacity-80'}`}
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <button 
+                                                                onClick={() => resetOverride(key)} 
+                                                                disabled={!override}
+                                                                className={`text-[9px] font-black uppercase tracking-tighter transition-all ${override ? 'text-red-400 hover:text-red-300' : 'text-slate-700 opacity-20'}`}
+                                                            >
+                                                                Seed
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </React.Fragment>
+                                    ))}
+                                </React.Fragment>
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -239,8 +294,9 @@ const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquip
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                     <div className="text-xs text-slate-400 leading-relaxed">
-                        <p className="font-bold text-slate-200 mb-1 uppercase tracking-widest underline decoration-indigo-500/50 underline-offset-4">Touring Inventory Hardcoding Instructions</p>
-                        <p>To make your custom equipment PERMANENT (immune to resets), edit <code className="text-indigo-400 font-mono">constants.ts</code> in the source code and add your profiles to the <code className="text-indigo-400 font-mono">USER_INVENTORY</code> block. Gear added there will show up with the <span className="text-emerald-400 font-bold">Permanent</span> badge and will always be available in all modules.</p>
+                        <p className="font-bold text-slate-200 mb-1 uppercase tracking-widest underline decoration-indigo-500/50 underline-offset-4">Managing Custom Equipment</p>
+                        <p>To add your own equipment profile, use the <code className="text-indigo-400 font-mono">+Device Manager</code> button. Your custom profiles are saved locally in your browser's database.</p>
+                        <p className="mt-2 text-amber-400"><strong>Caution:</strong> Because this data is stored locally on your device, it will not be available if you switch browsers, clear your browser cache, or use a different computer. Please ensure you have a backup of your custom equipment profiles if they are critical to your workflow.</p>
                     </div>
                 </div>
             </Card>
