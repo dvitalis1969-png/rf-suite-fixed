@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import Card, { CardTitle, Placeholder } from './Card';
 import { DuplexPair, TalkbackIntermods, IntermodProduct, TalkbackSolution, Conflict, Frequency, Thresholds, TxType, TalkbackMode } from '../types';
 import { calculateTalkbackIntermods, checkTalkbackCompatibility } from '../services/rfService';
-import { DISCRETE_TALKBACK_PAIRS, TALKBACK_DEFINITIONS, TALKBACK_FIXED_PAIRS, TALKBACK_FORBIDDEN_RANGES } from '../constants';
+import { DISCRETE_TALKBACK_PAIRS, TALKBACK_DEFINITIONS, TALKBACK_FIXED_PAIRS, TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY } from '../constants';
 
 interface DuplexPairWithBw extends DuplexPair {
     txBw?: number;
@@ -81,7 +81,18 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
     const [mode, setMode] = useState<TalkbackMode>('standard');
     const [txBands, setTxBands] = useState<Set<number>>(new Set());
     const [rxBands, setRxBands] = useState<Set<number>>(new Set());
+    const [simplexTxBands, setSimplexTxBands] = useState<Set<number>>(new Set());
+    const [simplexWalkieBands, setSimplexWalkieBands] = useState<Set<number>>(new Set());
     const [pairCount, setPairCount] = useState<number>(8);
+    const [simplexTxCount, setSimplexTxCount] = useState<number>(2);
+    const [simplexWalkieCount, setSimplexWalkieCount] = useState<number>(4);
+    const [selectedCountry, setSelectedCountry] = useState<'UK' | 'USA' | 'Other'>('UK');
+    
+    // New state for enhancements
+    const [simplexTxBw, setSimplexTxBw] = useState<number>(0.0125);
+    const [simplexWalkieBw, setSimplexWalkieBw] = useState<number>(0.0125);
+    const [generationPriority, setGenerationPriority] = useState<('duplex' | 'simplexTx' | 'simplexWalkie')[]>(['duplex', 'simplexTx', 'simplexWalkie']);
+    
     const [isCalculating, setIsCalculating] = useState(false);
     const [genProgress, setGenProgress] = useState(0);
     const [showTable, setShowTable] = useState(false);
@@ -96,6 +107,16 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
     const [customRxMin, setCustomRxMin] = useState<number>(424);
     const [customRxMax, setCustomRxMax] = useState<number>(425);
     const [customBw, setCustomBw] = useState<number>(0.0125);
+    
+    // Per-section custom modes
+    const [duplexCustomMode, setDuplexCustomMode] = useState<'standard' | 'custom'>('custom');
+    const [simplexCustomMode, setSimplexCustomMode] = useState<'standard' | 'custom'>('custom');
+    
+    // Simplex Custom Ranges
+    const [simplexTxMin, setSimplexTxMin] = useState<number>(450);
+    const [simplexTxMax, setSimplexTxMax] = useState<number>(453);
+    const [simplexWalkieMin, setSimplexWalkieMin] = useState<number>(465);
+    const [simplexWalkieMax, setSimplexWalkieMax] = useState<number>(467);
 
     const [range, setRange] = useState({ min: 429.8, max: 484.8 });
     const [centerFreqInput, setCenterFreqInput] = useState<string>("457.3000");
@@ -113,8 +134,8 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
     const [diagnosticConflicts, setDiagnosticConflicts] = useState<Conflict[]>([]);
     const [hasAnalyzed, setHasAnalyzed] = useState(false);
 
-    const baseBands = mode === 'standard' ? STANDARD_BASE_BANDS : EUROPE_BASE_BANDS;
-    const portBands = mode === 'standard' ? STANDARD_PORT_BANDS : EUROPE_PORT_BANDS;
+    const baseBands = mode === 'europe' ? EUROPE_BASE_BANDS : STANDARD_BASE_BANDS;
+    const portBands = mode === 'europe' ? EUROPE_PORT_BANDS : STANDARD_PORT_BANDS;
 
     useEffect(() => {
         setCenterFreqInput(((range.min + range.max) / 2).toFixed(4));
@@ -122,6 +143,16 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
 
     const handleBandChange = (band: number, type: 'tx' | 'rx') => {
         const setter = type === 'tx' ? setTxBands : setRxBands;
+        setter(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(band)) newSet.delete(band);
+            else newSet.add(band);
+            return newSet;
+        });
+    };
+
+    const handleSimplexBandChange = (band: number, type: 'tx' | 'walkie') => {
+        const setter = type === 'tx' ? setSimplexTxBands : setSimplexWalkieBands;
         setter(prev => {
             const newSet = new Set(prev);
             if (newSet.has(band)) newSet.delete(band);
@@ -230,7 +261,8 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                 const is465Range = f >= 465 && f <= 467;
                 if (is450Range || is465Range) return false;
             }
-            return TALKBACK_FORBIDDEN_RANGES.some(range => f >= (range.min - 0.000005) && f <= (range.max + 0.000005));
+            const forbiddenRanges = TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY[selectedCountry] || [];
+            return forbiddenRanges.some(range => f >= (range.min - 0.000005) && f <= (range.max + 0.000005));
         };
 
         const lockedResults = results?.filter(p => p.locked && p.active !== false) || [];
@@ -245,15 +277,16 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
         const fixedVictims = [...activeTxManual, ...activeRxManual];
 
         const checkPairComp = (cand: {tx: number, rx: number}, plan: DuplexPair[]) => {
-            if (isForbidden(cand.tx) || isForbidden(cand.rx)) return false;
-            const currentTx = [...activeTxManual, ...plan.map(p => p.tx)];
-            const currentVictims = [...fixedVictims, ...plan.flatMap(p => [p.tx, p.rx])];
+            if (cand.tx > 0 && isForbidden(cand.tx)) return false;
+            if (cand.rx > 0 && isForbidden(cand.rx)) return false;
+            const currentTx = [...activeTxManual, ...plan.filter(p => p.tx > 0).map(p => p.tx)];
+            const currentVictims = [...fixedVictims, ...plan.flatMap(p => [p.tx, p.rx]).filter(f => f > 0)];
             for (const v of currentVictims) {
-                if (Math.abs(cand.tx - v) < SPACING_FF) return false;
-                if (Math.abs(cand.rx - v) < SPACING_FF) return false;
+                if (cand.tx > 0 && Math.abs(cand.tx - v) < SPACING_FF) return false;
+                if (cand.rx > 0 && Math.abs(cand.rx - v) < SPACING_FF) return false;
             }
-            if (Math.abs(cand.tx - cand.rx) < SPACING_FF) return false;
-            const nextTxPool = [...currentTx, cand.tx];
+            if (cand.tx > 0 && cand.rx > 0 && Math.abs(cand.tx - cand.rx) < SPACING_FF) return false;
+            const nextTxPool = cand.tx > 0 ? [...currentTx, cand.tx] : currentTx;
             const products2T: number[] = [];
             const products3T: number[] = [];
             for (let i = 0; i < nextTxPool.length; i++) {
@@ -269,7 +302,9 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                     }
                 }
             }
-            const allVictims = [...currentVictims, cand.tx, cand.rx];
+            const allVictims = [...currentVictims];
+            if (cand.tx > 0) allVictims.push(cand.tx);
+            if (cand.rx > 0) allVictims.push(cand.rx);
             for (const v of allVictims) {
                 for (const p of products2T) if (Math.abs(v - p) < SPACING_IMD) return false;
                 for (const p of products3T) if (Math.abs(v - p) < SPACING_IMD) return false;
@@ -279,20 +314,21 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
 
         const selectedTxBands: number[] = Array.from(txBands);
         const selectedRxBands: number[] = Array.from(rxBands);
+        const selectedSimplexTxBands: number[] = Array.from(simplexTxBands);
+        const selectedSimplexWalkieBands: number[] = Array.from(simplexWalkieBands);
+        
         const txFreqPool: number[] = [];
         const rxFreqPool: number[] = [];
+        const simplexTxPool: number[] = [];
+        const simplexWalkiePool: number[] = [];
         let fullPool: {tx: number, rx: number}[] = [];
 
-        if (mode === 'custom') {
-            // Generate frequencies based on custom ranges and bandwidth
+        // DUPLEX POOL GENERATION
+        if (mode === 'custom' && duplexCustomMode === 'custom') {
             const startOffset = customBw / 2;
-            
-            // Generate Tx Pool
             for (let f = customTxMin + startOffset; f <= customTxMax; f += customBw) {
                 txFreqPool.push(parseFloat(f.toFixed(5)));
             }
-            
-            // Generate Rx Pool
             for (let f = customRxMin + startOffset; f <= customRxMax; f += customBw) {
                 rxFreqPool.push(parseFloat(f.toFixed(5)));
             }
@@ -324,24 +360,89 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
             });
         }
 
+        // SIMPLEX POOL GENERATION
+        if (mode === 'custom' && simplexCustomMode === 'custom') {
+            const txStartOffset = simplexTxBw / 2;
+            for (let f = simplexTxMin + txStartOffset; f <= simplexTxMax; f += simplexTxBw) {
+                simplexTxPool.push(parseFloat(f.toFixed(5)));
+            }
+            const walkieStartOffset = simplexWalkieBw / 2;
+            for (let f = simplexWalkieMin + walkieStartOffset; f <= simplexWalkieMax; f += simplexWalkieBw) {
+                simplexWalkiePool.push(parseFloat(f.toFixed(5)));
+            }
+        } else {
+            selectedSimplexTxBands.forEach(b => {
+                const def = TALKBACK_DEFINITIONS[b];
+                if (def) for (let f = def.min; f <= def.max + 0.000001; f += 0.0125) simplexTxPool.push(parseFloat(f.toFixed(5)));
+            });
+
+            selectedSimplexWalkieBands.forEach(b => {
+                const def = TALKBACK_DEFINITIONS[b];
+                if (def) for (let f = def.min; f <= def.max + 0.000001; f += 0.0125) simplexWalkiePool.push(parseFloat(f.toFixed(5)));
+            });
+        }
+
         const sTx = txFreqPool.slice().sort(() => Math.random() - 0.5);
         const sRx = rxFreqPool.slice().sort(() => Math.random() - 0.5);
         if (sTx.length > 0 && sRx.length > 0) {
             for (let i = 0; i < Math.min(sTx.length, 3000); i++) fullPool.push({ tx: sTx[i], rx: sRx[i % sRx.length] });
         }
-        if (fullPool.length === 0) { setIsCalculating(false); return; }
+        
+        const sSimplexTx = simplexTxPool.slice().sort(() => Math.random() - 0.5).map(f => ({ tx: f, rx: 0 }));
+        const sSimplexWalkie = simplexWalkiePool.slice().sort(() => Math.random() - 0.5).map(f => ({ tx: 0, rx: f }));
+
+        if (fullPool.length === 0 && sSimplexTx.length === 0 && sSimplexWalkie.length === 0) { setIsCalculating(false); return; }
+        
         let bestSolution: DuplexPair[] = [];
-        const targetRemaining = Math.max(0, pairCount - lockedResults.length);
+        
+        const lockedDuplex = lockedResults.filter(p => p.tx > 0 && p.rx > 0);
+        const lockedSimplexTx = lockedResults.filter(p => p.tx > 0 && p.rx === 0);
+        const lockedSimplexWalkie = lockedResults.filter(p => p.tx === 0 && p.rx > 0);
+
+        const targetDuplex = Math.max(0, pairCount - lockedDuplex.length);
+        const targetSimplexTx = Math.max(0, simplexTxCount - lockedSimplexTx.length);
+        const targetSimplexWalkie = Math.max(0, simplexWalkieCount - lockedSimplexWalkie.length);
+
         for (let i = 0; i < 5000; i++) {
             const current: DuplexPair[] = [];
+            
+            // Try to add duplex pairs
             const items = [...fullPool].sort(() => Math.random() - 0.5);
             for (const cand of items) {
-                if (current.length >= targetRemaining) break;
+                if (current.filter(p => p.tx > 0 && p.rx > 0).length >= targetDuplex) break;
                 if (checkPairComp(cand, current)) {
                     current.push({ id: `G-${i}-${current.length}-${Date.now()}`, label: `CH ${current.length + 1 + lockedResults.length}`, tx: cand.tx, rx: cand.rx, groupName: 'Generated', locked: false, active: true });
                 }
             }
-            if (current.length > bestSolution.length) { bestSolution = current; if (bestSolution.length >= targetRemaining) break; }
+            
+            // Try to add simplex Tx
+            const itemsSimplexTx = [...sSimplexTx].sort(() => Math.random() - 0.5);
+            for (const cand of itemsSimplexTx) {
+                if (current.filter(p => p.tx > 0 && p.rx === 0).length >= targetSimplexTx) break;
+                if (checkPairComp(cand, current)) {
+                    current.push({ id: `G-STX-${i}-${current.length}-${Date.now()}`, label: `Simplex Tx ${current.filter(p => p.tx > 0 && p.rx === 0).length + 1 + lockedSimplexTx.length}`, tx: cand.tx, rx: cand.rx, groupName: 'Simplex Tx', locked: false, active: true });
+                }
+            }
+
+            // Try to add simplex Walkie
+            const itemsSimplexWalkie = [...sSimplexWalkie].sort(() => Math.random() - 0.5);
+            for (const cand of itemsSimplexWalkie) {
+                if (current.filter(p => p.tx === 0 && p.rx > 0).length >= targetSimplexWalkie) break;
+                if (checkPairComp(cand, current)) {
+                    current.push({ id: `G-SW-${i}-${current.length}-${Date.now()}`, label: `Walkie ${current.filter(p => p.tx === 0 && p.rx > 0).length + 1 + lockedSimplexWalkie.length}`, tx: cand.tx, rx: cand.rx, groupName: 'Walkie-Talkie', locked: false, active: true });
+                }
+            }
+
+            if (current.length > bestSolution.length) { 
+                bestSolution = current; 
+                if (
+                    current.filter(p => p.tx > 0 && p.rx > 0).length >= targetDuplex &&
+                    current.filter(p => p.tx > 0 && p.rx === 0).length >= targetSimplexTx &&
+                    current.filter(p => p.tx === 0 && p.rx > 0).length >= targetSimplexWalkie
+                ) {
+                    break;
+                }
+            }
             if (i % 500 === 0) setGenProgress(i / 5000);
         }
         setResults([...lockedResults, ...bestSolution]);
@@ -375,10 +476,21 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
         }));
         const dummyDist = [[0]];
         const dummyMatrix = [[false]];
-        const result = checkTalkbackCompatibility(freqList, dummyDist, dummyMatrix, mode);
+        const result = checkTalkbackCompatibility(freqList, dummyDist, dummyMatrix, mode, selectedCountry);
         setDiagnosticConflicts(result.conflicts);
         setHasAnalyzed(true);
     };
+
+    const yieldBreakdown = useMemo(() => {
+        if (!results) return null;
+        const duplex = results.filter(p => p.tx > 0 && p.rx > 0).length;
+        const simplexTx = results.filter(p => p.tx > 0 && p.rx === 0).length;
+        const simplexWalkie = results.filter(p => p.tx === 0 && p.rx > 0).length;
+        return { duplex, simplexTx, simplexWalkie };
+    }, [results]);
+
+    const totalTarget = pairCount + simplexTxCount + simplexWalkieCount;
+    const totalYield = (yieldBreakdown?.duplex || 0) + (yieldBreakdown?.simplexTx || 0) + (yieldBreakdown?.simplexWalkie || 0);
 
     const handleSort = (field: string) => {
         if (sortField === field) setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -466,6 +578,26 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
         } else setCenterFreqInput(((range.min + range.max) / 2).toFixed(4));
     };
 
+    const SectionToggle: React.FC<{
+        mode: 'standard' | 'custom';
+        onChange: (mode: 'standard' | 'custom') => void;
+    }> = ({ mode, onChange }) => (
+        <div className="flex bg-slate-900 border border-slate-700 rounded-lg p-0.5 shadow-inner">
+            <button 
+                onClick={() => onChange('standard')}
+                className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition-all ${mode === 'standard' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+                Standard
+            </button>
+            <button 
+                onClick={() => onChange('custom')}
+                className={`px-3 py-1 rounded-md text-[9px] font-black uppercase transition-all ${mode === 'custom' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+                Custom
+            </button>
+        </div>
+    );
+
     const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
         if (e.button !== 0) return;
         setIsDragging(true); setDragState({ startX: e.clientX, startMin: range.min, startMax: range.max });
@@ -499,14 +631,15 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
         if (internalX < padding.left || internalX > padding.left + chartWidth) return null;
         const freqRange = range.max - range.min; const mouseFreq = range.min + ((internalX - padding.left) / chartWidth) * freqRange; const hitThreshold = (18 / chartWidth) * freqRange;
         
-        for (const fz of TALKBACK_FORBIDDEN_RANGES) { 
+        const forbiddenRanges = TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY[selectedCountry] || [];
+        for (const fz of forbiddenRanges) { 
             // Bypass 450-453 MHz AND 465-467 MHz forbidden zones in Mainland Europe mode
             if (mode === 'europe') {
                 const is450Range = fz.min >= 450 && fz.max <= 453;
                 const is465Range = fz.min >= 465 && fz.max <= 467;
                 if (is450Range || is465Range) continue;
             }
-            if (mouseFreq >= (fz.min - 0.000005) && mouseFreq <= (fz.max + 0.000005)) return { text: `REGULATORY BLOCKADE`, subtext: `Forbidden in UK: ${fz.min.toFixed(5)}-${fz.max.toFixed(5)} MHz`, color: '#f87171' }; 
+            if (mouseFreq >= (fz.min - 0.000005) && mouseFreq <= (fz.max + 0.000005)) return { text: `REGULATORY BLOCKADE`, subtext: `Forbidden in ${selectedCountry}: ${fz.min.toFixed(5)}-${fz.max.toFixed(5)} MHz`, color: '#f87171' }; 
         }
 
         for (const c of allActiveCarriers) { if (Math.abs(mouseFreq - c.value) < hitThreshold) return { text: `${c.label}: ${c.value.toFixed(5)} MHz`, subtext: `Group: ${c.groupName}`, color: c.type === 'tx' ? INTERMOD_CONFIG.tx.color : INTERMOD_CONFIG.rx.color }; }
@@ -542,7 +675,8 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
             ctx.textAlign = 'center'; const freqRange = range.max - range.min; const numVert = Math.max(5, Math.min(10, Math.floor(chartWidth / 100)));
             for (let i = 0; i <= numVert; i++) { const f = range.min + (i * freqRange / numVert); const x = freqToX(f); ctx.beginPath(); ctx.moveTo(x, padding.top); ctx.lineTo(x, height - padding.bottom); ctx.stroke(); ctx.fillText(`${f.toFixed(1)}`, x, height - padding.bottom + 15); }
             ctx.fillStyle = 'rgba(239, 68, 68, 0.2)'; 
-            TALKBACK_FORBIDDEN_RANGES.forEach(fz => { 
+            const forbiddenRanges = TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY[selectedCountry] || [];
+            forbiddenRanges.forEach(fz => { 
                 // Bypass 450-453 MHz AND 465-467 MHz forbidden zones in Mainland Europe mode
                 if (mode === 'europe') {
                     const is450Range = fz.min >= 450 && fz.max <= 453;
@@ -554,7 +688,7 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                     const xS = Math.max(padding.left, freqToX(fz.min)); 
                     const xE = Math.min(width - padding.right, freqToX(fz.max)); 
                     if (xE > xS) { 
-                        ctx.fillRect(xS, padding.top, xE - xS, chartHeight); ctx.save(); ctx.translate(xS + 2, padding.top + 10); ctx.rotate(Math.PI / 2); ctx.fillStyle = 'rgba(248, 113, 113, 0.6)'; ctx.font = 'bold 8px sans-serif'; ctx.fillText('Forbidden in UK', 0, 0); ctx.restore(); ctx.fillStyle = 'rgba(239, 68, 68, 0.2)'; 
+                        ctx.fillRect(xS, padding.top, xE - xS, chartHeight); ctx.save(); ctx.translate(xS + 2, padding.top + 10); ctx.rotate(Math.PI / 2); ctx.fillStyle = 'rgba(248, 113, 113, 0.6)'; ctx.font = 'bold 8px sans-serif'; ctx.fillText(`Forbidden in ${selectedCountry}`, 0, 0); ctx.restore(); ctx.fillStyle = 'rgba(239, 68, 68, 0.2)'; 
                     } 
                 } 
             });
@@ -584,7 +718,24 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
         <div className="space-y-4 max-w-[1400px] mx-auto">
             <Card>
                 <div className="flex justify-between items-center mb-6">
-                    <CardTitle className="!mb-0">1. Setup Base & Portable Bands</CardTitle>
+                    <div className="flex items-center gap-4">
+                        <CardTitle className="!mb-0">1. Setup Base & Portable Bands</CardTitle>
+                        <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl p-1 shadow-inner">
+                            <span className="text-[10px] text-slate-500 font-black uppercase px-2">Country:</span>
+                            <select 
+                                value={selectedCountry} 
+                                onChange={e => setSelectedCountry(e.target.value as any)}
+                                className="bg-slate-800 text-white text-[10px] font-black uppercase rounded-lg px-3 py-1.5 outline-none border border-slate-700"
+                            >
+                                <option value="UK">UK</option>
+                                <option value="USA">USA</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        {mode === 'custom' && (
+                            <SectionToggle mode={duplexCustomMode} onChange={setDuplexCustomMode} />
+                        )}
+                    </div>
                     <div className="flex bg-slate-900 border border-indigo-500/30 rounded-xl p-1 shadow-inner overflow-hidden">
                         <button 
                             onClick={() => setMode('standard')}
@@ -607,7 +758,7 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                     </div>
                 </div>
 
-                {mode === 'custom' ? (
+                {mode === 'custom' && duplexCustomMode === 'custom' ? (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2">Base Transmit (Tx) Range</h4>
@@ -673,7 +824,7 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                         </div>
                         <div>
                             <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2">
-                                Portable Transmit (Rx) {mode === 'europe' ? '(Low Band)' : '(High Band)'}
+                                Portable Receive (Rx) {mode === 'europe' ? '(Low Band)' : '(High Band)'}
                             </h4>
                             <div className="flex flex-wrap gap-1.5">
                                 {portBands.map(b => (
@@ -696,42 +847,192 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                 )}
             </Card>
             <Card>
+                <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-4">
+                        <CardTitle className="!mb-0">1b. Setup Simplex Frequencies</CardTitle>
+                        {mode === 'custom' && (
+                            <SectionToggle mode={simplexCustomMode} onChange={setSimplexCustomMode} />
+                        )}
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    {mode === 'custom' && simplexCustomMode === 'custom' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2">Simplex Base Tx Range</h4>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1 bg-slate-900 border border-slate-700 rounded p-2">
+                                        <label className="text-[8px] text-slate-500 uppercase font-bold block mb-1">Min (MHz)</label>
+                                        <input type="number" value={simplexTxMin} onChange={e => setSimplexTxMin(parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-white font-mono text-sm focus:outline-none font-bold" />
+                                    </div>
+                                    <span className="text-slate-500 font-bold">-</span>
+                                    <div className="flex-1 bg-slate-900 border border-slate-700 rounded p-2">
+                                        <label className="text-[8px] text-slate-500 uppercase font-bold block mb-1">Max (MHz)</label>
+                                        <input type="number" value={simplexTxMax} onChange={e => setSimplexTxMax(parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-white font-mono text-sm focus:outline-none font-bold" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2">Simplex Set-to-Set (Walkie) Range</h4>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1 bg-slate-900 border border-slate-700 rounded p-2">
+                                        <label className="text-[8px] text-slate-500 uppercase font-bold block mb-1">Min (MHz)</label>
+                                        <input type="number" value={simplexWalkieMin} onChange={e => setSimplexWalkieMin(parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-white font-mono text-sm focus:outline-none font-bold" />
+                                    </div>
+                                    <span className="text-slate-500 font-bold">-</span>
+                                    <div className="flex-1 bg-slate-900 border border-slate-700 rounded p-2">
+                                        <label className="text-[8px] text-slate-500 uppercase font-bold block mb-1">Max (MHz)</label>
+                                        <input type="number" value={simplexWalkieMax} onChange={e => setSimplexWalkieMax(parseFloat(e.target.value) || 0)} className="w-full bg-transparent text-white font-mono text-sm focus:outline-none font-bold" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2">Simplex Presets</h4>
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={() => { setSimplexTxBands(new Set([446])); setSimplexWalkieBands(new Set([467])); }} className="px-3 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-white rounded font-bold">PMR446 / FRS</button>
+                                    <button onClick={() => { setSimplexTxBands(new Set([457, 455])); setSimplexWalkieBands(new Set([467, 468])); }} className="px-3 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-white rounded font-bold">Standard Talkback</button>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2">Simplex Base Tx Frequencies</h4>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[457, 455, 446, 447, 450, 451, 452].map(b => (
+                                        <button key={b} onClick={() => handleSimplexBandChange(b, 'tx')} className={`px-2 py-1 text-xs border-2 rounded font-bold transition-all ${simplexTxBands.has(b) ? 'bg-amber-600 border-amber-400 text-white shadow-lg' : 'bg-slate-800 border-slate-700 text-white'}`}>{b}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-black text-slate-500 uppercase mb-2">Simplex Set-to-Set (Walkie-Talkie)</h4>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[467, 468, 469].map(b => (
+                                        <button key={b} onClick={() => handleSimplexBandChange(b, 'walkie')} className={`px-2 py-1 text-xs border-2 rounded font-bold transition-all ${simplexWalkieBands.has(b) ? 'bg-purple-600 border-purple-400 text-white shadow-lg' : 'bg-slate-800 border-slate-700 text-white'}`}>{b}</button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="border-t border-slate-800 pt-4">
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase mb-3">Quantities & Settings</h4>
+                        <div className="flex flex-wrap items-center gap-x-8 gap-y-4 bg-slate-900/30 p-4 rounded-xl border border-white/5">
+                            <div className="flex items-center gap-3">
+                                <label className="text-[9px] text-slate-400 uppercase font-bold whitespace-nowrap">Target Base Tx</label>
+                                <div className="flex items-center bg-slate-950 border border-slate-700 rounded overflow-hidden h-9">
+                                    <button onClick={() => setSimplexTxCount(Math.max(0, simplexTxCount - 1))} className="px-2 h-full bg-slate-800 hover:bg-slate-700 text-indigo-400 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg></button>
+                                    <input type="number" value={simplexTxCount} onChange={e => setSimplexTxCount(parseInt(e.target.value) || 0)} className="w-12 bg-transparent h-full text-white font-mono text-sm focus:outline-none text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                    <button onClick={() => setSimplexTxCount(simplexTxCount + 1)} className="px-2 h-full bg-slate-800 hover:bg-slate-700 text-indigo-400 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" /></svg></button>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <label className="text-[9px] text-slate-400 uppercase font-bold whitespace-nowrap">Target Walkie</label>
+                                <div className="flex items-center bg-slate-950 border border-slate-700 rounded overflow-hidden h-9">
+                                    <button onClick={() => setSimplexWalkieCount(Math.max(0, simplexWalkieCount - 1))} className="px-2 h-full bg-slate-800 hover:bg-slate-700 text-indigo-400 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg></button>
+                                    <input type="number" value={simplexWalkieCount} onChange={e => setSimplexWalkieCount(parseInt(e.target.value) || 0)} className="w-12 bg-transparent h-full text-white font-mono text-sm focus:outline-none text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                    <button onClick={() => setSimplexWalkieCount(simplexWalkieCount + 1)} className="px-2 h-full bg-slate-800 hover:bg-slate-700 text-indigo-400 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" /></svg></button>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <label className="text-[9px] text-slate-400 uppercase font-bold whitespace-nowrap">Tx BW (MHz)</label>
+                                <input type="number" step="0.001" value={simplexTxBw} onChange={e => setSimplexTxBw(parseFloat(e.target.value) || 0.0125)} className="w-20 bg-slate-950 border border-slate-700 rounded px-2 h-9 text-white font-mono text-xs outline-none focus:border-indigo-500" />
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <label className="text-[9px] text-slate-400 uppercase font-bold whitespace-nowrap">Walkie BW (MHz)</label>
+                                <input type="number" step="0.001" value={simplexWalkieBw} onChange={e => setSimplexWalkieBw(parseFloat(e.target.value) || 0.0125)} className="w-20 bg-slate-950 border border-slate-700 rounded px-2 h-9 text-white font-mono text-xs outline-none focus:border-indigo-500" />
+                            </div>
+                            <div className="flex items-center gap-3 flex-1 min-w-[240px]">
+                                <label className="text-[9px] text-slate-400 uppercase font-bold whitespace-nowrap">Priority</label>
+                                <select value={generationPriority.join(',')} onChange={e => setGenerationPriority(e.target.value.split(',') as any)} className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 h-9 text-white text-xs outline-none focus:border-indigo-500">
+                                    <option value="duplex,simplexTx,simplexWalkie">Duplex {'>'} Tx {'>'} Walkie</option>
+                                    <option value="simplexTx,duplex,simplexWalkie">Tx {'>'} Duplex {'>'} Walkie</option>
+                                    <option value="simplexWalkie,duplex,simplexTx">Walkie {'>'} Duplex {'>'} Tx</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Card>
+            <Card>
                 <CardTitle>2. Fixed Site Plan</CardTitle>
-                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                     {manualPairs.map((p: DuplexPairWithBw) => {
                         const active = p.active !== false;
                         return (
-                        <div key={p.id} className={`bg-slate-900/40 p-3 rounded-xl border transition-all ${active ? 'border-white/5' : 'border-slate-800 opacity-60 grayscale-[0.5]'}`}>
+                        <div key={p.id} className={`bg-slate-900/40 p-2 rounded-lg border transition-all ${active ? 'border-white/5' : 'border-slate-800 opacity-60 grayscale-[0.5]'}`}>
                             <div className="flex items-center gap-3">
-                                <div className="flex flex-col items-center gap-1 group">
-                                    <button onClick={() => updateManualPair(p.id, 'active', !active)} className={`w-10 h-6 rounded-full relative transition-colors ${active ? 'bg-emerald-500' : 'bg-slate-700'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${active ? 'left-1' : 'left-5'}`} /></button>
-                                    <span className={`text-[8px] font-black uppercase ${active ? 'text-emerald-400' : 'text-slate-500'}`}>{active ? 'ON' : 'OFF'}</span>
+                                {/* Toggle Button next to Base Tx */}
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button 
+                                        onClick={() => updateManualPair(p.id, 'active', !active)} 
+                                        className={`w-8 h-4 rounded-full relative transition-colors ${active ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                                        title={active ? "Deactivate" : "Activate"}
+                                    >
+                                        <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${active ? 'left-0.5' : 'left-4.5'}`} />
+                                    </button>
+                                    
+                                    {/* Base Tx */}
+                                    <div className="flex items-center gap-1.5 bg-slate-800 rounded px-2 h-8 w-[150px]">
+                                        <span className="text-[7px] text-yellow-500 font-black uppercase leading-none w-8">
+                                            {mode === 'europe' ? 'Base Tx' : 'Base Tx'}
+                                        </span>
+                                        <ManualFreqInput value={p.tx} onChange={(val) => updateManualPair(p.id, 'tx', val)} className="w-full bg-transparent text-[11px] text-white font-mono outline-none font-bold" />
+                                        <div className="flex flex-col -gap-1">
+                                            <button onClick={() => handleFrequencyStep(p.id, 'tx', 'up')} className="text-slate-500 hover:text-white text-[8px] leading-none">▲</button>
+                                            <button onClick={() => handleFrequencyStep(p.id, 'tx', 'down')} className="text-slate-500 hover:text-white text-[8px] leading-none">▼</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-[1fr,1fr,auto,auto,auto] gap-3 items-center flex-1">
-                                    <div className="flex items-center gap-1 bg-slate-800 rounded px-2">
-                                        <span className="text-[8px] text-yellow-500 font-black tracking-tighter uppercase">
-                                            {mode === 'europe' ? 'Base Tx (Upper)' : 'Base Tx (Lower)'}
+
+                                <div className="flex flex-wrap items-center gap-3 flex-1">
+                                    {/* Port Rx */}
+                                    <div className="flex items-center gap-1.5 bg-slate-800 rounded px-2 h-8 w-[150px]">
+                                        <span className="text-[7px] text-cyan-500 font-black uppercase leading-none w-8">
+                                            {mode === 'europe' ? 'Port Rx' : 'Port Rx'}
                                         </span>
-                                        <ManualFreqInput value={p.tx} onChange={(val) => updateManualPair(p.id, 'tx', val)} className="w-full bg-transparent p-1 text-xs text-white font-mono outline-none font-bold" />
-                                        <button onClick={() => handleFrequencyStep(p.id, 'tx', 'down')} className="text-slate-500 hover:text-white px-1 font-bold">-</button>
-                                        <button onClick={() => handleFrequencyStep(p.id, 'tx', 'up')} className="text-slate-500 hover:text-white px-1 font-bold">+</button>
+                                        <ManualFreqInput value={p.rx} onChange={(val) => updateManualPair(p.id, 'rx', val)} className="w-full bg-transparent text-[11px] text-white font-mono outline-none font-bold" />
+                                        <div className="flex flex-col -gap-1">
+                                            <button onClick={() => handleFrequencyStep(p.id, 'rx', 'up')} className="text-slate-500 hover:text-white text-[8px] leading-none">▲</button>
+                                            <button onClick={() => handleFrequencyStep(p.id, 'rx', 'down')} className="text-slate-500 hover:text-white text-[8px] leading-none">▼</button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1 bg-slate-800 rounded px-2">
-                                        <span className="text-[8px] text-cyan-500 font-black tracking-tighter uppercase">
-                                            {mode === 'europe' ? 'Port Rx (Lower)' : 'Port Rx (Upper)'}
-                                        </span>
-                                        <ManualFreqInput value={p.rx} onChange={(val) => updateManualPair(p.id, 'rx', val)} className="w-full bg-transparent p-1 text-xs text-white font-mono outline-none font-bold" />
-                                        <button onClick={() => handleFrequencyStep(p.id, 'rx', 'down')} className="text-slate-500 hover:text-white px-1 font-bold">-</button>
-                                        <button onClick={() => handleFrequencyStep(p.id, 'rx', 'up')} className="text-slate-500 hover:text-white px-1 font-bold">+</button>
-                                    </div>
-                                    <div className="flex flex-col gap-0.5">
-                                        <span className="text-[8px] text-slate-500 font-black uppercase tracking-widest text-center">BW (kHz)</span>
-                                        <select value={p.txBw || 0.0125} onChange={e => { const val = parseFloat(e.target.value); setManualPairs(pairs => pairs.map(mp => mp.id === p.id ? { ...mp, txBw: val, rxBw: val } : mp)); }} className="bg-slate-800 border border-slate-700 rounded text-[10px] px-1.5 py-0.5 text-indigo-300 outline-none font-bold">
-                                            <option value={0.0125}>12.5k</option><option value={0.025}>25k</option><option value={0.050}>50k</option>
+
+                                    {/* BW Dropdown next to frequencies */}
+                                    <div className="flex items-center gap-1.5 bg-slate-800 rounded px-2 h-8">
+                                        <span className="text-[7px] text-slate-500 font-black uppercase">BW</span>
+                                        <select 
+                                            value={p.txBw || 0.0125} 
+                                            onChange={e => { 
+                                                const val = parseFloat(e.target.value); 
+                                                setManualPairs(pairs => pairs.map(mp => mp.id === p.id ? { ...mp, txBw: val, rxBw: val } : mp)); 
+                                            }} 
+                                            className="bg-transparent text-[10px] text-indigo-300 outline-none font-bold cursor-pointer"
+                                        >
+                                            <option value={0.0125}>12.5k</option>
+                                            <option value={0.025}>25k</option>
+                                            <option value={0.050}>50k</option>
                                         </select>
                                     </div>
-                                    <button onClick={() => updateManualPair(p.id, 'locked', !p.locked)} className={`p-1.5 rounded transition-all ${p.locked ? 'text-amber-500 bg-amber-500/10' : 'text-slate-600 hover:text-slate-300'}`} title={p.locked ? "Unlock" : "Lock"}><span className="text-sm">{p.locked ? '🔒' : '🔓'}</span></button>
-                                    <button onClick={() => removeManualPair(p.id)} className="text-red-400 p-2 font-bold text-lg hover:text-red-300 transition-colors">&times;</button>
+
+                                    {/* Lock & Remove */}
+                                    <div className="flex items-center gap-1 ml-auto">
+                                        <button 
+                                            onClick={() => updateManualPair(p.id, 'locked', !p.locked)} 
+                                            className={`p-1.5 rounded transition-all ${p.locked ? 'text-amber-500 bg-amber-500/10' : 'text-slate-600 hover:text-slate-300'}`} 
+                                            title={p.locked ? "Unlock" : "Lock"}
+                                        >
+                                            <span className="text-xs">{p.locked ? '🔒' : '🔓'}</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => removeManualPair(p.id)} 
+                                            className="text-red-400 p-1.5 font-bold text-lg hover:text-red-300 transition-colors leading-none"
+                                            title="Remove"
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -767,8 +1068,31 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                 </div>
                 {(isCalculating || results) && (
                     <div className="bg-slate-800/80 border border-blue-500/20 rounded-lg p-3">
-                        <div className="flex justify-between items-center mb-1.5"><span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{isCalculating ? 'Searching Optimization Space...' : 'Spectral Yield'}</span><span className="text-xs font-bold text-white font-mono">{isCalculating ? `${Math.round(genProgress * 100)}%` : `${results?.length || 0} / ${pairCount} Pairs`}</span></div>
-                        <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-white/5 shadow-inner"><div className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full transition-all duration-300 shadow-[0_0_10px_rgba(59,130,246,0.5)]" style={{ width: `${Math.min(100, (isCalculating ? genProgress : ((results?.length || 0) / pairCount)) * 100)}%` }} /></div>
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                                {isCalculating ? 'Searching Optimization Space...' : 'Spectral Yield Breakdown'}
+                            </span>
+                            <span className="text-xs font-bold text-white font-mono">
+                                {isCalculating ? `${Math.round(genProgress * 100)}%` : (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-amber-400">{yieldBreakdown?.simplexTx} Simplex Base Tx</span>
+                                        <span className="text-slate-600">/</span>
+                                        <span className="text-purple-400">{yieldBreakdown?.simplexWalkie} Simplex Set-to-Set</span>
+                                        <span className="text-slate-600">/</span>
+                                        <span className="text-blue-400">{yieldBreakdown?.duplex} Duplex Pairs</span>
+                                        <span className="text-slate-500 ml-3 bg-slate-900 px-2 py-0.5 rounded border border-white/5">
+                                            Total: {totalYield} / {totalTarget}
+                                        </span>
+                                    </div>
+                                )}
+                            </span>
+                        </div>
+                        <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-white/5 shadow-inner">
+                            <div 
+                                className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full transition-all duration-300 shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+                                style={{ width: `${Math.min(100, (isCalculating ? genProgress : (totalYield / totalTarget)) * 100)}%` }} 
+                            />
+                        </div>
                     </div>
                 )}
             </div>
@@ -804,7 +1128,7 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                         </div>
                     </div>
                 )}
-                <div className="relative group"><canvas ref={canvasRef} className={`w-full h-[250px] md:h-[350px] bg-slate-950 rounded-xl border border-blue-500/20 shadow-inner ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={handleWheel} />{activeHit && mouseCoord && !isDragging && (<div className="fixed z-[100] p-2.5 bg-slate-900/95 border border-white/20 rounded-lg shadow-2xl pointer-events-none backdrop-blur-md transform -translate-x-1/2 -translate-y-full" style={{ left: mouseCoord.clientX, top: mouseCoord.clientY - 12 }}><div className="flex flex-col gap-0.5"><div className="text-[11px] font-black uppercase tracking-tight" style={{ color: activeHit.color }}>{activeHit.text}</div><div className="text-[10px] text-slate-400 font-mono italic">{activeHit.subtext}</div></div><div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-white/20 transform rotate-45" /></div>)}</div>
+                <div className="relative group"><canvas ref={canvasRef} className={`w-full h-[250px] md:h-[350px] bg-slate-950 rounded-xl border border-blue-500/20 shadow-inner ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onPointerLeave={handlePointerUp} onWheel={handleWheel} />{activeHit && mouseCoord && !isDragging && (<div className="fixed z-[100] p-2.5 bg-slate-900/95 border border-white/20 rounded-lg shadow-2xl pointer-events-none backdrop-blur-md transform -translate-x-1/2 -translate-y-full" style={{ left: mouseCoord.clientX, top: mouseCoord.clientY - 6 }}><div className="flex flex-col gap-0.5"><div className="text-[11px] font-black uppercase tracking-tight" style={{ color: activeHit.color }}>{activeHit.text}</div><div className="text-[10px] text-slate-400 font-mono italic">{activeHit.subtext}</div></div><div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-white/20 transform rotate-45" /></div>)}</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">{results?.map(p => { const active = p.active !== false; return (<div key={p.id} className={`p-3 bg-slate-800/80 border transition-all rounded-xl flex justify-between items-center group ${active ? 'border-white/5 hover:border-blue-500/30' : 'border-slate-800 opacity-60 grayscale-[0.5]'}`}><div className="flex items-center gap-3 flex-1 overflow-hidden"><div className="flex flex-col items-center gap-1 flex-shrink-0"><button onClick={() => handleResultActiveToggle(p.id)} className={`w-8 h-4 rounded-full relative transition-colors ${active ? 'bg-emerald-500' : 'bg-slate-700'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${active ? 'left-0.5' : 'left-4.5'}`} /></button><span className={`text-[8px] font-black uppercase ${active ? 'text-emerald-400' : 'text-slate-500'}`}>{active ? 'ON' : 'OFF'}</span></div><div className="font-mono text-[11px] space-y-1 flex-1 min-w-0"><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2 flex-1 min-w-0"><span className="text-[10px] text-yellow-500 font-bold w-4 flex-shrink-0">T:</span><ManualFreqInput value={p.tx} onChange={(v) => handleResultChange(p.id, 'tx', v)} className="w-full bg-transparent p-0 text-white font-bold outline-none border-none text-[10px]" /></div><div className="flex gap-1 flex-shrink-0 transition-opacity"><button onClick={() => handleFrequencyStep(p.id, 'tx', 'down')} className="text-[9px] bg-slate-700 text-white rounded px-1 hover:bg-blue-600 font-bold">-</button><button onClick={() => handleFrequencyStep(p.id, 'tx', 'up')} className="text-[9px] bg-slate-700 text-white rounded px-1 hover:bg-blue-600 font-bold">+</button></div></div><div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2 flex-1 min-w-0"><span className="text-[10px] text-blue-500 font-bold w-4 flex-shrink-0">R:</span><ManualFreqInput value={p.rx} onChange={(v) => handleResultChange(p.id, 'rx', v)} className="w-full bg-transparent p-0 text-white font-bold outline-none border-none text-[11px]" /></div><div className="flex gap-1 flex-shrink-0 transition-opacity"><button onClick={() => handleFrequencyStep(p.id, 'rx', 'down')} className="text-[9px] bg-slate-700 text-white rounded px-1 hover:bg-blue-600 font-bold">-</button><button onClick={() => handleFrequencyStep(p.id, 'rx', 'up')} className="text-[9px] bg-slate-700 text-white rounded px-1 hover:bg-blue-600 font-bold">+</button></div></div></div></div><div className="flex items-center gap-2 ml-2 border-l border-white/10 pl-2 flex-shrink-0"><button onClick={() => handleResultLockToggle(p.id)} className={`p-1.5 rounded transition-all ${p.locked ? 'text-amber-500 bg-amber-500/10' : 'text-slate-600 hover:text-slate-300'}`} title={p.locked ? "Unlock" : "Lock"}><span className="text-sm">{p.locked ? '🔒' : '🔓'}</span></button><button onClick={() => handleRemoveResult(p.id)} className="text-red-400 hover:text-red-300 p-1 font-bold text-xl leading-none" title="Remove pair">&times;</button></div></div>);})}</div>
             </Card>
         </div>

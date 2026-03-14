@@ -6,7 +6,7 @@ import {
     GeneratorRequest, EquipmentRequest, TalkbackIntermods, Zone,
     OptimizationReport, OptimizationSuggestion, BottleneckStats, TVChannelState, TalkbackMode, TourPlanningState, WMASState
 } from '../types';
-import { COMPATIBILITY_PROFILES, DISCRETE_TALKBACK_PAIRS, TALKBACK_DEFINITIONS, TALKBACK_FIXED_PAIRS, UK_TV_CHANNELS, US_TV_CHANNELS, TALKBACK_FORBIDDEN_RANGES } from '../constants';
+import { COMPATIBILITY_PROFILES, DISCRETE_TALKBACK_PAIRS, TALKBACK_DEFINITIONS, TALKBACK_FIXED_PAIRS, UK_TV_CHANNELS, US_TV_CHANNELS, TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY } from '../constants';
 
 /**
  * AUTHORITATIVE PRECISION UTILS
@@ -483,7 +483,7 @@ export const checkCompatibility = (freqs: Frequency[], thresholds: Thresholds): 
 /**
  * ENTRY POINT: TALKBACK AUDIT
  */
-export const checkTalkbackCompatibility = (freqs: Frequency[], distances: number[][], matrix: boolean[][], mode: TalkbackMode = 'standard'): AnalysisResult => {
+export const checkTalkbackCompatibility = (freqs: Frequency[], distances: number[][], matrix: boolean[][], mode: TalkbackMode = 'standard', country: string = 'UK'): AnalysisResult => {
     const conflicts: Conflict[] = [];
     const validFreqs = freqs.filter(f => f.value > 0);
     
@@ -504,11 +504,13 @@ export const checkTalkbackCompatibility = (freqs: Frequency[], distances: number
         };
     });
 
+    const forbiddenRanges = TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY[country] || [];
+
     for (let i = 0; i < taggedFreqs.length; i++) {
         const fTarget = taggedFreqs[i];
 
         // 1. Regulatory Check
-        const inForbidden = TALKBACK_FORBIDDEN_RANGES.some(range => {
+        const inForbidden = forbiddenRanges.some(range => {
             // Disable 450-453 MHz AND 465-467 MHz forbidden zones in Mainland Europe mode
             if (mode === 'europe') {
                 const is450Range = range.min >= 450 && range.max <= 453;
@@ -1285,15 +1287,28 @@ export const calculateTalkbackIntermods = (sources: { value: number }[]): Talkba
 };
 
 export const generateZonalTalkbackPairs = async (
-    configs: { name: string, pairCount: number, txBands: number[], rxBands: number[], customTxMin?: number, customTxMax?: number, customRxMin?: number, customRxMax?: number, customBw?: number }[],
+    configs: { 
+        name: string, pairCount: number, txBands: number[], rxBands: number[], 
+        simplexTxBands?: number[], simplexWalkieBands?: number[], 
+        simplexTxCount?: number, simplexWalkieCount?: number, 
+        simplexTxBw?: number, simplexWalkieBw?: number,
+        generationPriority?: ('duplex' | 'simplexTx' | 'simplexWalkie')[],
+        duplexCustomMode?: 'standard' | 'custom',
+        simplexCustomMode?: 'standard' | 'custom',
+        customTxMin?: number, customTxMax?: number, customRxMin?: number, customRxMax?: number, 
+        simplexTxMin?: number, simplexTxMax?: number, simplexWalkieMin?: number, simplexWalkieMax?: number,
+        customBw?: number 
+    }[],
     spacing: number, distances: number[][], matrix: boolean[][],
-    previousResults: any, onProgress: (p: number) => void, mode: TalkbackMode = 'standard'
+    previousResults: any, onProgress: (p: number) => void, mode: TalkbackMode = 'standard',
+    country: string = 'UK'
 ): Promise<ZonalResult[]> => {
     const results: ZonalResult[] = [];
     const globalFreqPool: (Frequency & { isTx?: boolean })[] = [];
 
     // Helper to verify a frequency is not in a forbidden regulatory range
-    const isForbidden = (f: number) => TALKBACK_FORBIDDEN_RANGES.some(range => {
+    const forbiddenRanges = TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY[country] || [];
+    const isForbidden = (f: number) => forbiddenRanges.some(range => {
         // Disable 450-453 MHz AND 465-467 MHz forbidden zones in Mainland Europe mode
         if (mode === 'europe') {
             const is450Range = range.min >= 450 && range.max <= 453;
@@ -1325,8 +1340,10 @@ export const generateZonalTalkbackPairs = async (
         
         const txFreqPool: number[] = [];
         const rxFreqPool: number[] = [];
+        const simplexTxPool: number[] = [];
+        const simplexWalkiePool: number[] = [];
 
-        if (mode === 'custom') {
+        if (mode === 'custom' && cfg.duplexCustomMode === 'custom') {
             const bw = cfg.customBw || 0.0125;
             const startOffset = bw / 2;
             
@@ -1388,9 +1405,50 @@ export const generateZonalTalkbackPairs = async (
                 } 
             });
         }
+
+        if (mode === 'custom' && cfg.simplexCustomMode === 'custom') {
+            const txBw = cfg.simplexTxBw || 0.0125;
+            const walkieBw = cfg.simplexWalkieBw || 0.0125;
+            
+            if (cfg.simplexTxMin !== undefined && cfg.simplexTxMax !== undefined) {
+                for (let f = cfg.simplexTxMin + (txBw/2); f <= cfg.simplexTxMax; f += txBw) {
+                    const freqVal = parseFloat(f.toFixed(5));
+                    if (!isForbidden(freqVal)) simplexTxPool.push(freqVal);
+                }
+            }
+            
+            if (cfg.simplexWalkieMin !== undefined && cfg.simplexWalkieMax !== undefined) {
+                for (let f = cfg.simplexWalkieMin + (walkieBw/2); f <= cfg.simplexWalkieMax; f += walkieBw) {
+                    const freqVal = parseFloat(f.toFixed(5));
+                    if (!isForbidden(freqVal)) simplexWalkiePool.push(freqVal);
+                }
+            }
+        } else {
+            (cfg.simplexTxBands || []).forEach(b => {
+                const def = TALKBACK_DEFINITIONS[b];
+                if (def) {
+                    for (let f = def.min; f <= def.max + 0.000001; f += (cfg.simplexTxBw || 0.0125)) {
+                        const freqVal = parseFloat(f.toFixed(5));
+                        if (!isForbidden(freqVal)) simplexTxPool.push(freqVal);
+                    }
+                }
+            });
+
+            (cfg.simplexWalkieBands || []).forEach(b => {
+                const def = TALKBACK_DEFINITIONS[b];
+                if (def) {
+                    for (let f = def.min; f <= def.max + 0.000001; f += (cfg.simplexWalkieBw || 0.0125)) {
+                        const freqVal = parseFloat(f.toFixed(5));
+                        if (!isForbidden(freqVal)) simplexWalkiePool.push(freqVal);
+                    }
+                }
+            });
+        }
         
         const sTx = shuffleArray(txFreqPool); 
         const sRx = shuffleArray(rxFreqPool);
+        const sSimplexTx = shuffleArray(simplexTxPool);
+        const sSimplexWalkie = shuffleArray(simplexWalkiePool);
         
         if (sTx.length > 0 && sRx.length > 0) {
             for (let j = 0; j < Math.min(sTx.length, 3000); j++) candidatePool.push({ tx: sTx[j], rx: sRx[j % sRx.length] });
@@ -1399,38 +1457,82 @@ export const generateZonalTalkbackPairs = async (
         candidatePool = shuffleArray(candidatePool);
         let batchCounter = 0;
         
-        for (const cand of candidatePool) {
-            if (zonePairs.length >= cfg.pairCount) break;
-            batchCounter++;
-            
-            if (batchCounter % 100 === 0) { 
-                await new Promise(resolve => setTimeout(resolve, 0)); 
-                onProgress(((i / configs.length) + (batchCounter / candidatePool.length / configs.length))); 
-            }
-            
-            // PHYSICS RULE: tx is designated as Base/Aggressor, rx as Portable/Victim
-            const txComp = isTalkbackCompatibleMutual(cand.tx, globalFreqPool, distances, i, matrix, true);
-            if (txComp.conflicts.length > 0) continue;
-            
-            const tempPool = [...globalFreqPool, { value: cand.tx, id: 'temp-tx', zoneIndex: i, isTx: true, type: 'comms' as TxType }];
-            const rxComp = isTalkbackCompatibleMutual(cand.rx, tempPool, distances, i, matrix, false);
-            
-            if (rxComp.conflicts.length === 0) {
-                const pair: DuplexPair = { 
-                    id: `ZP-${i}-${zonePairs.length}-${Math.random().toString(36).substring(2, 5)}`, 
-                    label: `${cfg.name.slice(0,2).toUpperCase()} P${zonePairs.length + 1}`, 
-                    tx: cand.tx, 
-                    rx: cand.rx, 
-                    groupName: cfg.name, 
-                    locked: false, 
-                    active: true 
-                };
-                zonePairs.push(pair); 
-                globalFreqPool.push({ ...pair, value: pair.tx, id: pair.id + '-tx', zoneIndex: i, isTx: true }); 
-                globalFreqPool.push({ ...pair, value: pair.rx, id: pair.id + '-rx', zoneIndex: i, isTx: false });
+        const priority = cfg.generationPriority || ['duplex', 'simplexTx', 'simplexWalkie'];
+
+        for (const type of priority) {
+            if (type === 'duplex') {
+                for (const cand of candidatePool) {
+                    if (zonePairs.filter(p => p.tx > 0 && p.rx > 0).length >= cfg.pairCount) break;
+                    batchCounter++;
+                    if (batchCounter % 100 === 0) { await new Promise(resolve => setTimeout(resolve, 0)); onProgress(((i / configs.length) + (batchCounter / candidatePool.length / configs.length))); }
+                    const txComp = isTalkbackCompatibleMutual(cand.tx, globalFreqPool, distances, i, matrix, true);
+                    if (txComp.conflicts.length > 0) continue;
+                    const tempPool = [...globalFreqPool, { value: cand.tx, id: 'temp-tx', zoneIndex: i, isTx: true, type: 'comms' as TxType }];
+                    const rxComp = isTalkbackCompatibleMutual(cand.rx, tempPool, distances, i, matrix, false);
+                    if (rxComp.conflicts.length === 0) {
+                        const duplexBw = (mode === 'custom' && cfg.duplexCustomMode === 'custom') ? (cfg.customBw || 0.0125) : 0.0125;
+                        const pair: DuplexPair = { 
+                            id: `ZP-${i}-${zonePairs.length}-${Math.random().toString(36).substring(2, 5)}`, 
+                            label: `${cfg.name.slice(0,2).toUpperCase()} P${zonePairs.filter(p => p.tx > 0 && p.rx > 0).length + 1}`, 
+                            tx: cand.tx, 
+                            rx: cand.rx, 
+                            txBw: duplexBw,
+                            rxBw: duplexBw,
+                            groupName: cfg.name, 
+                            locked: false, 
+                            active: true 
+                        };
+                        zonePairs.push(pair); globalFreqPool.push({ ...pair, value: pair.tx, id: pair.id + '-tx', zoneIndex: i, isTx: true }); globalFreqPool.push({ ...pair, value: pair.rx, id: pair.id + '-rx', zoneIndex: i, isTx: false });
+                    }
+                }
+            } else if (type === 'simplexTx') {
+                for (const candTx of sSimplexTx) {
+                    if (zonePairs.filter(p => p.tx > 0 && p.rx === 0).length >= (cfg.simplexTxCount || 0)) break;
+                    batchCounter++;
+                    if (batchCounter % 100 === 0) { await new Promise(resolve => setTimeout(resolve, 0)); onProgress(((i / configs.length) + (batchCounter / candidatePool.length / configs.length))); }
+                    const txComp = isTalkbackCompatibleMutual(candTx, globalFreqPool, distances, i, matrix, true);
+                    if (txComp.conflicts.length === 0) {
+                        const pair: DuplexPair = { 
+                            id: `ZP-STX-${i}-${zonePairs.length}-${Math.random().toString(36).substring(2, 5)}`, 
+                            label: `${cfg.name.slice(0,2).toUpperCase()} STX${zonePairs.filter(p => p.tx > 0 && p.rx === 0).length + 1}`, 
+                            tx: candTx, 
+                            rx: 0, 
+                            txBw: cfg.simplexTxBw || 0.0125,
+                            groupName: cfg.name, 
+                            locked: false, 
+                            active: true 
+                        };
+                        zonePairs.push(pair); globalFreqPool.push({ ...pair, value: candTx, id: pair.id + '-tx', zoneIndex: i, isTx: true });
+                    }
+                }
+            } else if (type === 'simplexWalkie') {
+                for (const candRx of sSimplexWalkie) {
+                    if (zonePairs.filter(p => p.tx === 0 && p.rx > 0).length >= (cfg.simplexWalkieCount || 0)) break;
+                    batchCounter++;
+                    if (batchCounter % 100 === 0) { await new Promise(resolve => setTimeout(resolve, 0)); onProgress(((i / configs.length) + (batchCounter / candidatePool.length / configs.length))); }
+                    const rxComp = isTalkbackCompatibleMutual(candRx, globalFreqPool, distances, i, matrix, false);
+                    if (rxComp.conflicts.length === 0) {
+                        const pair: DuplexPair = { 
+                            id: `ZP-SW-${i}-${zonePairs.length}-${Math.random().toString(36).substring(2, 5)}`, 
+                            label: `${cfg.name.slice(0,2).toUpperCase()} SW${zonePairs.filter(p => p.tx === 0 && p.rx > 0).length + 1}`, 
+                            tx: 0, 
+                            rx: candRx, 
+                            rxBw: cfg.simplexWalkieBw || 0.0125,
+                            groupName: cfg.name, 
+                            locked: false, 
+                            active: true 
+                        };
+                        zonePairs.push(pair); globalFreqPool.push({ ...pair, value: candRx, id: pair.id + '-rx', zoneIndex: i, isTx: false });
+                    }
+                }
             }
         }
-        results.push({ zoneName: cfg.name, pairs: zonePairs, failedCount: Math.max(0, cfg.pairCount - zonePairs.length) });
+
+        const failedDuplex = Math.max(0, cfg.pairCount - zonePairs.filter(p => p.tx > 0 && p.rx > 0).length);
+        const failedSimplexTx = Math.max(0, (cfg.simplexTxCount || 0) - zonePairs.filter(p => p.tx > 0 && p.rx === 0).length);
+        const failedSimplexWalkie = Math.max(0, (cfg.simplexWalkieCount || 0) - zonePairs.filter(p => p.tx === 0 && p.rx > 0).length);
+
+        results.push({ zoneName: cfg.name, pairs: zonePairs, failedCount: failedDuplex + failedSimplexTx + failedSimplexWalkie });
         onProgress((i + 1) / configs.length);
     }
     return results;

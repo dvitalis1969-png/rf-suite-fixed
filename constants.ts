@@ -70,22 +70,39 @@ export const USER_INVENTORY: Record<string, EquipmentProfile> = {
  * STRICT REGULATORY BLOCKADES (Talkback/Comms Modules)
  * Includes band edge frequencies.
  */
-export const TALKBACK_FORBIDDEN_RANGES: { min: number, max: number }[] = [
-    { min: 450.46875, max: 450.76875 },
-    { min: 452.19375, max: 452.26875 },
-    { min: 452.41875, max: 452.43125 },
-    { min: 452.51875, max: 452.83125 },
-    { min: 465.48125, max: 466.14375 },
-    { min: 466.20625, max: 466.33125 },
-    { min: 466.44375, max: 466.56875 },
-    { min: 466.69375, max: 466.73125 }
-];
+export const TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY: Record<string, { min: number, max: number }[]> = {
+    'UK': [
+        { min: 450.46875, max: 450.76875 },
+        { min: 452.19375, max: 452.26875 },
+        { min: 452.41875, max: 452.43125 },
+        { min: 452.51875, max: 452.83125 },
+        { min: 465.48125, max: 466.14375 },
+        { min: 466.20625, max: 466.33125 },
+        { min: 466.44375, max: 466.56875 },
+        { min: 466.69375, max: 466.73125 },
+        { min: 455.99374, max: 455.99376 },
+        { min: 455.01874, max: 455.01876 },
+        { min: 455.20624, max: 455.20626 },
+        { min: 455.24374, max: 455.24376 },
+        { min: 455.26874, max: 455.26876 },
+        { min: 455.40624, max: 455.40626 },
+        { min: 455.44374, max: 455.44376 },
+        { min: 455.43124, max: 455.43126 }
+    ],
+    'USA': [
+        { min: 401.0, max: 406.0 },     // MedRadio & Meteorological
+        { min: 406.0, max: 406.1 },     // EPIRB (Safety of Life)
+        { min: 420.0, max: 450.0 }      // Amateur/Federal
+    ],
+    'Other': []
+};
 
 export const TALKBACK_DEFINITIONS: Record<number, { min: number, max: number }> = {
     425: { min: 425.31875, max: 425.55625 },
     427: { min: 427.76875, max: 428.00625 },
     442: { min: 442.26875, max: 442.50625 },
     446: { min: 446.43125, max: 446.99375 },
+    447: { min: 447.00625, max: 447.50625 },
     450: { min: 450.20625, max: 450.99375 },
     451: { min: 451.00625, max: 451.93125 },
     452: { min: 452.00625, max: 452.99325 },
@@ -95,7 +112,7 @@ export const TALKBACK_DEFINITIONS: Record<number, { min: number, max: number }> 
     466: { min: 466.15625, max: 466.78125 },
     467: { min: 467.26875, max: 467.99325 },
     468: { min: 468.00625, max: 468.99325 },
-    469: { min: 469.00625, max: 469.41875 }
+    469: { min: 469.00625, max: 469.86875 }
 };
 
 export const TALKBACK_FIXED_PAIRS: Record<number, number> = { 455: 468, 457: 467 };

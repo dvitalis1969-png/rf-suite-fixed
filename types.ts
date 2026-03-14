@@ -219,6 +219,8 @@ export interface DuplexPair {
   label: string;
   tx: number;
   rx: number;
+  txBw?: number;
+  rxBw?: number;
   groupName: string;
   locked: boolean;
   active?: boolean;

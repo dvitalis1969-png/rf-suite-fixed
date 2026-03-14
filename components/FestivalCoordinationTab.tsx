@@ -60,6 +60,7 @@ const generateButton = `bg-amber-900/40 text-amber-200 border-b-4 border-amber-9
 const secondaryButton = `bg-slate-800 text-slate-400 border-b-4 border-slate-950 hover:bg-slate-700 ${buttonBase}`;
 const greenButton = `bg-emerald-900/40 text-emerald-200 border-b-4 border-emerald-950 hover:bg-emerald-900/60 ${buttonBase}`;
 const actionButton = `bg-slate-700 text-slate-300 border-b-4 border-slate-900 hover:bg-slate-600 ${buttonBase}`;
+const vibrantButton = `bg-indigo-600 text-white border-b-4 border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 ${buttonBase}`;
 const yellowButton = `bg-yellow-900/40 text-yellow-200 border-b-4 border-yellow-950 hover:bg-yellow-900/60 ${buttonBase}`;
 
 const ensureValidDate = (d: any): Date => {
@@ -1632,9 +1633,9 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
             {activeSubTab === 'acts' && (
                 <div className="space-y-4 mt-4">
                     <div className="flex gap-2">
-                        <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className={`${actionButton} flex-1`}>+ Add Act</button>
+                        <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className={`${vibrantButton} flex-1`}>+ Add Act</button>
                         <button onClick={() => fileInputRef.current?.click()} className={`flex-1 px-4 py-2.5 bg-slate-800 text-slate-400 border-b-4 border-slate-950 hover:bg-slate-700 ${buttonBase}`}>Import CSV</button>
-                        <button onClick={() => setIsConverterOpen(true)} className={`${actionButton} flex-1`}>🧮 EXCEL CONVERTER</button>
+                        <button onClick={() => setIsConverterOpen(true)} className={`${vibrantButton} flex-1`}>🧮 EXCEL CONVERTER</button>
                         <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={e => {
                                 const file = e.target.files?.[0]; if (!file) return;
                                 const r = new FileReader(); r.onload = () => {
