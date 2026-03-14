@@ -323,6 +323,10 @@ const ExcelToCsvConverter: React.FC<{
     const DAYS = ["SATURDAY", "SUNDAY"];
 
     const runAnalysis = (rows: any[]) => {
+        if (!rows || rows.length === 0) {
+            setPreviewData([]);
+            return;
+        }
         const formattedDate = selectedDate.split('-').reverse().join('/'); 
         const results: any[] = [];
         
@@ -348,8 +352,8 @@ const ExcelToCsvConverter: React.FC<{
             if (val instanceof Date) {
                 dateObj = val;
             } else if (typeof val === 'number') {
-                // @ts-ignore
-                dateObj = XLSX.utils.parse_date(val);
+                // Excel serial date to JS Date
+                dateObj = new Date((val - 25569) * 86400 * 1000);
             } else if (typeof val === 'string') {
                 // Handle "14:00 - 15:00" single cell ranges
                 const rangeMatch = val.match(/(\d{1,2}:\d{2}).*?(\d{1,2}:\d{2})/);
@@ -368,6 +372,7 @@ const ExcelToCsvConverter: React.FC<{
         if (Object.keys(columnMapping).length === 0) {
             for (let i = 0; i < Math.min(rows.length, 50); i++) {
                 const row = rows[i];
+                if (!row) continue;
                 const rowStr = row.join(" ").toUpperCase();
                 if (rowStr.includes("SATURDAY") && rowStr.includes("SUNDAY")) {
                     const satIdx = row.findIndex((c: any) => String(c).toUpperCase().includes("SATURDAY"));

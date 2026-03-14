@@ -180,7 +180,7 @@ const SiteMapTab: React.FC<SiteMapTabProps> = ({ festivalState, multizoneState, 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-900/50 rounded-lg mb-4 border border-slate-800">
                 <div className="md:col-span-2">
                     <label className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-2 block">Upload {activeContext === 'festival' ? 'Festival' : 'Venue'} Map Image</label>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-slate-300 hover:file:bg-slate-600"/>
+                    <input ref={fileInputRef} type="file" accept="image/*, .pdf, .dwg, .dxf" onChange={handleImageUpload} className="text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-slate-300 hover:file:bg-slate-600"/>
                 </div>
                 <div className="flex gap-2 items-end">
                     <button onClick={() => {setScalingStep(1); setScalePoints([]);}} disabled={!image || scalingStep > 0} className={`${primaryButton} disabled:opacity-50 flex-grow !text-xs`}>Set Scale</button>
