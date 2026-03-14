@@ -15,7 +15,6 @@ const emptyProfile: Omit<EquipmentProfile, 'id'> = {
     maxFreq: 608,
     tuningStep: 0.025,
     isCustom: true,
-    affiliateUrl: '',
     recommendedThresholds: {
         fundamental: 0.350,
         twoTone: 0.100,
@@ -55,7 +54,6 @@ const CustomEquipmentManager: React.FC<CustomEquipmentManagerProps> = ({ customP
             maxFreq: Number(editingProfile.maxFreq) || 0,
             tuningStep: Number(editingProfile.tuningStep) || 0.025,
             isCustom: true,
-            affiliateUrl: editingProfile.affiliateUrl,
             recommendedThresholds: {
                 fundamental: editingProfile.recommendedThresholds?.fundamental ?? 0.350,
                 twoTone: editingProfile.recommendedThresholds?.twoTone ?? 0.100,
@@ -138,11 +136,6 @@ const CustomEquipmentManager: React.FC<CustomEquipmentManagerProps> = ({ customP
                                 <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Tuning Step (MHz)</label>
                                 <input type="number" value={editingProfile.tuningStep || ''} step="0.025" onChange={e => handleFieldChange('tuningStep', e.target.value)} className="w-full bg-slate-800 border border-indigo-500/30 rounded-md p-2 text-slate-200 font-mono text-sm" />
                             </div>
-                            <div>
-                                <label className="text-[10px] uppercase font-black text-slate-500 mb-1 block">Affiliate / Purchase URL</label>
-                                <input type="text" value={editingProfile.affiliateUrl || ''} onChange={e => handleFieldChange('affiliateUrl', e.target.value)} placeholder="https://..." className="w-full bg-slate-800 border border-indigo-500/30 rounded-md p-2 text-slate-200 text-sm focus:border-indigo-500 outline-none" />
-                            </div>
-
                             <div className="pt-2 border-t border-slate-700">
                                 <h4 className="text-[10px] uppercase font-black text-indigo-400 mb-3 tracking-widest">Recommended Spacing (MHz)</h4>
                                 <div className="grid grid-cols-3 gap-2">

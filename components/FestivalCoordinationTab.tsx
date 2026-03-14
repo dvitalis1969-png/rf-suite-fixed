@@ -88,7 +88,6 @@ interface PlanRow {
     band: string;
     status: string;
     equipmentKey?: string;
-    affiliateUrl?: string;
 }
 
 const FrequencyGrid: React.FC<{ 
@@ -926,8 +925,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     equipment: profile?.name || f.equipmentKey || 'Custom Range', 
                     band: profile?.band.split(' ')[0] || 'Custom', 
                     status: f.locked ? '🔒' : '🔓', 
-                    equipmentKey: f.equipmentKey,
-                    affiliateUrl: profile?.affiliateUrl
+                    equipmentKey: f.equipmentKey
                 });
             });
         });
@@ -944,9 +942,8 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     times: 'House System', 
                     equipment: profile?.name || f.equipmentKey || 'Custom Range', 
                     band: profile?.band.split(' ')[0] || 'Custom', 
-                    status: f.locked ? '🔒' : '🔓', 
-                    equipmentKey: f.equipmentKey,
-                    affiliateUrl: profile?.affiliateUrl
+                    status: f.locked ? '🔒' : '🔓',
+                    equipmentKey: f.equipmentKey
                 });
             });
         });
@@ -965,7 +962,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 const startTimeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
                 const endTimeStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
                 const timeDisplay = `${dateStr} ${startTimeStr} - ${endTimeStr}`;
- 
+
                 rows.push({ 
                     frequency: f.value, 
                     id: f.id, 
@@ -976,8 +973,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     equipment: profile?.name || f.equipmentKey || 'Custom Range', 
                     band: profile?.band.split(' ')[0] || 'Custom', 
                     status: f.locked ? '🔒' : '🔓', 
-                    equipmentKey: f.equipmentKey,
-                    affiliateUrl: profile?.affiliateUrl
+                    equipmentKey: f.equipmentKey
                 });
             });
         });

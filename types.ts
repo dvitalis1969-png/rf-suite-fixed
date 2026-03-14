@@ -61,7 +61,6 @@ export interface EquipmentProfile {
     recommendedThresholds?: Partial<Thresholds>;
     compatibilityOverrides?: Partial<Record<CompatibilityLevel, Partial<Thresholds>>>;
     type?: 'mic' | 'iem' | 'generic' | 'comms' | 'wmas';
-    affiliateUrl?: string;
 }
 
 export type TabID = 'analyzer' | 'generator' | 'whitespace' | 'spectrum' | 'waterfall' | 'multiband' | 'talkback' | 'zonalTalkback' | 'multizone' | 'multistage' | 'siteMap' | 'festivalSiteMap' | 'multizoneSiteMap' | 'timeline' | 'festival' 

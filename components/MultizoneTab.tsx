@@ -433,8 +433,7 @@ const MultizoneTab: React.FC<MultizoneTabProps> = ({
                 modelName: profile?.name || 'Custom',
                 bandName: profile?.band.split(' ')[0] || 'Custom',
                 wwbType: f.type === 'iem' ? 'In-ear Monitor' : 'Frequency',
-                equipmentKey: f.equipmentKey,
-                affiliateUrl: profile?.affiliateUrl
+                equipmentKey: f.equipmentKey
             };
         }));
 

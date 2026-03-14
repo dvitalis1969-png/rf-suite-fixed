@@ -167,8 +167,7 @@ export const EQUIPMENT_DATABASE: Record<string, EquipmentProfile> = {
         maxFreq: 635.875, 
         tuningStep: 0.025, 
         type: 'mic', 
-        recommendedThresholds: { fundamental: 0.350, twoTone: 0.075, threeTone: 0.000 },
-        affiliateUrl: 'https://www.sweetwater.com/shure-axient-digital/series'
+        recommendedThresholds: { fundamental: 0.350, twoTone: 0.075, threeTone: 0.000 }
     },
     'shure-ad-g57': { name: 'Shure Axient Digital', band: 'G57 (470-616 MHz)', minFreq: 470.125, maxFreq: 615.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.350, twoTone: 0.075, threeTone: 0.000 } },
     'shure-ad-k55': { name: 'Shure Axient Digital', band: 'K55 (606-694 MHz)', minFreq: 606.125, maxFreq: 693.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.350, twoTone: 0.075, threeTone: 0.000 } },
@@ -194,8 +193,7 @@ export const EQUIPMENT_DATABASE: Record<string, EquipmentProfile> = {
         maxFreq: 541.875, 
         tuningStep: 0.025, 
         type: 'iem', 
-        recommendedThresholds: { fundamental: 0.375, twoTone: 0.250, threeTone: 0.050 },
-        affiliateUrl: 'https://www.sweetwater.com/store/detail/P10T-G10--shure-p10t-wireless-transmitter-g10-band'
+        recommendedThresholds: { fundamental: 0.375, twoTone: 0.250, threeTone: 0.050 }
     },
     'shure-psm1000-j8E': { name: 'Shure PSM 1000', band: 'J8E (554-626 MHz)', minFreq: 554.125, maxFreq: 625.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.375, twoTone: 0.250, threeTone: 0.050 } },
     'shure-psm1000-k10E': { name: 'Shure PSM 1000', band: 'K10E (596-668 MHz)', minFreq: 596.125, maxFreq: 667.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.375, twoTone: 0.250, threeTone: 0.050 } },
