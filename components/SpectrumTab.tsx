@@ -1,4 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { addDoc, collection } from 'firebase/firestore';
+import { db, auth } from '../src/lib/firebase';
 import { Frequency, TabID, ScanDataPoint, Scene, FestivalAct, Plot, PlotState, DuplexPair, ZonalResult, TxType, ConstantSystemRequest, WMASState } from '../types';
 import Card, { CardTitle } from './Card';
 import { US_TV_CHANNELS, UK_TV_CHANNELS } from '../constants';
@@ -466,6 +468,8 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
         }
     }, []);
 
+    const [isSharing, setIsSharing] = useState(false);
+
     const toggleSelection = (id: string) => {
         setSelectedActIds(prev => {
             const next = new Set(prev);
@@ -473,6 +477,29 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
             else next.add(id);
             return next;
         });
+    };
+
+    const handleSharePlot = async () => {
+        if (!canvasRef.current || !auth.currentUser || isSharing) return;
+        setIsSharing(true);
+        const imageData = canvasRef.current.toDataURL('image/png');
+        const plot = {
+            userId: auth.currentUser.uid,
+            userName: auth.currentUser.displayName || 'Anonymous',
+            timestamp: Date.now(),
+            projectId: projectId || 'global',
+            imageData,
+            description: 'Shared spectrum plot'
+        };
+        try {
+            await addDoc(collection(db, 'plots'), plot);
+            alert('Plot shared successfully!');
+        } catch (error) {
+            console.error('Error sharing plot:', error);
+            alert('Failed to share plot.');
+        } finally {
+            setIsSharing(false);
+        }
     };
 
     return (
@@ -500,6 +527,7 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
                         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
                         <button onClick={() => fileInputRef.current?.click()} className={secondaryButton}>IMPORT SCAN</button>
                         <button onClick={() => setScanData(null)} disabled={!scanData} className={dangerButton}>CLEAR SCAN</button>
+                        <button onClick={handleSharePlot} disabled={isSharing} className={primaryButton}>{isSharing ? 'SHARING...' : 'SHARE PLOT'}</button>
                     </div>
                 </div>
                 <div className="lg:w-[400px] bg-slate-900/50 p-3 rounded-xl border border-slate-700 grid grid-cols-3 gap-3">

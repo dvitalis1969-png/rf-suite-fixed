@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, CreditCard, Shield, LogOut, X, Check, Clock, Calendar, Zap, ExternalLink } from 'lucide-react';
-import { db } from '../src/lib/firebase';
+import { db, auth } from '../src/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 interface AccountDashboardProps {
@@ -20,6 +20,33 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
     const [cloudProjects, setCloudProjects] = useState<any[]>([]);
     const [isFetchingProjects, setIsFetchingProjects] = useState(false);
     const [currentUser, setCurrentUser] = useState(user);
+    const [displayName, setDisplayName] = useState(currentUser?.name || '');
+    const [isUpdatingName, setIsUpdatingName] = useState(false);
+
+    const handleUpdateName = async () => {
+        if (!displayName.trim() || !auth.currentUser) return;
+        try {
+            setIsUpdatingName(true);
+            const { updateProfile } = await import('firebase/auth');
+            const { auth } = await import('../src/lib/firebase');
+            await updateProfile(auth.currentUser, { displayName: displayName });
+            
+            // Update user document in Firestore too
+            const { doc, setDoc } = await import('firebase/firestore');
+            const { db } = await import('../src/lib/firebase');
+            await setDoc(doc(db, 'users', auth.currentUser.uid), {
+                name: displayName
+            }, { merge: true });
+            
+            setCurrentUser({ ...currentUser, name: displayName });
+            alert('Display name updated successfully!');
+        } catch (error: any) {
+            console.error("Error updating display name:", error);
+            alert(`Failed to update display name: ${error.message}`);
+        } finally {
+            setIsUpdatingName(false);
+        }
+    };
 
     const fetchLatestUser = async () => {
         if (!user?.id) return;
@@ -304,6 +331,22 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                                             </div>
                                         </div>
                                         <p className="text-slate-500 text-sm font-medium">{currentUser?.email}</p>
+                                        <div className="mt-4 flex items-center gap-2">
+                                            <input 
+                                                type="text"
+                                                value={displayName}
+                                                onChange={(e) => setDisplayName(e.target.value)}
+                                                className="bg-slate-950 border border-white/5 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
+                                                placeholder="Enter display name"
+                                            />
+                                            <button 
+                                                onClick={handleUpdateName}
+                                                disabled={isUpdatingName}
+                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-[9px] rounded-xl transition-all"
+                                            >
+                                                {isUpdatingName ? 'Updating...' : 'Update Name'}
+                                            </button>
+                                        </div>
                                         <div className="mt-2 inline-block px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-[9px] font-black text-indigo-400 uppercase tracking-widest">
                                             {currentUser?.subscriptionStatus === 'none' ? 'Free Tier' : `${currentUser?.subscription} Member`}
                                         </div>

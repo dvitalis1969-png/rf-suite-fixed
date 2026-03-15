@@ -11,6 +11,7 @@ import WaterfallTab from './components/WaterfallTab';
 import MultiBandTab from './components/MultiBandTab';
 import TalkbackTab from './components/TalkbackTab';
 import ZonalTalkbackTab from './components/ZonalTalkbackTab';
+import PlotGallery from './components/PlotGallery';
 import MultizoneTab from './components/MultizoneTab';
 import SiteMapTab from './components/SiteMapTab';
 import TimelineTab from './components/TimelineTab';
@@ -26,6 +27,7 @@ import WMASTab from './components/WMASTab';
 import ErrorBoundary from './components/ErrorBoundary';
 import AuthModal from './components/AuthModal';
 import AccountDashboard from './components/AccountDashboard';
+import CommunityPanel from './components/CommunityPanel';
 
 // RF Toolkit Component Imports
 import IEMStudyTab from './components/IEMStudyTab';
@@ -789,6 +791,7 @@ const App: React.FC = () => {
                                 {activeTab === 'wmas' && <WMASTab state={wmasState} setState={setWmasState} tvChannelStates={genTvStates} scanData={scanData} />}
 
                                 {/* RF Toolkit Utilities */}
+                                {activeTab === 'plotGallery' && <PlotGallery />}
                                 {activeTab === 'iemStudy' && <IEMStudyTab />}
                                 {activeTab === 'interference' && <InterferenceDemoTab />}
                                 {activeTab === 'imdDemo' && <IMDDemoTab />}
@@ -810,6 +813,7 @@ const App: React.FC = () => {
                     )}
                 </ErrorBoundary>
                     </main>
+                    {currentProject && <CommunityPanel projectId={currentProject.id} />}
                 </>
             )}
             <SaveProjectModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSaveAsNewProject} />

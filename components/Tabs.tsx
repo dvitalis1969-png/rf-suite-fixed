@@ -29,6 +29,7 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
     // Analysis App
     { id: 'spectrum', label: 'Analyzer', category: 'analysis' },
     { id: 'waterfall', label: 'Waterfall', category: 'analysis' },
+    { id: 'plotGallery', label: 'Plot Gallery', category: 'analysis' },
     
     // Comms App
     { id: 'talkback', label: 'Talkback', category: 'comms' },
