@@ -12,7 +12,7 @@ interface Message {
   projectId: string;
 }
 
-const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => {
+const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean> }> = ({ projectId, unreadDMs = {} }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -60,6 +60,12 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
     if (chatMode === 'dm' && !selectedDmUser) {
       setMessages([]);
       return;
+    }
+
+    // Clear unread status if we are in a DM with this user
+    if (chatMode === 'dm' && selectedDmUser && auth.currentUser) {
+      const unreadRef = doc(db, 'users', auth.currentUser.uid, 'unread_dms', selectedDmUser.id);
+      deleteDoc(unreadRef).catch(console.error);
     }
 
     const q = query(
@@ -135,6 +141,16 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
       timestamp: serverTimestamp(),
       projectId: activeProjectId
     });
+
+    // Set unread status for the recipient
+    if (chatMode === 'dm' && selectedDmUser) {
+      const unreadRef = doc(db, 'users', selectedDmUser.id, 'unread_dms', auth.currentUser.uid);
+      await setDoc(unreadRef, { 
+        hasUnread: true, 
+        timestamp: serverTimestamp() 
+      }, { merge: true }).catch(console.error);
+    }
+
     setNewMessage('');
   };
 
@@ -142,6 +158,8 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
     setSelectedDmUser(user);
     setChatMode('dm');
   };
+
+  const hasAnyUnread = Object.keys(unreadDMs).length > 0;
 
   return (
     <div className="flex flex-col h-64 bg-slate-900 rounded-lg border border-slate-700 p-4">
@@ -154,9 +172,12 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
         </button>
         <button 
           onClick={() => setChatMode('lounge')}
-          className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${chatMode === 'lounge' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+          className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded relative ${chatMode === 'lounge' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
         >
           Lounge
+          {hasAnyUnread && chatMode !== 'lounge' && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          )}
         </button>
         {chatMode === 'dm' && selectedDmUser && (
           <button 
@@ -170,15 +191,18 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
       {chatMode === 'lounge' && (
         <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-800 pb-2">
           Online: {onlineUsers.length > 0 ? onlineUsers.map((u, i) => (
-            <span key={u.id}>
+            <span key={u.id} className="relative inline-block">
               <button 
                 onClick={() => startDM(u)}
-                className="hover:text-indigo-400 hover:underline cursor-pointer"
+                className="hover:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
                 title={`Message ${u.name} privately`}
               >
                 {u.name}
+                {unreadDMs[u.id] && (
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="New message!" />
+                )}
               </button>
-              {i < onlineUsers.length - 1 ? ', ' : ''}
+              {i < onlineUsers.length - 1 ? <span className="mr-1">,</span> : ''}
             </span>
           )) : 'Just you'}
         </div>

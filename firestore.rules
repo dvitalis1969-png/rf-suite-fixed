@@ -49,5 +49,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
+
+    // Unread DMs rules
+    match /users/{userId}/unread_dms/{senderId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == senderId);
+    }
   }
 }
