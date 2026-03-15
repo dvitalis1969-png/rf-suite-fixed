@@ -17,11 +17,23 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
   const [newMessage, setNewMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string }[]>([]);
-  const [chatMode, setChatMode] = useState<'project' | 'lounge'>('project');
+  const [chatMode, setChatMode] = useState<'project' | 'lounge' | 'dm'>('project');
+  const [selectedDmUser, setSelectedDmUser] = useState<{ id: string; name: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const activeProjectId = chatMode === 'project' ? String(projectId) : 'global';
+  const getActiveChannelId = () => {
+    if (chatMode === 'project') return String(projectId);
+    if (chatMode === 'lounge') return 'global';
+    if (chatMode === 'dm' && selectedDmUser && auth.currentUser) {
+      // Create a consistent ID for the two users
+      const ids = [auth.currentUser.uid, selectedDmUser.id].sort();
+      return `dm_${ids[0]}_${ids[1]}`;
+    }
+    return 'global';
+  };
+
+  const activeProjectId = getActiveChannelId();
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -45,6 +57,11 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
   }, []);
 
   useEffect(() => {
+    if (chatMode === 'dm' && !selectedDmUser) {
+      setMessages([]);
+      return;
+    }
+
     const q = query(
       collection(db, 'messages', activeProjectId, 'chat'),
       orderBy('timestamp', 'asc')
@@ -78,7 +95,7 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
       unsubscribeTyping();
       unsubscribeOnline();
     };
-  }, [activeProjectId]);
+  }, [activeProjectId, chatMode, selectedDmUser]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -87,7 +104,7 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewMessage(e.target.value);
     
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || (chatMode === 'dm' && !selectedDmUser)) return;
 
     // Set typing status
     const typingRef = doc(db, 'messages', activeProjectId, 'typing', auth.currentUser.uid);
@@ -104,7 +121,7 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !auth.currentUser) return;
+    if (!newMessage.trim() || !auth.currentUser || (chatMode === 'dm' && !selectedDmUser)) return;
 
     // Remove typing status immediately
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
@@ -119,6 +136,11 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
       projectId: activeProjectId
     });
     setNewMessage('');
+  };
+
+  const startDM = (user: { id: string; name: string }) => {
+    setSelectedDmUser(user);
+    setChatMode('dm');
   };
 
   return (
@@ -136,36 +158,71 @@ const ChatWidget: React.FC<{ projectId: string | number }> = ({ projectId }) => 
         >
           Lounge
         </button>
+        {chatMode === 'dm' && selectedDmUser && (
+          <button 
+            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded bg-indigo-600 text-white"
+          >
+            DM: {selectedDmUser.name}
+          </button>
+        )}
       </div>
+      
       {chatMode === 'lounge' && (
         <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-800 pb-2">
-          Online: {onlineUsers.length > 0 ? onlineUsers.map(u => u.name).join(', ') : 'Just you'}
+          Online: {onlineUsers.length > 0 ? onlineUsers.map((u, i) => (
+            <span key={u.id}>
+              <button 
+                onClick={() => startDM(u)}
+                className="hover:text-indigo-400 hover:underline cursor-pointer"
+                title={`Message ${u.name} privately`}
+              >
+                {u.name}
+              </button>
+              {i < onlineUsers.length - 1 ? ', ' : ''}
+            </span>
+          )) : 'Just you'}
         </div>
       )}
+
       <div className="flex-1 overflow-y-auto mb-4 space-y-2">
-        {messages.map(msg => (
-          <div key={msg.id} className={`text-xs ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}>
-            <span className="text-[10px] text-slate-500 mr-1">{formatTimestamp(msg.timestamp)}</span>
-            <span className="font-bold" style={{ color: getUserColor(msg.userId) }}>{msg.userName}: </span>
-            <span className="text-slate-200">{msg.text}</span>
+        {chatMode === 'dm' && !selectedDmUser ? (
+          <div className="text-xs text-slate-500 text-center mt-10">
+            Select a user from the Lounge to start a private chat.
           </div>
-        ))}
+        ) : (
+          messages.map(msg => (
+            <div key={msg.id} className={`text-xs ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}>
+              <span className="text-[10px] text-slate-500 mr-1">{formatTimestamp(msg.timestamp)}</span>
+              <span className="font-bold" style={{ color: getUserColor(msg.userId) }}>{msg.userName}: </span>
+              <span className="text-slate-200">{msg.text}</span>
+            </div>
+          ))
+        )}
         <div ref={messagesEndRef} />
       </div>
+      
       {typingUsers.length > 0 && (
         <div className="text-[10px] text-slate-500 italic mb-2">
           {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
         </div>
       )}
+      
       <form onSubmit={sendMessage} className="flex gap-2">
         <input
           type="text"
           value={newMessage}
           onChange={handleInputChange}
-          className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white"
-          placeholder="Type a message..."
+          disabled={chatMode === 'dm' && !selectedDmUser}
+          className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white disabled:opacity-50"
+          placeholder={chatMode === 'dm' && !selectedDmUser ? "Select a user to chat..." : "Type a message..."}
         />
-        <button type="submit" className="bg-indigo-600 text-white px-3 py-1 rounded text-xs font-bold">Send</button>
+        <button 
+          type="submit" 
+          disabled={chatMode === 'dm' && !selectedDmUser}
+          className="bg-indigo-600 text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50"
+        >
+          Send
+        </button>
       </form>
     </div>
   );
