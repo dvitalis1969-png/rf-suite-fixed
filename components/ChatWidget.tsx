@@ -23,6 +23,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const [chatMode, setChatMode] = useState<'project' | 'lounge' | 'dm'>('project');
   const [selectedDmUser, setSelectedDmUser] = useState<{ id: string; name: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -202,18 +203,33 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     if (!file || !auth.currentUser) return;
     
     if (!file.type.startsWith('image/')) {
-      console.error('Please select an image file.');
+      setUploadError('Please select a valid image file.');
       return;
     }
 
     setIsUploading(true);
+    setUploadError(null);
 
     try {
+      // 1. Compress Image
       const compressedDataUrl = await compressImage(file);
       const fileName = `${Date.now()}_${file.name}`;
+      
+      if (!storage) {
+        throw new Error("Storage is not initialized. Check VITE_FIREBASE_STORAGE_BUCKET.");
+      }
+
       const storageRef = ref(storage, `chat_images/${activeProjectId}/${fileName}`);
       
-      await uploadString(storageRef, compressedDataUrl, 'data_url');
+      // 2. Upload with a 15-second timeout to prevent infinite spinning
+      const uploadPromise = uploadString(storageRef, compressedDataUrl, 'data_url');
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Upload timed out. This is usually caused by CORS issues or an invalid Storage Bucket URL.")), 15000)
+      );
+      
+      await Promise.race([uploadPromise, timeoutPromise]);
+      
+      // 3. Get URL and save to Firestore
       const downloadUrl = await getDownloadURL(storageRef);
 
       await addDoc(collection(db, 'messages', activeProjectId, 'chat'), {
@@ -232,8 +248,9 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
           timestamp: serverTimestamp() 
         }, { merge: true }).catch(console.error);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading image:', error);
+      setUploadError(error.message || 'Failed to upload image.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -320,6 +337,12 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
       {typingUsers.length > 0 && (
         <div className="text-[10px] text-slate-500 italic mb-2">
           {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="text-[10px] text-red-400 mb-2 bg-red-950/50 p-1 rounded border border-red-900/50">
+          ⚠️ {uploadError}
         </div>
       )}
       
