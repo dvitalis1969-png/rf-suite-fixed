@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,6 +16,7 @@ const firebaseConfig = {
 let app: any = null;
 let auth: any = null;
 let db: any = null;
+let storage: any = null;
 
 // Debugging: Check which keys are actually loaded by Vite
 const missingKeys = Object.entries(firebaseConfig)
@@ -30,6 +32,7 @@ if (firebaseConfig.apiKey) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    storage = getStorage(app);
     console.log("✅ Firebase successfully initialized!");
   } catch (error) {
     console.error("❌ Firebase initialization error:", error);
@@ -38,4 +41,4 @@ if (firebaseConfig.apiKey) {
   console.warn("⚠️ Firebase configuration is missing. Authentication and database features will be disabled.");
 }
 
-export { auth, db };
+export { auth, db, storage };

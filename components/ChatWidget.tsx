@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, auth } from '../src/lib/firebase';
+import { db, auth, storage } from '../src/lib/firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc, deleteDoc, where } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { getUserColor, formatTimestamp } from '../src/utils/chatUtils';
+import { ImagePlus, Loader2 } from 'lucide-react';
 
 interface Message {
   id: string;
   userId: string;
   userName: string;
   text: string;
+  imageUrl?: string;
   timestamp: any;
   projectId: string;
 }
@@ -19,8 +22,10 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string }[]>([]);
   const [chatMode, setChatMode] = useState<'project' | 'lounge' | 'dm'>('project');
   const [selectedDmUser, setSelectedDmUser] = useState<{ id: string; name: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getActiveChannelId = () => {
     if (chatMode === 'project') return String(projectId);
@@ -154,6 +159,87 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     setNewMessage('');
   };
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !auth.currentUser) return;
+    
+    if (!file.type.startsWith('image/')) {
+      console.error('Please select an image file.');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const compressedDataUrl = await compressImage(file);
+      const fileName = `${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, `chat_images/${activeProjectId}/${fileName}`);
+      
+      await uploadString(storageRef, compressedDataUrl, 'data_url');
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      await addDoc(collection(db, 'messages', activeProjectId, 'chat'), {
+        userId: auth.currentUser.uid,
+        userName: auth.currentUser.displayName || 'Anonymous',
+        text: '',
+        imageUrl: downloadUrl,
+        timestamp: serverTimestamp(),
+        projectId: activeProjectId
+      });
+
+      if (chatMode === 'dm' && selectedDmUser) {
+        const unreadRef = doc(db, 'users', selectedDmUser.id, 'unread_dms', auth.currentUser.uid);
+        await setDoc(unreadRef, { 
+          hasUnread: true, 
+          timestamp: serverTimestamp() 
+        }, { merge: true }).catch(console.error);
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const startDM = (user: { id: string; name: string }) => {
     setSelectedDmUser(user);
     setChatMode('dm');
@@ -218,7 +304,13 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
             <div key={msg.id} className={`text-xs ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}>
               <span className="text-[10px] text-slate-500 mr-1">{formatTimestamp(msg.timestamp)}</span>
               <span className="font-bold" style={{ color: getUserColor(msg.userId) }}>{msg.userName}: </span>
-              <span className="text-slate-200">{msg.text}</span>
+              {msg.imageUrl ? (
+                <div className={`mt-1 mb-1 ${msg.userId === auth.currentUser?.uid ? 'flex justify-end' : 'flex justify-start'}`}>
+                  <img src={msg.imageUrl} alt="Uploaded" className="max-w-[150px] max-h-[150px] rounded-md border border-slate-700 object-cover" referrerPolicy="no-referrer" />
+                </div>
+              ) : (
+                <span className="text-slate-200">{msg.text}</span>
+              )}
             </div>
           ))
         )}
@@ -231,18 +323,35 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         </div>
       )}
       
-      <form onSubmit={sendMessage} className="flex gap-2">
+      <form onSubmit={sendMessage} className="flex gap-2 items-center">
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleImageUpload}
+          disabled={isUploading || (chatMode === 'dm' && !selectedDmUser)}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading || (chatMode === 'dm' && !selectedDmUser)}
+          className="text-slate-400 hover:text-indigo-400 disabled:opacity-50 transition-colors"
+          title="Upload image"
+        >
+          {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+        </button>
         <input
           type="text"
           value={newMessage}
           onChange={handleInputChange}
-          disabled={chatMode === 'dm' && !selectedDmUser}
+          disabled={isUploading || (chatMode === 'dm' && !selectedDmUser)}
           className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white disabled:opacity-50"
           placeholder={chatMode === 'dm' && !selectedDmUser ? "Select a user to chat..." : "Type a message..."}
         />
         <button 
           type="submit" 
-          disabled={chatMode === 'dm' && !selectedDmUser}
+          disabled={isUploading || !newMessage.trim() || (chatMode === 'dm' && !selectedDmUser)}
           className="bg-indigo-600 text-white px-3 py-1 rounded text-xs font-bold disabled:opacity-50"
         >
           Send

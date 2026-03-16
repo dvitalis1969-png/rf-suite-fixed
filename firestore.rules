@@ -17,11 +17,11 @@ service cloud.firestore {
     // Chat message rules
     match /messages/{chatId}/chat/{messageId} {
       allow read: if isAuthenticated() && (
-        !chatId.startsWith('dm_') || 
+        !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && (
-        !chatId.startsWith('dm_') || 
+        !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
     }
@@ -29,11 +29,11 @@ service cloud.firestore {
     // Typing status rules
     match /messages/{chatId}/typing/{userId} {
       allow read: if isAuthenticated() && (
-        !chatId.startsWith('dm_') || 
+        !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
       allow write: if isAuthenticated() && request.auth.uid == userId && (
-        !chatId.startsWith('dm_') || 
+        !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
     }
