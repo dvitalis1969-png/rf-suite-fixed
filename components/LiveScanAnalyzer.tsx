@@ -68,8 +68,15 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
     const [showSetup, setShowSetup] = useState<boolean>(false);
     const [showTinySAScreen, setShowTinySAScreen] = useState<boolean>(false);
     const [deviceType, setDeviceType] = useState<'tinysa' | 'rfexplorer'>('tinysa');
+    const [showShareModal, setShowShareModal] = useState<boolean>(false);
+    const [shareMeta, setShareMeta] = useState({ location: '', festival: '', stage: '', notes: '' });
 
-    const handleShareScan = async () => {
+    const handleShareScanClick = () => {
+        if (!auth.currentUser) return;
+        setShowShareModal(true);
+    };
+
+    const confirmShareScan = async () => {
         if (!canvasRef.current || !auth.currentUser) return;
         setIsSharing(true);
         try {
@@ -80,9 +87,16 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                 timestamp: Date.now(),
                 projectId: 'global',
                 imageData,
-                description: `Live Scan Capture (${displayMinFreq.toFixed(1)} - ${displayMaxFreq.toFixed(1)} MHz)`
+                description: `Live Scan Capture (${displayMinFreq.toFixed(1)} - ${displayMaxFreq.toFixed(1)} MHz)`,
+                location: shareMeta.location,
+                festival: shareMeta.festival,
+                stage: shareMeta.stage,
+                notes: shareMeta.notes,
+                comments: []
             });
             addLog('Scan shared to Plot Gallery successfully!');
+            setShowShareModal(false);
+            setShareMeta({ location: '', festival: '', stage: '', notes: '' });
         } catch (error: any) {
             console.error('Error sharing scan:', error);
             addLog(`Failed to share scan: ${error.message}`);
@@ -572,7 +586,7 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                     </button>
                     <div className="h-4 w-px bg-white/10 mx-1" />
                     <button 
-                        onClick={handleShareScan}
+                        onClick={handleShareScanClick}
                         disabled={isSharing || !auth.currentUser}
                         className="text-[8px] font-black uppercase px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                         title={!auth.currentUser ? "Log in to share scans" : "Share to Plot Gallery"}
@@ -937,6 +951,73 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                     <HardwareSetupGuide />
                 )}
             </div>
+
+            {showShareModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-md w-full shadow-2xl">
+                        <h3 className="text-lg font-bold text-white mb-4">Share Live Scan</h3>
+                        <p className="text-slate-400 text-sm mb-4">Add details to help others find this scan in the Plot Gallery.</p>
+                        
+                        <div className="space-y-4 mb-6">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location / Venue</label>
+                                <input 
+                                    type="text" 
+                                    value={shareMeta.location}
+                                    onChange={(e) => setShareMeta({...shareMeta, location: e.target.value})}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                                    placeholder="e.g. O2 Arena, London"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Festival / Event Name</label>
+                                <input 
+                                    type="text" 
+                                    value={shareMeta.festival}
+                                    onChange={(e) => setShareMeta({...shareMeta, festival: e.target.value})}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                                    placeholder="e.g. Glastonbury"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Stage</label>
+                                <input 
+                                    type="text" 
+                                    value={shareMeta.stage}
+                                    onChange={(e) => setShareMeta({...shareMeta, stage: e.target.value})}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none"
+                                    placeholder="e.g. Main Stage"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notes</label>
+                                <textarea 
+                                    value={shareMeta.notes}
+                                    onChange={(e) => setShareMeta({...shareMeta, notes: e.target.value})}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none h-20 resize-none"
+                                    placeholder="Any additional notes about this scan..."
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3">
+                            <button 
+                                onClick={() => setShowShareModal(false)} 
+                                className="px-4 py-2 rounded-lg text-sm font-bold text-slate-300 hover:bg-slate-800 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={confirmShareScan} 
+                                disabled={isSharing}
+                                className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors disabled:opacity-50"
+                            >
+                                {isSharing ? 'Sharing...' : 'Share to Gallery'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </Card>
     );
 };

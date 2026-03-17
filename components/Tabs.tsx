@@ -20,6 +20,7 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
 
     // Coordination App (Festival)
     { id: 'festival', label: 'Site Coordinator', category: 'coordination' },
+    { id: 'plotGallery', label: 'Plot Gallery', category: 'coordination' },
     { id: 'festivalSiteMap', label: 'Site Map', category: 'coordination' },
     
     // Exhibition Coordination (Multizone)
