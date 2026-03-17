@@ -132,6 +132,17 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
         }
     };
 
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (device) {
+                import('../services/serialService').then(({ disconnectTinySA }) => {
+                    disconnectTinySA(device).catch(console.error);
+                });
+            }
+        };
+    }, [device]);
+
     // Continuous Refresh Loop
     useEffect(() => {
         if (!device) return;

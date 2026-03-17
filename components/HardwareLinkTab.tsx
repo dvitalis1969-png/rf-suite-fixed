@@ -64,15 +64,15 @@ const HardwareLinkTab: React.FC<HardwareLinkTabProps> = ({ setScanData }) => {
         }
     };
 
-    const handleDisconnect = () => {
+    const handleDisconnect = async () => {
         if (intervalRef.current) {
             clearTimeout(intervalRef.current);
             intervalRef.current = null;
         }
         if (deviceRef.current) {
             try {
-                // The reader/writer are now managed inside readTinySAScan
-                deviceRef.current.port.close();
+                const { disconnectTinySA } = await import('../services/serialService');
+                await disconnectTinySA(deviceRef.current);
             } catch (e) {
                 console.error("Error during disconnect:", e);
             }

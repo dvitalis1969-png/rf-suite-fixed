@@ -70,7 +70,8 @@ export async function listenOnly(device: SerialDevice, durationMs: number = 2000
     isBusy = true;
     const { port } = device;
     try {
-        const reader = port.readable.getReader();
+        device.reader = port.readable.getReader();
+        const reader = device.reader;
         const decoder = new TextDecoder();
         let data = "";
         const timeoutPromise = new Promise(resolve => setTimeout(resolve, durationMs));
@@ -98,6 +99,7 @@ export async function listenOnly(device: SerialDevice, durationMs: number = 2000
         await Promise.race([readPromise, timeoutPromise]);
         try { await reader.cancel(); } catch (e) {}
         try { reader.releaseLock(); } catch (e) {}
+        device.reader = null;
         return data;
     } finally {
         isBusy = false;
@@ -110,7 +112,8 @@ export async function sendRawCommand(device: SerialDevice, command: string, onRa
     
     const { writer, port } = device;
     try {
-        const reader = port.readable.getReader();
+        device.reader = port.readable.getReader();
+        const reader = device.reader;
         try {
             await clearBuffer(reader);
             const encoder = new TextEncoder();
@@ -151,6 +154,7 @@ export async function sendRawCommand(device: SerialDevice, command: string, onRa
             return `Error: ${err.message}`;
         } finally {
             try { reader.releaseLock(); } catch (e) {}
+            device.reader = null;
         }
     } catch (e: any) {
         return `Error: ${e.message}`;
@@ -168,9 +172,16 @@ export async function getTinySAVersion(device: SerialDevice, onRaw?: (data: stri
 let isBusy = false;
 
 export async function disconnectTinySA(device: SerialDevice): Promise<void> {
+    isBusy = false;
     try {
+        if (device.reader) {
+            try { await device.reader.cancel(); } catch (e) {}
+            try { device.reader.releaseLock(); } catch (e) {}
+            device.reader = null;
+        }
         if (device.writer) {
-            try { await device.writer.releaseLock(); } catch (e) {}
+            try { await device.writer.close(); } catch (e) {}
+            try { device.writer.releaseLock(); } catch (e) {}
         }
         if (device.port) {
             try { await device.port.close(); } catch (e) {}
@@ -200,7 +211,8 @@ export async function readTinySAScan(device: SerialDevice, startFreq: number, en
     const { writer, port } = device;
     
     try {
-        const reader = port.readable.getReader();
+        device.reader = port.readable.getReader();
+        const reader = device.reader;
         try {
             if (onStatus) onStatus('Setting sweep range...');
             await clearBuffer(reader);
@@ -290,6 +302,7 @@ export async function readTinySAScan(device: SerialDevice, startFreq: number, en
             throw err;
         } finally {
             try { reader.releaseLock(); } catch (e) {}
+            device.reader = null;
         }
     } catch (error: any) {
         console.error('TinySA Read Error:', error);
@@ -307,7 +320,8 @@ export async function captureTinySAScreen(device: SerialDevice, onStatus?: (stat
     const { writer, port } = device;
     
     try {
-        const reader = port.readable.getReader();
+        device.reader = port.readable.getReader();
+        const reader = device.reader;
         try {
             if (onStatus) onStatus('Clearing buffer...');
             await clearBuffer(reader);
@@ -415,6 +429,7 @@ export async function captureTinySAScreen(device: SerialDevice, onStatus?: (stat
             throw err;
         } finally {
             try { reader.releaseLock(); } catch (e) {}
+            device.reader = null;
         }
     } catch (error: any) {
         console.error('TinySA Capture Error:', error);

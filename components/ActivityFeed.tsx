@@ -29,6 +29,8 @@ interface Plot {
     id: string;
     imageData: string;
     description: string;
+    timestamp?: any;
+    userId?: string;
 }
 
 export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark' }> = ({ user, theme = 'dark' }) => {
@@ -77,12 +79,22 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
     const fetchUserPlots = async () => {
         if (!user) return;
         try {
-            const q = query(collection(db, 'plots'), where('userId', '==', user.id), orderBy('timestamp', 'desc'));
+            // Removed orderBy('timestamp', 'desc') to avoid requiring a composite index in Firestore.
+            // We will sort the results client-side instead.
+            const q = query(collection(db, 'plots'), where('userId', '==', user.id));
             const snapshot = await getDocs(q);
             const plotsData: Plot[] = [];
             snapshot.forEach((doc) => {
                 plotsData.push({ id: doc.id, ...doc.data() } as Plot);
             });
+            
+            // Sort plots by timestamp descending (newest first)
+            plotsData.sort((a, b) => {
+                const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp?.seconds || 0);
+                const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.seconds || 0);
+                return timeB - timeA;
+            });
+            
             setUserPlots(plotsData);
             setShowPlotSelector(true);
         } catch (err) {

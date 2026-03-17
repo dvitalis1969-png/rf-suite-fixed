@@ -61,7 +61,7 @@ const secondaryButton = `bg-slate-800 text-slate-400 border-b-4 border-slate-950
 const greenButton = `bg-emerald-900/40 text-emerald-200 border-b-4 border-emerald-950 hover:bg-emerald-900/60 ${buttonBase}`;
 const actionButton = `bg-slate-700 text-slate-300 border-b-4 border-slate-900 hover:bg-slate-600 ${buttonBase}`;
 const vibrantButton = `bg-indigo-600 text-white border-b-4 border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 ${buttonBase}`;
-const yellowButton = `bg-yellow-900/40 text-yellow-200 border-b-4 border-yellow-950 hover:bg-yellow-900/60 ${buttonBase}`;
+const yellowButton = `bg-yellow-500 text-slate-900 border-b-4 border-yellow-700 hover:bg-yellow-400 ${buttonBase}`;
 
 const ensureValidDate = (d: any): Date => {
     const parsed = new Date(d);
@@ -1627,7 +1627,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                             <button 
                                 onClick={handleGenerate} 
                                 disabled={isGenerating} 
-                                className={`${generateButton} flex-1 min-w-[150px] !py-2.5 !text-[10px] !rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 ring-1 ring-amber-400/30`}
+                                className={`${yellowButton} flex-1 min-w-[150px] !py-2.5 !text-[10px] !rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/10 ring-1 ring-yellow-400/30`}
                             >
                                 {isGenerating ? (
                                     <><span className="w-3 h-3 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING...</>
