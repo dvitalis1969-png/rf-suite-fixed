@@ -3,6 +3,8 @@ import { ScanDataPoint, TVChannelState } from '../types';
 import { UK_TV_CHANNELS, US_TV_CHANNELS } from '../constants';
 import Card, { CardTitle } from './Card';
 import { HardwareSetupGuide } from './HardwareSetupGuide';
+import { db, auth } from '../src/lib/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 interface LiveScanAnalyzerProps {
     scanData: ScanDataPoint[] | null;
@@ -61,10 +63,33 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
     const [manualCommand, setManualCommand] = useState<string>('');
     const [isPaused, setIsPaused] = useState<boolean>(false);
     const [isBaudScanning, setIsBaudScanning] = useState<boolean>(false);
+    const [isSharing, setIsSharing] = useState<boolean>(false);
     const [showTerminal, setShowTerminal] = useState<boolean>(false);
     const [showSetup, setShowSetup] = useState<boolean>(false);
     const [showTinySAScreen, setShowTinySAScreen] = useState<boolean>(false);
     const [deviceType, setDeviceType] = useState<'tinysa' | 'rfexplorer'>('tinysa');
+
+    const handleShareScan = async () => {
+        if (!canvasRef.current || !auth.currentUser) return;
+        setIsSharing(true);
+        try {
+            const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
+            await addDoc(collection(db, 'plots'), {
+                userId: auth.currentUser.uid,
+                userName: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Anonymous',
+                timestamp: Date.now(),
+                projectId: 'global',
+                imageData,
+                description: `Live Scan Capture (${displayMinFreq.toFixed(1)} - ${displayMaxFreq.toFixed(1)} MHz)`
+            });
+            addLog('Scan shared to Plot Gallery successfully!');
+        } catch (error: any) {
+            console.error('Error sharing scan:', error);
+            addLog(`Failed to share scan: ${error.message}`);
+        } finally {
+            setIsSharing(false);
+        }
+    };
 
     const addLog = (msg: string) => {
         setDebugLogs(prev => [msg, ...prev].slice(0, 5));
@@ -544,6 +569,15 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                         className="text-[8px] font-black uppercase px-2 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 transition-all shadow-md"
                     >
                         Reset Max
+                    </button>
+                    <div className="h-4 w-px bg-white/10 mx-1" />
+                    <button 
+                        onClick={handleShareScan}
+                        disabled={isSharing || !auth.currentUser}
+                        className="text-[8px] font-black uppercase px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        title={!auth.currentUser ? "Log in to share scans" : "Share to Plot Gallery"}
+                    >
+                        {isSharing ? 'Sharing...' : 'Share Scan'}
                     </button>
                     <div className="h-4 w-px bg-white/10 mx-1" />
                     <button 
