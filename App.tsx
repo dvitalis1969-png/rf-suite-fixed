@@ -202,6 +202,8 @@ const App: React.FC = () => {
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
     const [isCustomEquipmentManagerOpen, setCustomEquipmentManagerOpen] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    const [isCommunityOpen, setIsCommunityOpen] = useState(false);
+    const [communityTheme, setCommunityTheme] = useState<'light' | 'dark'>('dark');
     const [isAccountDashboardOpen, setIsAccountDashboardOpen] = useState(false);
     const [user, setUser] = useState<any>(null);
     const [dbError, setDbError] = useState<string | null>(null);
@@ -750,73 +752,128 @@ const App: React.FC = () => {
                         onLogout={handleLogout}
                         user={user}
                         onOpenAccount={() => setIsAccountDashboardOpen(true)}
+                        isCommunityOpen={isCommunityOpen}
+                        onToggleCommunity={() => setIsCommunityOpen(!isCommunityOpen)}
                     />
-            <main className="container mx-auto px-4 py-6 max-w-7xl">
-                <ErrorBoundary>
-                    {activeApp === null ? (
-                        <AppLauncher onSelectApp={cat => { setActiveApp(cat); const first = tabConfig.find(t => t.category === cat); if(first) setActiveTab(first.id); }} />
-                    ) : (
-                        <>
-                            <Tabs activeTab={activeTab} setActiveTab={setActiveTab} activeApp={activeApp} />
-                            <div className="mt-6">
-                                {/* System Documentation */}
-                                {activeTab === 'userGuide' && <UserGuideTab activeApp={activeApp} />}
-                                
-                                {/* Core Coordination Modules */}
-                                {activeTab === 'analyzer' && <AnalyzerTab frequencies={frequencies} setFrequencies={setFrequencies} thresholds={thresholds} setThresholds={setThresholds} scenes={scenes} snapshots={snapshots} setSnapshots={setSnapshots} scanData={scanData} generatorFrequencies={generatorFrequencies} multiBandResults={mbResults} tvChannelStates={genTvStates} setTvChannelStates={setGenTvStates} wmasState={wmasState} />}
-                                {activeTab === 'generator' && <GeneratorTab initialThresholds={initialThresholds} generatedFrequencies={generatorFrequencies} setGeneratorFrequencies={setGeneratorFrequencies} setFrequencies={setFrequencies} customEquipment={customEquipment} onManageCustomEquipment={() => setCustomEquipmentManagerOpen(true)} inclusionRanges={inclusionRanges} setInclusionRanges={setInclusionRanges} frequencies={frequencies} scenes={scenes} requests={genRequests} setRequests={setGenRequests} exclusions={genExclusions} setExclusions={setGenExclusions} useGlobalThresholds={genUseGlobalThresholds} setUseGlobalThresholds={setGenUseGlobalThresholds} globalThresholds={genGlobalThresholds} setGlobalThresholds={setGenGlobalThresholds} manualConstraints={genManualConstraints} setManualConstraints={setGenManualConstraints} ignoreManualIMD={genIgnoreManualIMD} setIgnoreManualIMD={setGenIgnoreManualIMD} siteThresholds={genSiteThresholds} setSiteThresholds={setGenSiteThresholds} equipmentOverrides={equipmentOverrides} tvChannelStates={genTvStates} setTvChannelStates={setGenTvStates} tvRegion={genTvRegion} setTvRegion={setGenTvRegion} wmasState={wmasState} />}
-                                {activeTab === 'multiband' && <MultiBandTab customEquipment={customEquipment} bands={mbBands} setBands={setMbBands} results={mbResults} setResults={setMbResults} equipmentOverrides={equipmentOverrides} wmasState={wmasState} />}
-                                {activeTab === 'whitespace' && <WhiteSpaceTab />}
-                                
-                                {/* Analysis & Visualization */}
-                                {activeTab === 'spectrum' && <SpectrumTab projectId={currentProject?.id} analyzerFrequencies={frequencies} generatorFrequencies={generatorFrequencies} scanData={scanData} setScanData={setScanData} setInclusionRanges={setInclusionRanges} setActiveTab={setActiveTab} scenes={scenes} festivalActs={festivalActs} constantSystems={festivalConstantSystems} houseSystems={festivalHouseSystems} talkbackPairs={tbResults} talkbackManual={tbManualPairs} zonalResults={zonalResults} wmasState={wmasState} />}
-                                {activeTab === 'waterfall' && <WaterfallTab analyzerFrequencies={frequencies} generatorFrequencies={generatorFrequencies} scanData={scanData} wmasState={wmasState} />}
-                                
-                                {/* Comms Planning */}
-                                {activeTab === 'talkback' && <TalkbackTab manualPairs={tbManualPairs} setManualPairs={setTbManualPairs} results={tbResults} setResults={setTbResults} />}
-                                {activeTab === 'zonalTalkback' && <ZonalTalkbackTab numZones={commsNumZones} setNumZones={setCommsNumZones} zoneConfigs={commsZoneConfigs} setZoneConfigs={setCommsZoneConfigs} distances={commsDistances} setDistances={setCommsDistances} siteMapState={commsSiteMapState} compatibilityMatrix={commsCompatibilityMatrix} setCompatibilityMatrix={setCommsCompatibilityMatrix} results={zonalResults} setResults={setZonalResults} />}
-                                
-                                {/* Exhibition Planning */}
-                                {activeTab === 'multizone' && <MultizoneTab isLinked={true} setIsLinked={()=>{}} numZones={multizoneNumZones} setNumZones={setMultizoneNumZones} zoneConfigs={multizoneZoneConfigs} setZoneConfigs={setMultizoneZoneConfigs} equipmentGroups={multizoneGroups} setEquipmentGroups={setMultizoneGroups} manualFrequencies={multizoneManualFrequencies} setManualFrequencies={setMultizoneManualFrequencies} distances={multizoneDistances} setDistances={setMultizoneDistances} results={multizoneResults} setResults={setMultizoneResults} customEquipment={customEquipment} onManageCustomEquipment={()=>setCustomEquipmentManagerOpen(true)} compatibilityMatrix={multizoneMatrix} setCompatibilityMatrix={setMultizoneMatrix} equipmentOverrides={equipmentOverrides} tvChannelStates={multizoneTvStates} setTvChannelStates={setMultizoneTvStates} wmasState={wmasState} />}
-                                {activeTab === 'multizoneSiteMap' && <SiteMapTab activeApp={activeApp} festivalState={{ zones: festivalZoneConfigs, map: festivalSiteMap, setMap: setFestivalSiteMap, setDist: setFestivalDistances }} multizoneState={{ zones: multizoneZoneConfigs, map: multizoneSiteMap, setMap: setMultizoneSiteMap, setDist: setMultizoneDistances }} />}
-                                
-                                {/* Festival & Event Coordination */}
-                                {activeTab === 'festival' && <FestivalCoordinationTab festivalActs={festivalActs} setFestivalActs={setFestivalActs} constantSystems={festivalConstantSystems} setConstantSystems={setFestivalConstantSystems} houseSystems={festivalHouseSystems} setHouseSystems={setFestivalHouseSystems} zoneConfigs={festivalZoneConfigs} setZoneConfigs={setFestivalZoneConfigs} numZones={festivalNumZones} setNumZones={setFestivalNumZones} distances={festivalDistances} setDistances={setFestivalDistances} initialThresholds={initialThresholds} customEquipment={customEquipment} compatibilityMatrix={festivalMatrix} setCompatibilityMatrix={setFestivalMatrix} scanData={scanData} setScanData={setScanData} siteMapState={festivalSiteMap} equipmentOverrides={equipmentOverrides} tvChannelStates={festivalTvStates} setTvChannelStates={setFestivalTvStates} onSimulateScan={handleSimulateScan} wmasState={wmasState} />}
-                                {activeTab === 'timeline' && <TimelineTab frequencies={frequencies} scenes={scenes} setScenes={setScenes} />}
-                                {activeTab === 'festivalSiteMap' && <SiteMapTab activeApp={activeApp} festivalState={{ zones: festivalZoneConfigs, map: festivalSiteMap, setMap: setFestivalSiteMap, setDist: setFestivalDistances }} multizoneState={{ zones: multizoneZoneConfigs, map: multizoneSiteMap, setMap: setMultizoneSiteMap, setDist: setMultizoneDistances }} />}
-                                
-                                {/* Tour Planning */}
-                                {activeTab === 'tourPlanning' && <TourPlanningTab state={tourPlanningState} setState={setTourPlanningState} customEquipment={customEquipment} equipmentOverrides={equipmentOverrides} />}
+            <div className="flex flex-col lg:flex-row gap-6 w-full px-6 py-6">
+                <main className={`flex-grow transition-all duration-500 ${isCommunityOpen ? 'lg:flex-1' : 'w-full'}`}>
+                    <ErrorBoundary>
+                        {activeApp === null ? (
+                            <AppLauncher onSelectApp={cat => { 
+                                if (cat === 'network') {
+                                    setIsCommunityOpen(true);
+                                } else {
+                                    setActiveApp(cat); 
+                                    const first = tabConfig.find(t => t.category === cat); 
+                                    if(first) setActiveTab(first.id); 
+                                }
+                            }} />
+                        ) : (
+                            <>
+                                <Tabs activeTab={activeTab} setActiveTab={setActiveTab} activeApp={activeApp} />
+                                <div className="mt-6">
+                                    {/* System Documentation */}
+                                    {activeTab === 'userGuide' && <UserGuideTab activeApp={activeApp} />}
+                                    
+                                    {/* Core Coordination Modules */}
+                                    {activeTab === 'analyzer' && <AnalyzerTab frequencies={frequencies} setFrequencies={setFrequencies} thresholds={thresholds} setThresholds={setThresholds} scenes={scenes} snapshots={snapshots} setSnapshots={setSnapshots} scanData={scanData} generatorFrequencies={generatorFrequencies} multiBandResults={mbResults} tvChannelStates={genTvStates} setTvChannelStates={setGenTvStates} wmasState={wmasState} />}
+                                    {activeTab === 'generator' && <GeneratorTab initialThresholds={initialThresholds} generatedFrequencies={generatorFrequencies} setGeneratorFrequencies={setGeneratorFrequencies} setFrequencies={setFrequencies} customEquipment={customEquipment} onManageCustomEquipment={() => setCustomEquipmentManagerOpen(true)} inclusionRanges={inclusionRanges} setInclusionRanges={setInclusionRanges} frequencies={frequencies} scenes={scenes} requests={genRequests} setRequests={setGenRequests} exclusions={genExclusions} setExclusions={setGenExclusions} useGlobalThresholds={genUseGlobalThresholds} setUseGlobalThresholds={setGenUseGlobalThresholds} globalThresholds={genGlobalThresholds} setGlobalThresholds={setGenGlobalThresholds} manualConstraints={genManualConstraints} setManualConstraints={setGenManualConstraints} ignoreManualIMD={genIgnoreManualIMD} setIgnoreManualIMD={setGenIgnoreManualIMD} siteThresholds={genSiteThresholds} setSiteThresholds={setGenSiteThresholds} equipmentOverrides={equipmentOverrides} tvChannelStates={genTvStates} setTvChannelStates={setGenTvStates} tvRegion={genTvRegion} setTvRegion={setGenTvRegion} wmasState={wmasState} />}
+                                    {activeTab === 'multiband' && <MultiBandTab customEquipment={customEquipment} bands={mbBands} setBands={setMbBands} results={mbResults} setResults={setMbResults} equipmentOverrides={equipmentOverrides} wmasState={wmasState} />}
+                                    {activeTab === 'whitespace' && <WhiteSpaceTab />}
+                                    
+                                    {/* Analysis & Visualization */}
+                                    {activeTab === 'spectrum' && <SpectrumTab projectId={currentProject?.id} analyzerFrequencies={frequencies} generatorFrequencies={generatorFrequencies} scanData={scanData} setScanData={setScanData} setInclusionRanges={setInclusionRanges} setActiveTab={setActiveTab} scenes={scenes} festivalActs={festivalActs} constantSystems={festivalConstantSystems} houseSystems={festivalHouseSystems} talkbackPairs={tbResults} talkbackManual={tbManualPairs} zonalResults={zonalResults} wmasState={wmasState} />}
+                                    {activeTab === 'waterfall' && <WaterfallTab analyzerFrequencies={frequencies} generatorFrequencies={generatorFrequencies} scanData={scanData} wmasState={wmasState} />}
+                                    
+                                    {/* Comms Planning */}
+                                    {activeTab === 'talkback' && <TalkbackTab manualPairs={tbManualPairs} setManualPairs={setTbManualPairs} results={tbResults} setResults={setTbResults} />}
+                                    {activeTab === 'zonalTalkback' && <ZonalTalkbackTab numZones={commsNumZones} setNumZones={setCommsNumZones} zoneConfigs={commsZoneConfigs} setZoneConfigs={setCommsZoneConfigs} distances={commsDistances} setDistances={setCommsDistances} siteMapState={commsSiteMapState} compatibilityMatrix={commsCompatibilityMatrix} setCompatibilityMatrix={setCommsCompatibilityMatrix} results={zonalResults} setResults={setZonalResults} />}
+                                    
+                                    {/* Exhibition Planning */}
+                                    {activeTab === 'multizone' && <MultizoneTab isLinked={true} setIsLinked={()=>{}} numZones={multizoneNumZones} setNumZones={setMultizoneNumZones} zoneConfigs={multizoneZoneConfigs} setZoneConfigs={setMultizoneZoneConfigs} equipmentGroups={multizoneGroups} setEquipmentGroups={setMultizoneGroups} manualFrequencies={multizoneManualFrequencies} setManualFrequencies={setMultizoneManualFrequencies} distances={multizoneDistances} setDistances={setMultizoneDistances} results={multizoneResults} setResults={setMultizoneResults} customEquipment={customEquipment} onManageCustomEquipment={()=>setCustomEquipmentManagerOpen(true)} compatibilityMatrix={multizoneMatrix} setCompatibilityMatrix={setMultizoneMatrix} equipmentOverrides={equipmentOverrides} tvChannelStates={multizoneTvStates} setTvChannelStates={setMultizoneTvStates} wmasState={wmasState} />}
+                                    {activeTab === 'multizoneSiteMap' && <SiteMapTab activeApp={activeApp} festivalState={{ zones: festivalZoneConfigs, map: festivalSiteMap, setMap: setFestivalSiteMap, setDist: setFestivalDistances }} multizoneState={{ zones: multizoneZoneConfigs, map: multizoneSiteMap, setMap: setMultizoneSiteMap, setDist: setMultizoneDistances }} />}
+                                    
+                                    {/* Festival & Event Coordination */}
+                                    {activeTab === 'festival' && <FestivalCoordinationTab festivalActs={festivalActs} setFestivalActs={setFestivalActs} constantSystems={festivalConstantSystems} setConstantSystems={setFestivalConstantSystems} houseSystems={festivalHouseSystems} setHouseSystems={setFestivalHouseSystems} zoneConfigs={festivalZoneConfigs} setZoneConfigs={setFestivalZoneConfigs} numZones={festivalNumZones} setNumZones={setFestivalNumZones} distances={festivalDistances} setDistances={setFestivalDistances} initialThresholds={initialThresholds} customEquipment={customEquipment} compatibilityMatrix={festivalMatrix} setCompatibilityMatrix={setFestivalMatrix} scanData={scanData} setScanData={setScanData} siteMapState={festivalSiteMap} equipmentOverrides={equipmentOverrides} tvChannelStates={festivalTvStates} setTvChannelStates={setFestivalTvStates} onSimulateScan={handleSimulateScan} wmasState={wmasState} />}
+                                    {activeTab === 'timeline' && <TimelineTab frequencies={frequencies} scenes={scenes} setScenes={setScenes} />}
+                                    {activeTab === 'festivalSiteMap' && <SiteMapTab activeApp={activeApp} festivalState={{ zones: festivalZoneConfigs, map: festivalSiteMap, setMap: setFestivalSiteMap, setDist: setFestivalDistances }} multizoneState={{ zones: multizoneZoneConfigs, map: multizoneSiteMap, setMap: setMultizoneSiteMap, setDist: setMultizoneDistances }} />}
+                                    
+                                    {/* Tour Planning */}
+                                    {activeTab === 'tourPlanning' && <TourPlanningTab state={tourPlanningState} setState={setTourPlanningState} customEquipment={customEquipment} equipmentOverrides={equipmentOverrides} />}
 
-                                {/* WMAS Coordination */}
-                                {activeTab === 'wmas' && <WMASTab state={wmasState} setState={setWmasState} tvChannelStates={genTvStates} scanData={scanData} />}
+                                    {/* WMAS Coordination */}
+                                    {activeTab === 'wmas' && <WMASTab state={wmasState} setState={setWmasState} tvChannelStates={genTvStates} scanData={scanData} />}
 
-                                {/* Community Network */}
-                                {activeTab === 'activityFeed' && <ActivityFeed user={user} />}
+                                    {/* RF Toolkit Utilities */}
+                                    {activeTab === 'plotGallery' && <PlotGallery />}
+                                    {activeTab === 'iemStudy' && <IEMStudyTab />}
+                                    {activeTab === 'interference' && <InterferenceDemoTab />}
+                                    {activeTab === 'imdDemo' && <IMDDemoTab />}
+                                    {activeTab === 'diversityPlacement' && <DiversityPlacementTab />}
+                                    {activeTab === 'linkBudget' && <LinkBudgetTab />}
+                                    {activeTab === 'antennaDownTilt' && <AntennaDownTiltTab />}
+                                    {activeTab === 'cableLoss' && <CableLossTab />}
+                                    {activeTab === 'lineOfSight' && <LineOfSightTab />}
+                                    {activeTab === 'vswr' && <VSWRTab />}
+                                    {activeTab === 'fspl' && <FSPLTab />}
+                                    {activeTab === 'powerConverter' && <PowerConverterTab />}
+                                    {activeTab === 'fresnelZone' && <FresnelZoneTab />}
+                                    {activeTab === 'audioTone' && <AudioToneGeneratorTab />}
 
-                                {/* RF Toolkit Utilities */}
-                                {activeTab === 'plotGallery' && <PlotGallery />}
-                                {activeTab === 'iemStudy' && <IEMStudyTab />}
-                                {activeTab === 'interference' && <InterferenceDemoTab />}
-                                {activeTab === 'imdDemo' && <IMDDemoTab />}
-                                {activeTab === 'diversityPlacement' && <DiversityPlacementTab />}
-                                {activeTab === 'linkBudget' && <LinkBudgetTab />}
-                                {activeTab === 'antennaDownTilt' && <AntennaDownTiltTab />}
-                                {activeTab === 'cableLoss' && <CableLossTab />}
-                                {activeTab === 'lineOfSight' && <LineOfSightTab />}
-                                {activeTab === 'vswr' && <VSWRTab />}
-                                {activeTab === 'fspl' && <FSPLTab />}
-                                {activeTab === 'powerConverter' && <PowerConverterTab />}
-                                {activeTab === 'fresnelZone' && <FresnelZoneTab />}
-                                {activeTab === 'audioTone' && <AudioToneGeneratorTab />}
+                                    {/* Settings & Hardware */}
+                                    {activeTab === 'equipmentDatabase' && <EquipmentDatabaseTab customEquipment={customEquipment} overrides={equipmentOverrides} setOverrides={setEquipmentOverrides} onManageCustomEquipment={() => setCustomEquipmentManagerOpen(true)} />}
+                                </div>
+                            </>
+                        )}
+                    </ErrorBoundary>
+                </main>
 
-                                {/* Settings & Hardware */}
-                                {activeTab === 'equipmentDatabase' && <EquipmentDatabaseTab customEquipment={customEquipment} overrides={equipmentOverrides} setOverrides={setEquipmentOverrides} onManageCustomEquipment={() => setCustomEquipmentManagerOpen(true)} />}
+                {/* Persistent Community Sidebar */}
+                {isCommunityOpen && (
+                    <aside className="lg:w-96 w-full animate-in slide-in-from-right duration-500 sticky top-6 self-start h-[calc(100vh-8rem)] overflow-hidden">
+                        <div className={`h-full border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-colors duration-300 ${communityTheme === 'dark' ? 'bg-slate-950/40 backdrop-blur-3xl' : 'bg-slate-50'}`}>
+                            <div className={`p-4 border-b border-white/10 flex items-center justify-between ${communityTheme === 'dark' ? 'bg-slate-900/50' : 'bg-white'}`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${communityTheme === 'dark' ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-100 text-indigo-600 border-indigo-200'}`}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className={`text-xs font-black uppercase tracking-[0.2em] ${communityTheme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Community Network</h2>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={() => setCommunityTheme(communityTheme === 'dark' ? 'light' : 'dark')}
+                                        className={`p-2 rounded-lg transition-colors ${communityTheme === 'dark' ? 'hover:bg-white/5 text-slate-500 hover:text-white' : 'hover:bg-slate-200 text-slate-400 hover:text-slate-900'}`}
+                                        title={`Switch to ${communityTheme === 'dark' ? 'Light' : 'Dark'} Theme`}
+                                    >
+                                        {communityTheme === 'dark' ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 9H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 5a7 7 0 100 14 7 7 0 000-14z" />
+                                            </svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsCommunityOpen(false)}
+                                        className={`p-2 rounded-lg transition-colors ${communityTheme === 'dark' ? 'hover:bg-white/5 text-slate-500 hover:text-white' : 'hover:bg-slate-200 text-slate-400 hover:text-slate-900'}`}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
-                        </>
-                    )}
-                </ErrorBoundary>
-                    </main>
+                            <div className="flex-grow overflow-y-auto scrollbar-hide p-4">
+                                <ActivityFeed user={user} theme={communityTheme} />
+                            </div>
+                        </div>
+                    </aside>
+                )}
+            </div>
                     {currentProject && <CommunityPanel projectId={currentProject.id} />}
                 </>
             )}
@@ -841,7 +898,7 @@ const App: React.FC = () => {
             />}
             
             <div className="fixed bottom-1 right-1 text-[10px] text-slate-600 opacity-50 pointer-events-none z-50">
-                v2.5-STABLE-MARCH-08-12:12
+                v2.5.1-STABLE-MARCH-17-13:12
             </div>
         </div>
     );

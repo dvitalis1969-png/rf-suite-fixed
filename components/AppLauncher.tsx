@@ -47,7 +47,7 @@ const AppLauncher: React.FC<AppLauncherProps> = ({ onSelectApp }) => {
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-7xl w-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 max-w-[1800px] w-full">
                 <AppCard 
                     title="RF Calculator" 
                     description="Standard coordination engine for intermod analysis and manual frequency entry."
@@ -57,7 +57,7 @@ const AppLauncher: React.FC<AppLauncherProps> = ({ onSelectApp }) => {
                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
                 />
                 <AppCard 
-                    title="Festival Coordinator" 
+                    title="Festival Coordination" 
                     description="Multi-stage artist management with time-aware frequency reuse and site diagrams."
                     colorClass="bg-fuchsia-500"
                     borderClass="border-fuchsia-500/20"
@@ -73,7 +73,7 @@ const AppLauncher: React.FC<AppLauncherProps> = ({ onSelectApp }) => {
                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>}
                 />
                 <AppCard 
-                    title="Exhibition Planner" 
+                    title="Exhibition Coordination" 
                     description="Booth-level hardware deployment for trade shows and multi-zone installations."
                     colorClass="bg-purple-500"
                     borderClass="border-purple-500/20"
@@ -81,7 +81,7 @@ const AppLauncher: React.FC<AppLauncherProps> = ({ onSelectApp }) => {
                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>}
                 />
                 <AppCard 
-                    title="Radio Talkback" 
+                    title="Radio Talkback Coordination" 
                     description="Discrete duplex pair and Simplex calculations with high-power talkback IMD modelling."
                     colorClass="bg-emerald-500"
                     borderClass="border-emerald-500/20"

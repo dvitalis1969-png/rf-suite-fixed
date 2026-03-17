@@ -576,7 +576,7 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
     );
 
     return (
-        <div className="space-y-4 max-w-[1400px] mx-auto">
+        <div className="space-y-4 mx-auto">
              <Card>
                 <div className="flex justify-between items-center mb-6">
                     <CardTitle className="!mb-0">1. Configure Zonal Bands</CardTitle>

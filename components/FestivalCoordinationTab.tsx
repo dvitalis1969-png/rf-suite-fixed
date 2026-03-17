@@ -588,7 +588,7 @@ const ExcelToCsvConverter: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[300] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-slate-900 border-2 border-indigo-500/40 rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[95vh]">
+            <div className="bg-slate-900 border-2 border-indigo-500/40 rounded-3xl shadow-2xl w-full max-w-7xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[95vh]">
                 <div className="p-6 border-b border-white/10 bg-indigo-500/10 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-3">
                         <span className="text-2xl">🧮</span>
@@ -1309,48 +1309,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 />
             )}
             
-            <div className={`fixed bottom-4 right-4 z-[100] w-[calc(100vw-2rem)] sm:w-[240px] md:w-[260px] transition-all duration-500 transform ${isGenerating ? 'scale-95' : 'scale-100'}`}>
-                <div className={`bg-slate-950/95 backdrop-blur-3xl border-2 shadow-[0_40px_120px_rgba(0,0,0,0.7)] rounded-xl overflow-y-auto transition-all duration-300 ${isHudMinimized ? 'h-10' : 'h-auto max-h-[400px] md:max-h-[50vh]'} custom-scrollbar`} style={{ borderColor: optimizationReport ? (optimizationReport.shortfall === 0 ? '#10b981' : '#ef4444') : '#3b82f6' }}>
-                    <div className={`sticky top-0 z-[110] flex items-center justify-between p-2 cursor-pointer select-none border-b border-white/10 ${optimizationReport ? (optimizationReport.shortfall === 0 ? 'bg-emerald-500/20' : 'bg-red-500/20') : 'bg-blue-600/20'}`} onClick={() => setIsHudMinimized(!isHudMinimized)}>
-                        <div className="flex items-center gap-1.5">
-                            <span className={`text-xs ${isGenerating ? 'animate-spin' : ''}`}>{isGenerating ? '⚙️' : (optimizationReport ? (optimizationReport.shortfall === 0 ? '✅' : '👨‍🔧') : '📊')}</span>
-                            <h5 className="text-[9px] font-black uppercase tracking-[0.1em] text-white">Command Center</h5>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            {optimizationReport && <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-sm ${optimizationReport.shortfall === 0 ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>{optimizationReport.found}/{optimizationReport.requested} OK</span>}
-                            <button className="text-white opacity-60 hover:opacity-100 text-lg leading-none transition-opacity">{isHudMinimized ? '↑' : '↓'}</button>
-                        </div>
-                    </div>
-                    {!isHudMinimized && (
-                        <div className="p-2 space-y-2 overflow-y-visible">
-                            <button onClick={handleGenerate} disabled={isGenerating} className={`${generateButton} w-full !py-1.5 !text-[9px] !rounded-lg flex items-center justify-center gap-1.5 shadow-[0_5px_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-400/30`}>{isGenerating ? <><span className="w-3 h-3 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING...</> : 'GENERATE PLAN'}</button>
-                            
-                            {isGenerating && (
-                                <div className="space-y-1.5 p-1.5 bg-indigo-500/10 rounded-lg border border-indigo-500/20 animate-in fade-in duration-300">
-                                    <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest text-indigo-300">
-                                        <span>Progress</span>
-                                        <span className="font-mono">{Math.round((progress.processed / (progress.totalRequested || 1)) * 100)}%</span>
-                                    </div>
-                                    <div className="h-1 bg-slate-950 rounded-full overflow-hidden border border-white/5 shadow-inner">
-                                        <div 
-                                            className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300" 
-                                            style={{ width: `${(progress.processed / (progress.totalRequested || 1)) * 100}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-[6px] text-slate-500 uppercase font-black text-center tracking-tighter">
-                                        {progress.status || `Patching ${progress.processed}/${progress.totalRequested}...`}
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-2 gap-1.5">
-                                <button onClick={() => handleLockAllSite(!anyFrequenciesLocked)} className={`${greenButton} !py-1 !text-[8px] !rounded-lg flex items-center justify-center gap-1`}><span className="text-[10px]">{anyFrequenciesLocked ? '🔓' : '🔒'}</span>{anyFrequenciesLocked ? 'UNLOCK ALL' : 'LOCK ALL'}</button>
-                                <button onClick={() => setShowTabulation(!showTabulation)} className={`${greenButton} !py-1 !text-[8px] !rounded-lg flex items-center justify-center gap-1`}><span className="text-[10px]">📋</span> TABULATE</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
+            {/* Removed floating Command Center HUD */}
 
             <Card className="!p-4 !bg-slate-900 border-2 border-indigo-500/40 shadow-2xl relative z-10">
                 <div className="flex flex-col xl:flex-row justify-between items-stretch gap-6 mb-6 pb-6 border-b border-white/5">
@@ -1480,74 +1439,77 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 </div>
             </Card>
 
-            <Card className="relative z-10">
-                <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <CardTitle className="!mb-0 text-base">📺 Quad-State TV Grid</CardTitle>
-                        <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tighter mt-1">Define protected whitespace. Click to cycle states.</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex gap-3 text-[8px] font-black uppercase overflow-x-auto pb-1 scrollbar-hide">
-                            <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span className="text-slate-400">Avail</span></div>
-                            <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-sky-400 border border-sky-300" /> <span className="text-sky-400">Mic Only</span></div>
-                            <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-amber-500 border border-amber-400" /> <span className="text-amber-500">IEM</span></div>
-                            <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-rose-600 border border-rose-500" /> <span className="text-rose-500">Blocked</span></div>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                <Card className="relative z-10 h-full">
+                    <div className="flex justify-between items-center mb-4">
+                        <div>
+                            <CardTitle className="!mb-0 text-base">📺 Quad-State TV Grid</CardTitle>
+                            <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tighter mt-1">Define protected whitespace. Click to cycle states.</p>
                         </div>
-                        <div className="flex gap-2">
-                            <button onClick={handleBlockAllTvChannels} className="text-[9px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
-                            <button onClick={handleClearTv} className="text-[9px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded hover:bg-slate-700 hover:text-white transition-all">Clear All</button>
+                        <div className="flex items-center gap-4">
+                            <div className="flex gap-3 text-[8px] font-black uppercase overflow-x-auto pb-1 scrollbar-hide">
+                                <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span className="text-slate-400">Avail</span></div>
+                                <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-sky-400 border border-sky-300" /> <span className="text-sky-400">Mic Only</span></div>
+                                <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-amber-500 border border-amber-400" /> <span className="text-amber-500">IEM</span></div>
+                                <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-rose-600 border border-rose-500" /> <span className="text-rose-500">Blocked</span></div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={handleBlockAllTvChannels} className="text-[9px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
+                                <button onClick={handleClearTv} className="text-[9px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded hover:bg-slate-700 hover:text-white transition-all">Clear All</button>
+                            </div>
+                            <select value={tvRegion} onChange={e => setTvRegion(e.target.value as any)} className="bg-slate-800 text-xs border border-slate-700 rounded px-2 py-1 text-slate-200">
+                                <option value="uk">UK (8MHz)</option>
+                                <option value="us">US (6MHz)</option>
+                            </select>
                         </div>
-                        <select value={tvRegion} onChange={e => setTvRegion(e.target.value as any)} className="bg-slate-800 text-xs border border-slate-700 rounded px-2 py-1 text-slate-200">
-                            <option value="uk">UK (8MHz)</option>
-                            <option value="us">US (6MHz)</option>
-                        </select>
                     </div>
-                </div>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2 p-2 bg-slate-950/30 rounded-xl">
-                    {Object.entries(tvRegion === 'uk' ? UK_TV_CHANNELS : US_TV_CHANNELS).map(([chStr, [start, end]]) => {
-                        const ch = parseInt(chStr);
-                        const state = tvStates[ch] || 'available';
-                        
-                        let channelClasses = 'p-1.5 text-center rounded-lg border-2 transition-all cursor-pointer select-none ';
-                        if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
-                        else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
-                        else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
-                        else channelClasses += 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50';
+                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2 p-2 bg-slate-950/30 rounded-xl">
+                        {Object.entries(tvRegion === 'uk' ? UK_TV_CHANNELS : US_TV_CHANNELS).map(([chStr, [start, end]]) => {
+                            const ch = parseInt(chStr);
+                            const state = tvStates[ch] || 'available';
+                            
+                            let channelClasses = 'p-1.5 text-center rounded-lg border-2 transition-all cursor-pointer select-none ';
+                            if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
+                            else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
+                            else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
+                            else channelClasses += 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50';
 
-                        return (
-                            <button key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses}>
-                                <div className={`text-[10px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>CH {ch}</div>
-                                <div className={`text-[8px] font-mono tracking-tighter ${state === 'available' ? 'text-slate-500' : 'text-white/60'}`}>{start}-{end}</div>
-                                <div className={`mt-1 text-[7px] font-black uppercase ${state === 'available' ? 'text-white/10' : 'text-white/40'}`}>
-                                    {state === 'mic-only' && 'MIC'}
-                                    {state === 'iem-only' && 'IEM'}
-                                    {state === 'blocked' && 'OFF'}
-                                    {state === 'available' && '—'}
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
-            </Card>
+                            return (
+                                <button key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses}>
+                                    <div className={`text-[10px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>CH {ch}</div>
+                                    <div className={`text-[8px] font-mono tracking-tighter ${state === 'available' ? 'text-slate-500' : 'text-white/60'}`}>{start}-{end}</div>
+                                    <div className={`mt-1 text-[7px] font-black uppercase ${state === 'available' ? 'text-white/10' : 'text-white/40'}`}>
+                                        {state === 'mic-only' && 'MIC'}
+                                        {state === 'iem-only' && 'IEM'}
+                                        {state === 'blocked' && 'OFF'}
+                                        {state === 'available' && '—'}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </Card>
 
-            <LiveScanAnalyzer 
-                scanData={scanData}
-                tvRegion={tvRegion}
-                tvChannelStates={tvStates}
-                onBlockChannel={(ch, state) => {
-                    const next = { ...tvStates, [ch]: state };
-                    setTvStates(next);
-                    setTvChannelStates(next);
-                }}
-                onBulkUpdateChannels={(updates) => {
-                    setTvStates(updates);
-                    setTvChannelStates(updates);
-                }}
-                onSimulate={onSimulateScan || (() => {})}
-                onScanDataUpdate={setScanData}
-                threshold={exclusionThreshold}
-                onThresholdChange={setExclusionThreshold}
-            />
+                <LiveScanAnalyzer 
+                    scanData={scanData}
+                    tvRegion={tvRegion}
+                    tvChannelStates={tvStates}
+                    onBlockChannel={(ch, state) => {
+                        const next = { ...tvStates, [ch]: state };
+                        setTvStates(next);
+                        setTvChannelStates(next);
+                    }}
+                    onBulkUpdateChannels={(updates) => {
+                        setTvStates(updates);
+                        setTvChannelStates(updates);
+                    }}
+                    onSimulate={onSimulateScan || (() => {})}
+                    onScanDataUpdate={setScanData}
+                    threshold={exclusionThreshold}
+                    onThresholdChange={setExclusionThreshold}
+                />
+            </div>
+
 
             {showTabulation && (
                 <Card className="!bg-black/40 border-cyan-500/30 shadow-[0_0_50px_rgba(34,211,238,0.1)] relative z-20 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -1643,6 +1605,68 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                     setFestivalActs(prev => [...prev, ...newActs]);
                                 }; r.readAsText(file);
                         }} />
+                    </div>
+
+                    {/* Command Center Strip */}
+                    <div className="bg-slate-950/50 p-3 rounded-xl border border-indigo-500/30 flex flex-col gap-3">
+                        <div className="flex items-center justify-between px-1">
+                            <div className="flex items-center gap-2">
+                                <span className={`text-xs ${isGenerating ? 'animate-spin' : ''}`}>{isGenerating ? '⚙️' : (optimizationReport ? (optimizationReport.shortfall === 0 ? '✅' : '👨‍🔧') : '📊')}</span>
+                                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Command Center</h5>
+                            </div>
+                            {optimizationReport && (
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${optimizationReport.shortfall === 0 ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
+                                        {optimizationReport.found}/{optimizationReport.requested} CHANNELS OK
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                            <button 
+                                onClick={handleGenerate} 
+                                disabled={isGenerating} 
+                                className={`${generateButton} flex-1 min-w-[150px] !py-2.5 !text-[10px] !rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 ring-1 ring-amber-400/30`}
+                            >
+                                {isGenerating ? (
+                                    <><span className="w-3 h-3 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING...</>
+                                ) : (
+                                    <><span>⚡</span> GENERATE PLAN</>
+                                )}
+                            </button>
+                            <button 
+                                onClick={() => handleLockAllSite(!anyFrequenciesLocked)} 
+                                className={`${greenButton} flex-1 min-w-[120px] !py-2.5 !text-[10px] !rounded-lg flex items-center justify-center gap-2`}
+                            >
+                                <span>{anyFrequenciesLocked ? '🔓' : '🔒'}</span>
+                                {anyFrequenciesLocked ? 'UNLOCK ALL' : 'LOCK ALL'}
+                            </button>
+                            <button 
+                                onClick={() => setShowTabulation(!showTabulation)} 
+                                className={`${greenButton} flex-1 min-w-[120px] !py-2.5 !text-[10px] !rounded-lg flex items-center justify-center gap-2`}
+                            >
+                                <span>📋</span> TABULATE
+                            </button>
+                        </div>
+
+                        {isGenerating && (
+                            <div className="space-y-2 p-3 bg-indigo-500/10 rounded-lg border border-indigo-500/20 animate-in fade-in duration-300">
+                                <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-indigo-300">
+                                    <span>Coordination Progress</span>
+                                    <span className="font-mono">{Math.round((progress.processed / (progress.totalRequested || 1)) * 100)}%</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden border border-white/5 shadow-inner">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300" 
+                                        style={{ width: `${(progress.processed / (progress.totalRequested || 1)) * 100}%` }}
+                                    />
+                                </div>
+                                <p className="text-[8px] text-slate-500 uppercase font-black text-center tracking-widest">
+                                    {progress.status || `Patching ${progress.processed}/${progress.totalRequested}...`}
+                                </p>
+                            </div>
+                        )}
                     </div>
                     
                     <div className="bg-slate-900/40 p-4 rounded-xl border border-indigo-500/20 flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -1974,7 +1998,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
 
             {hasAnalyzed && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-slate-900 border-2 border-indigo-500/40 shadow-[0_40px_120px_rgba(0,0,0,0.8)] rounded-3xl w-full max-w-5xl overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="bg-slate-900 border-2 border-indigo-500/40 shadow-[0_40px_120px_rgba(0,0,0,0.8)] rounded-3xl w-full max-w-6xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className={`p-6 border-b border-white/10 flex justify-between items-center ${diagnosticConflicts.length === 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
                             <div className="flex items-center gap-4">
                                 <span className="text-2xl">{diagnosticConflicts.length === 0 ? '✅' : '⚠️'}</span>

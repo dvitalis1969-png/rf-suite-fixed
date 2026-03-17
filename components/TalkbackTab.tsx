@@ -715,7 +715,7 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
     };
 
     return (
-        <div className="space-y-4 max-w-[1400px] mx-auto">
+        <div className="space-y-4 mx-auto">
             <Card>
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-4">

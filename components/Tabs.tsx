@@ -22,7 +22,7 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
     { id: 'festival', label: 'Site Coordinator', category: 'coordination' },
     { id: 'festivalSiteMap', label: 'Site Map', category: 'coordination' },
     
-    // Exhibition Planner (Multizone)
+    // Exhibition Coordination (Multizone)
     { id: 'multizone', label: 'Booth Ledger', category: 'multizone' },
     { id: 'multizoneSiteMap', label: 'Floor Plan', category: 'multizone' },
     
@@ -51,9 +51,6 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
 
     // WMAS App
     { id: 'wmas', label: 'WMAS Coordination', category: 'wmas' },
-
-    // Community Network App
-    { id: 'activityFeed', label: 'Activity Feed', category: 'network' },
 ];
 
 const Tabs: React.FC<TabsProps> = ({ activeTab, setActiveTab, activeApp }) => {

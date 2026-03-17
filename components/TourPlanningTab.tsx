@@ -433,7 +433,7 @@ const TourPlanningTab: React.FC<TourPlanningTabProps> = ({ state, setState, cust
             </div>
 
             <div className="mb-8">
-                <div className="flex justify-between items-start relative max-w-3xl mx-auto">
+                <div className="flex justify-between items-start relative mx-auto">
                     {/* Connecting Line */}
                     <div className="absolute top-5 left-[10%] right-[10%] h-0.5 bg-slate-800 z-0">
                         <motion.div 
@@ -474,7 +474,7 @@ const TourPlanningTab: React.FC<TourPlanningTabProps> = ({ state, setState, cust
                 </div>
             </div>
 
-            <div className="max-w-5xl mx-auto relative overflow-hidden">
+            <div className="relative overflow-hidden">
                 {currentStep === 0 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
                     <Card>
@@ -516,7 +516,7 @@ const TourPlanningTab: React.FC<TourPlanningTabProps> = ({ state, setState, cust
                     </Card>
                     <Card>
                         <div className="flex justify-between items-center mb-4">
-                            <CardTitle subtitle="Base RF Cluster">Global TV Channel Grid</CardTitle>
+                            <CardTitle subtitle="Base RF Cluster">Quad-State TV Grid</CardTitle>
                             <div className="flex items-center gap-2">
                                 {state.region === 'us' && (
                                     <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-lg border border-white/5">
@@ -583,24 +583,30 @@ const TourPlanningTab: React.FC<TourPlanningTabProps> = ({ state, setState, cust
                                             }));
                                         }}
                                         className={`
-                                            flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all
-                                            ${tvState === 'available' ? 'bg-slate-800/40 border-white/5 text-slate-400' : ''}
-                                            ${tvState === 'mic-only' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : ''}
-                                            ${tvState === 'iem-only' ? 'bg-rose-500/20 border-rose-500/40 text-rose-400' : ''}
-                                            ${tvState === 'blocked' ? 'bg-red-500/40 border-red-500/60 text-white' : ''}
+                                            flex flex-col items-center justify-center p-1.5 rounded-lg border-2 transition-all cursor-pointer select-none
+                                            ${tvState === 'available' ? 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50 text-emerald-400' : ''}
+                                            ${tvState === 'mic-only' ? 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg text-slate-900' : ''}
+                                            ${tvState === 'iem-only' ? 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg text-slate-900' : ''}
+                                            ${tvState === 'blocked' ? 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg text-slate-900' : ''}
                                         `}
                                     >
-                                        <span className="text-[10px] font-black">{channel}</span>
-                                        <span className="text-[7px] uppercase font-bold opacity-70">{tvState === 'available' ? 'Free' : tvState.split('-')[0]}</span>
+                                        <span className="text-[10px] font-black">CH {channel}</span>
+                                        <span className={`text-[7px] uppercase font-bold ${tvState === 'available' ? 'text-slate-500' : 'text-white/60'}`}>{range[0]}-{range[1]}</span>
+                                        <div className={`mt-1 text-[7px] font-black uppercase ${tvState === 'available' ? 'text-white/10' : 'text-white/40'}`}>
+                                            {tvState === 'mic-only' && 'MIC'}
+                                            {tvState === 'iem-only' && 'IEM'}
+                                            {tvState === 'blocked' && 'OFF'}
+                                            {tvState === 'available' && '—'}
+                                        </div>
                                     </button>
                                 );
                             })}
                         </div>
                         <div className="mt-4 flex flex-wrap gap-3 justify-center">
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-slate-700"></div><span className="text-[8px] text-slate-500 font-black uppercase">Available</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-emerald-500/40"></div><span className="text-[8px] text-emerald-500 font-black uppercase">Mic Only</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-rose-500/40"></div><span className="text-[8px] text-rose-500 font-black uppercase">IEM Only</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-red-500/60"></div><span className="text-[8px] text-red-500 font-black uppercase">Blocked</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-emerald-500/10 border border-emerald-500/30"></div><span className="text-[8px] text-slate-500 font-black uppercase">Available</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-sky-400 border border-sky-300"></div><span className="text-[8px] text-sky-400 font-black uppercase">Mic Only</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-amber-500 border border-amber-400"></div><span className="text-[8px] text-amber-500 font-black uppercase">IEM</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-rose-600 border border-rose-500"></div><span className="text-[8px] text-rose-500 font-black uppercase">Blocked</span></div>
                         </div>
                     </Card>
                     <div className="flex justify-end mt-6">
@@ -858,7 +864,7 @@ const TourPlanningTab: React.FC<TourPlanningTabProps> = ({ state, setState, cust
                                 </Card>
                                 <Card className="animate-in fade-in zoom-in-95 duration-300 delay-100">
                                     <div className="flex justify-between items-center mb-4">
-                                        <CardTitle subtitle={`Local RF Cluster: ${activeCluster.name}`}>TV Channel Grid</CardTitle>
+                                        <CardTitle subtitle={`Local RF Cluster: ${activeCluster.name}`}>Quad-State TV Grid</CardTitle>
                                         <div className="flex items-center gap-2">
                                             {state.region === 'us' && (
                                                 <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-lg border border-white/5">

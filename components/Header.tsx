@@ -15,15 +15,17 @@ interface HeaderProps {
     onLogout?: () => void;
     user?: any;
     onOpenAccount?: () => void;
+    isCommunityOpen?: boolean;
+    onToggleCommunity?: () => void;
 }
 
 const appLabels: Record<AppCategory, string> = {
     calculator: 'RF Calculator',
-    coordination: 'Festival Planner',
+    coordination: 'Festival Coordination',
     analysis: 'Live Analysis',
-    comms: 'Comms/Intercom',
+    comms: 'Radio Talkback Coordination',
     toolkit: 'RF Toolkit',
-    multizone: 'Exhibition Planner',
+    multizone: 'Exhibition Coordination',
     tour: 'Tour Planning',
     hardware: 'Equipment Library',
     wmas: 'WMAS Coordination',
@@ -43,7 +45,9 @@ const Header: React.FC<HeaderProps> = ({
     isSaved = false,
     onLogout,
     user,
-    onOpenAccount
+    onOpenAccount,
+    isCommunityOpen,
+    onToggleCommunity
 }) => {
     const [installPrompt, setInstallPrompt] = useState<any>(null);
     const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
@@ -154,6 +158,22 @@ const Header: React.FC<HeaderProps> = ({
                                 <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">{user.name}</span>
                             </button>
                         )}
+                        
+                        {onToggleCommunity && (
+                            <button 
+                                onClick={onToggleCommunity}
+                                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border ${
+                                    isCommunityOpen 
+                                    ? 'bg-emerald-600 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+                                    : 'bg-slate-900 border-white/10 text-slate-300 hover:border-emerald-500/50 hover:text-white'
+                                }`}
+                                title="Community Network"
+                            >
+                                <span className="text-sm">💬</span>
+                                <span className="hidden xl:block">Community</span>
+                            </button>
+                        )}
+
                         <button 
                             onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
                             className={`flex items-center gap-3 px-5 py-2.5 rounded-xl font-black uppercase tracking-[0.15em] text-[10px] transition-all border ${

@@ -519,7 +519,7 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                             onClick={() => setShowTvGrid(!showTvGrid)}
                             className={`text-[8px] font-black uppercase px-2 py-1 rounded transition-all ${showTvGrid ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                         >
-                            TV Grid
+                            Quad-State TV Grid
                         </button>
                         <button 
                             onClick={() => setShowMaxHold(!showMaxHold)}

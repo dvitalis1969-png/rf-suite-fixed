@@ -133,7 +133,7 @@ const WMASTab: React.FC<WMASTabProps> = ({ state, setState, tvChannelStates = {}
                         WMAS Blocks configured as <strong>House Systems</strong> act as <strong>Global Exclusions</strong>. 
                         <strong>Act Specific</strong> blocks are only treated as exclusions during their assigned <strong>Time Slots</strong>.
                         <br/><br/>
-                        When you calculate frequencies in the <strong>Festival Planner</strong>, the engine will automatically 
+                        When you calculate frequencies in the <strong>Festival Coordination</strong>, the engine will automatically 
                         protect these wideband blocks from narrowband interference based on the festival timeline.
                     </p>
                 </div>

@@ -629,7 +629,7 @@ const MultizoneTab: React.FC<MultizoneTabProps> = ({
             <Card>
                 <div className="flex justify-between items-center mb-4">
                     <div>
-                        <CardTitle className="!mb-0 text-sm tracking-widest text-indigo-300 uppercase font-black">📺 Type-Aware TV Grid</CardTitle>
+                        <CardTitle className="!mb-0 text-sm tracking-widest text-indigo-300 uppercase font-black">📺 Quad-State TV Grid</CardTitle>
                         <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tighter mt-1">Prescribe specific channels for separation. Click to cycle states.</p>
                     </div>
                     <div className="flex items-center gap-4">

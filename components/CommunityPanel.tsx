@@ -72,31 +72,50 @@ const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId })
         bottom: `${position.y}px`,
         zIndex: 100
       }}
-      className={`w-80 bg-slate-950 border border-slate-700 rounded-xl shadow-2xl p-4 transition-all duration-300 ${isMinimized ? 'h-14' : 'h-auto'}`}
+      className={`bg-slate-950 border border-slate-700 rounded-xl shadow-2xl transition-all duration-300 overflow-hidden ${isMinimized ? 'w-12 h-12' : 'w-80 h-auto'}`}
     >
-      <div className="flex justify-between items-center mb-2 cursor-grab" onMouseDown={handleMouseDown}>
-        <div className="flex items-center gap-2">
-          <GripVertical className="w-4 h-4 text-slate-600" />
-          <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-            Community Hub
-            {totalUnread > 0 && (
-              <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse flex items-center gap-1">
-                <MessageCircle className="w-3 h-3" />
-                {totalUnread}
-              </span>
-            )}
-          </h3>
+      {isMinimized ? (
+        <button 
+          onClick={() => setIsMinimized(false)}
+          onMouseDown={handleMouseDown}
+          className="w-full h-full flex flex-col items-center justify-center relative group hover:bg-slate-900 transition-colors"
+          title="Open Community Hub"
+        >
+          <span className="text-[10px] font-black text-indigo-400 group-hover:text-indigo-300 transition-colors tracking-tighter">CH</span>
+          {totalUnread > 0 && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border-2 border-slate-950 animate-pulse">
+              <span className="text-[8px] font-bold text-white">{totalUnread}</span>
+            </div>
+          )}
+          <div className="absolute bottom-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <GripVertical className="w-2 h-2 text-slate-700" />
+          </div>
+        </button>
+      ) : (
+        <div className="p-4">
+          <div className="flex justify-between items-center mb-2 cursor-grab" onMouseDown={handleMouseDown}>
+            <div className="flex items-center gap-2">
+              <GripVertical className="w-4 h-4 text-slate-600" />
+              <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                Community Hub
+                {totalUnread > 0 && (
+                  <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse flex items-center gap-1">
+                    <MessageCircle className="w-3 h-3" />
+                    {totalUnread}
+                  </span>
+                )}
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <PresenceIndicator projectId={projectId} />
+              <button onClick={() => setIsMinimized(true)} className="text-slate-500 hover:text-white">
+                <Minus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <ChatWidget projectId={projectId} unreadDMs={unreadDMs} />
         </div>
-        <div className="flex items-center gap-2">
-          <PresenceIndicator projectId={projectId} />
-          <button onClick={() => setIsMinimized(!isMinimized)} className="text-slate-500 hover:text-white">
-            {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
-      <div className={isMinimized ? 'hidden' : 'block'}>
-        <ChatWidget projectId={projectId} unreadDMs={unreadDMs} />
-      </div>
+      )}
     </div>
   );
 };

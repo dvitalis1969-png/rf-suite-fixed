@@ -158,7 +158,7 @@ const SiteMapTab: React.FC<SiteMapTabProps> = ({ festivalState, multizoneState, 
         <Card fullWidth>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
-                    <CardTitle className="!mb-0">📍 Site Map Visual Planner</CardTitle>
+                    <CardTitle className="!mb-0">📍 Site Map Visual Coordination</CardTitle>
                     <p className="text-slate-400 text-xs mt-1">Place {activeContext === 'festival' ? 'stages' : 'booths'} on your map to auto-calculate spatial separation.</p>
                 </div>
                 <div className="bg-slate-900/80 p-1 rounded-lg border border-slate-700 flex gap-1 shadow-inner">
