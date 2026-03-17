@@ -806,7 +806,15 @@ const App: React.FC = () => {
                                     {activeTab === 'wmas' && <WMASTab state={wmasState} setState={setWmasState} tvChannelStates={genTvStates} scanData={scanData} />}
 
                                     {/* RF Toolkit Utilities */}
-                                    {activeTab === 'plotGallery' && <PlotGallery />}
+                                    {activeTab === 'plotGallery' && (
+                                        <PlotGallery 
+                                            onImportScanData={(data) => {
+                                                setScanData(data);
+                                                addLog(`Imported reference scan data from Plot Gallery.`);
+                                                setActiveTab('spectrum'); // Switch to spectrum analyzer tab
+                                            }} 
+                                        />
+                                    )}
                                     {activeTab === 'iemStudy' && <IEMStudyTab />}
                                     {activeTab === 'interference' && <InterferenceDemoTab />}
                                     {activeTab === 'imdDemo' && <IMDDemoTab />}

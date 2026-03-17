@@ -81,6 +81,16 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
         setIsSharing(true);
         try {
             const imageData = canvasRef.current.toDataURL('image/jpeg', 0.8);
+            
+            // Downsample scan data for storage to avoid exceeding Firestore limits
+            let rawScanData = null;
+            if (scanData && scanData.length > 0) {
+                // Keep max 500 points to stay well under 1MB limit
+                const step = Math.max(1, Math.floor(scanData.length / 500));
+                const downsampled = scanData.filter((_, i) => i % step === 0);
+                rawScanData = JSON.stringify(downsampled);
+            }
+
             await addDoc(collection(db, 'plots'), {
                 userId: auth.currentUser.uid,
                 userName: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Anonymous',
@@ -92,7 +102,8 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                 festival: shareMeta.festival,
                 stage: shareMeta.stage,
                 notes: shareMeta.notes,
-                comments: []
+                comments: [],
+                ...(rawScanData ? { rawScanData } : {})
             });
             addLog('Scan shared to Plot Gallery successfully!');
             setShowShareModal(false);
