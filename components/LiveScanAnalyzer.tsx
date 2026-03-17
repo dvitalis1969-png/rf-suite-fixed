@@ -105,6 +105,7 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                 comments: [],
                 ...(rawScanData ? { rawScanData } : {})
             });
+            console.log("LiveScanAnalyzer: Scan shared to Plot Gallery successfully!");
             addLog('Scan shared to Plot Gallery successfully!');
             setShowShareModal(false);
             setShareMeta({ location: '', festival: '', stage: '', notes: '' });

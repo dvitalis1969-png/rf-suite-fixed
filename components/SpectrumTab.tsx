@@ -115,6 +115,10 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
     const [selectedActIds, setSelectedActIds] = useState<Set<string>>(new Set());
     const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
+    useEffect(() => {
+        console.log("SpectrumTab scanData updated:", scanData);
+    }, [scanData]);
+
     const [visualBw, setVisualBw] = useState(0.200);
     const [freqStep, setFreqStep] = useState<number>(0.025); 
     const [spanStep, setSpanStep] = useState<number>(1.0); 

@@ -809,8 +809,8 @@ const App: React.FC = () => {
                                     {activeTab === 'plotGallery' && (
                                         <PlotGallery 
                                             onImportScanData={(data) => {
+                                                console.log("App.tsx: Importing scan data:", data);
                                                 setScanData(data);
-                                                addLog(`Imported reference scan data from Plot Gallery.`);
                                                 setActiveTab('spectrum'); // Switch to spectrum analyzer tab
                                             }} 
                                         />

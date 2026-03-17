@@ -193,6 +193,11 @@ const PlotGallery: React.FC<PlotGalleryProps> = ({ onImportScanData }) => {
                   {onImportScanData && selectedPlot.rawScanData && (
                     <button
                       onClick={() => {
+                        console.log("Selected plot:", selectedPlot);
+                        if (!selectedPlot.rawScanData) {
+                          console.error("No rawScanData in selected plot");
+                          return;
+                        }
                         try {
                           const parsed = JSON.parse(selectedPlot.rawScanData!);
                           onImportScanData(parsed);
