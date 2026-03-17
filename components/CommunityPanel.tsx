@@ -4,6 +4,7 @@ import ChatWidget from './ChatWidget';
 import PresenceIndicator from './PresenceIndicator';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
+import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
 
 const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId }) => {
   const [isMinimized, setIsMinimized] = useState(false);
@@ -54,6 +55,8 @@ const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId })
         if (doc.data().hasUnread) unread[doc.id] = true;
       });
       setUnreadDMs(unread);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, `users/${auth.currentUser?.uid}/unread_dms`);
     });
     return () => unsub();
   }, []);

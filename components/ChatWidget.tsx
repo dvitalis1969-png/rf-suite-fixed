@@ -3,6 +3,7 @@ import { db, auth, storage } from '../src/lib/firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc, deleteDoc, where } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { getUserColor, formatTimestamp } from '../src/utils/chatUtils';
+import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
 import { ImagePlus, Loader2 } from 'lucide-react';
 
 interface Message {
@@ -82,6 +83,8 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
       setMessages(msgs);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, `messages/${activeProjectId}/chat`);
     });
 
     // Listen for typing users
@@ -91,6 +94,8 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         .filter(doc => doc.id !== auth.currentUser?.uid)
         .map(doc => doc.data().userName);
       setTypingUsers(typing);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, `messages/${activeProjectId}/typing`);
     });
 
     // Listen for online users
@@ -100,6 +105,8 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         .filter(doc => doc.id !== auth.currentUser?.uid)
         .map(doc => ({ id: doc.id, name: doc.data().name }));
       setOnlineUsers(online);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, 'presence/global/users');
     });
 
     return () => {
@@ -211,32 +218,18 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     setUploadError(null);
 
     try {
-      // 1. Compress Image
+      // 1. Compress Image to a tiny Base64 string (usually under 100kb)
       const compressedDataUrl = await compressImage(file);
-      const fileName = `${Date.now()}_${file.name}`;
       
-      if (!storage) {
-        throw new Error("Storage is not initialized. Check VITE_FIREBASE_STORAGE_BUCKET.");
-      }
-
-      const storageRef = ref(storage, `chat_images/${activeProjectId}/${fileName}`);
+      // 2. BYPASS FIREBASE STORAGE ENTIRELY!
+      // Since we compressed the image so small, we can just save the text string 
+      // directly into the Firestore database. This completely ignores CORS issues!
       
-      // 2. Upload with a 15-second timeout to prevent infinite spinning
-      const uploadPromise = uploadString(storageRef, compressedDataUrl, 'data_url');
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Upload timed out. This is usually caused by CORS issues or an invalid Storage Bucket URL.")), 15000)
-      );
-      
-      await Promise.race([uploadPromise, timeoutPromise]);
-      
-      // 3. Get URL and save to Firestore
-      const downloadUrl = await getDownloadURL(storageRef);
-
       await addDoc(collection(db, 'messages', activeProjectId, 'chat'), {
         userId: auth.currentUser.uid,
         userName: auth.currentUser.displayName || 'Anonymous',
         text: '',
-        imageUrl: downloadUrl,
+        imageUrl: compressedDataUrl, // Save the Base64 string directly
         timestamp: serverTimestamp(),
         projectId: activeProjectId
       });

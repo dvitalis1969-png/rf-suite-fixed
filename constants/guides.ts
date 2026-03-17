@@ -208,5 +208,20 @@ export const CATEGORY_GUIDES: Record<AppCategory, GuideSection[]> = {
                 "Ensure your TV channel data is accurate for the location."
             ]
         }
+    ],
+    network: [
+        {
+            title: "Community Network",
+            description: "Connect with other RF professionals, share knowledge, and collaborate on projects.",
+            steps: [
+                "Post updates, questions, or share RF plots.",
+                "Like and comment on posts from other users.",
+                "Attach images or select plots from your gallery to share."
+            ],
+            tips: [
+                "Engage with the community to learn new techniques and best practices.",
+                "Share your successful coordination plots to help others."
+            ]
+        }
     ]
 };

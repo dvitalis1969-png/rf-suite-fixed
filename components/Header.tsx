@@ -26,7 +26,8 @@ const appLabels: Record<AppCategory, string> = {
     multizone: 'Exhibition Planner',
     tour: 'Tour Planning',
     hardware: 'Equipment Library',
-    wmas: 'WMAS Coordination'
+    wmas: 'WMAS Coordination',
+    network: 'Community Network'
 };
 
 const Header: React.FC<HeaderProps> = ({ 

@@ -28,6 +28,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import AuthModal from './components/AuthModal';
 import AccountDashboard from './components/AccountDashboard';
 import CommunityPanel from './components/CommunityPanel';
+import { ActivityFeed } from './components/ActivityFeed';
 
 // RF Toolkit Component Imports
 import IEMStudyTab from './components/IEMStudyTab';
@@ -789,6 +790,9 @@ const App: React.FC = () => {
 
                                 {/* WMAS Coordination */}
                                 {activeTab === 'wmas' && <WMASTab state={wmasState} setState={setWmasState} tvChannelStates={genTvStates} scanData={scanData} />}
+
+                                {/* Community Network */}
+                                {activeTab === 'activityFeed' && <ActivityFeed user={user} />}
 
                                 {/* RF Toolkit Utilities */}
                                 {activeTab === 'plotGallery' && <PlotGallery />}

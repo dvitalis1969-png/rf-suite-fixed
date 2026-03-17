@@ -38,6 +38,30 @@
         "description": { "type": "string", "description": "Description of the plot" }
       },
       "required": ["userId", "userName", "timestamp", "projectId", "imageData"]
+    },
+    "FeedPost": {
+      "title": "FeedPost",
+      "description": "A post in the activity feed",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "likes": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["authorId", "authorName", "content", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile and subscription data",
+      "type": "object",
+      "properties": {
+        "subscription": { "type": "string" },
+        "subscriptionStatus": { "type": "string" },
+        "stripeCustomerId": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -52,6 +76,14 @@
     "/plots/{plotId}": {
       "schema": { "$ref": "Plot" },
       "description": "Shared plots"
+    },
+    "/feed_posts/{postId}": {
+      "schema": { "$ref": "FeedPost" },
+      "description": "Activity feed posts"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "User profiles"
     }
   }
 }

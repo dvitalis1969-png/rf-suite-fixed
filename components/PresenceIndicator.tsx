@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../src/lib/firebase';
 import { collection, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
 
 interface Presence {
   userId: string;
@@ -28,6 +29,8 @@ const PresenceIndicator: React.FC<{ projectId: string | number }> = ({ projectId
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const activeUsers = snapshot.docs.map(doc => doc.data() as Presence);
       setUsers(activeUsers);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, `presence/${projectId}/users`);
     });
 
     return () => unsubscribe();

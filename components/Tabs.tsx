@@ -51,6 +51,9 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
 
     // WMAS App
     { id: 'wmas', label: 'WMAS Coordination', category: 'wmas' },
+
+    // Community Network App
+    { id: 'activityFeed', label: 'Activity Feed', category: 'network' },
 ];
 
 const Tabs: React.FC<TabsProps> = ({ activeTab, setActiveTab, activeApp }) => {

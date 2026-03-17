@@ -3,20 +3,58 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields:
+    //   - subscription: string
+    //   - subscriptionStatus: string
+    //   - stripeCustomerId: string
+    //
+    // Collection: feed_posts
+    // Fields:
+    //   - authorId: string (required)
+    //   - authorName: string (required)
+    //   - content: string (required)
+    //   - imageUrl: string (optional)
+    //   - createdAt: timestamp (required)
+    //   - likes: list (optional)
+    //
+    // ===============================================================
+
     // Helper Functions
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "dvitalis1969@gmail.com" && request.auth.token.email_verified == true) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isValidFeedPost(data) {
+      return data.authorId is string && 
+             data.authorName is string && data.authorName.size() < 100 &&
+             data.content is string && data.content.size() < 5000;
+    }
+
     // Presence rules
     match /presence/{projectId}/users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow get, list: if isAuthenticated();
+      allow write: if isOwner(userId);
     }
 
     // Chat message rules
     match /messages/{chatId}/chat/{messageId} {
-      allow read: if isAuthenticated() && (
+      allow get, list: if isAuthenticated() && (
         !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
@@ -28,11 +66,11 @@ service cloud.firestore {
 
     // Typing status rules
     match /messages/{chatId}/typing/{userId} {
-      allow read: if isAuthenticated() && (
+      allow get, list: if isAuthenticated() && (
         !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
-      allow write: if isAuthenticated() && request.auth.uid == userId && (
+      allow write: if isOwner(userId) && (
         !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
@@ -40,20 +78,34 @@ service cloud.firestore {
 
     // Plot rules
     match /plots/{plotId} {
-      allow read: if isAuthenticated();
+      allow get, list: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     // User rules
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow get, list: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
     }
 
     // Unread DMs rules
     match /users/{userId}/unread_dms/{senderId} {
-      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow get, list: if isOwner(userId);
       allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == senderId);
+    }
+
+    // Feed Posts rules
+    match /feed_posts/{postId} {
+      allow get, list: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid && isValidFeedPost(request.resource.data);
+      allow update: if isAuthenticated() && (
+        // Allow owner to edit content
+        (resource.data.authorId == request.auth.uid && isValidFeedPost(request.resource.data)) ||
+        // Allow others to like/comment (only specific fields changing)
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes', 'comments'])
+      );
+      allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
     }
   }
 }

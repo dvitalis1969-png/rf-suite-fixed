@@ -64,10 +64,10 @@ export interface EquipmentProfile {
 }
 
 export type TabID = 'analyzer' | 'generator' | 'whitespace' | 'spectrum' | 'waterfall' | 'multiband' | 'talkback' | 'zonalTalkback' | 'multizone' | 'multistage' | 'siteMap' | 'festivalSiteMap' | 'multizoneSiteMap' | 'timeline' | 'festival' 
-  | 'linkBudget' | 'audioTone' | 'fspl' | 'powerConverter' | 'fresnelZone' | 'antennaDownTilt' | 'cableLoss' | 'lineOfSight' | 'vswr' | 'imdDemo' | 'iemStudy' | 'diversityPlacement' | 'interference' | 'equipmentDatabase' | 'hardwareLink' | 'userGuide' | 'tourPlanning' | 'wmas' | 'plotGallery';
+  | 'linkBudget' | 'audioTone' | 'fspl' | 'powerConverter' | 'fresnelZone' | 'antennaDownTilt' | 'cableLoss' | 'lineOfSight' | 'vswr' | 'imdDemo' | 'iemStudy' | 'diversityPlacement' | 'interference' | 'equipmentDatabase' | 'hardwareLink' | 'userGuide' | 'tourPlanning' | 'wmas' | 'plotGallery' | 'activityFeed';
 
 // FIX: Added 'multizone' to AppCategory to resolve assignment errors in Header and Tabs
-export type AppCategory = 'calculator' | 'coordination' | 'analysis' | 'comms' | 'toolkit' | 'hardware' | 'multizone' | 'tour' | 'wmas';
+export type AppCategory = 'calculator' | 'coordination' | 'analysis' | 'comms' | 'toolkit' | 'hardware' | 'multizone' | 'tour' | 'wmas' | 'network';
 
 export interface IntermodProduct {
     value: number;
@@ -366,6 +366,16 @@ export interface WMASState {
 
 declare global {
     const __BUILD_TIMESTAMP__: string;
+}
+
+export interface User {
+    id: string;
+    name: string;
+    email: string;
+    photoURL?: string;
+    subscription?: string;
+    subscriptionStatus?: string;
+    stripeCustomerId?: string | null;
 }
 
 export interface AppState {
