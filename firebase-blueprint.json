@@ -49,7 +49,9 @@
         "content": { "type": "string" },
         "imageUrl": { "type": "string" },
         "createdAt": { "type": "object" },
-        "likes": { "type": "array", "items": { "type": "string" } }
+        "updatedAt": { "type": "object" },
+        "likes": { "type": "array", "items": { "type": "string" } },
+        "comments": { "type": "array", "items": { "type": "object" } }
       },
       "required": ["authorId", "authorName", "content", "createdAt"]
     },

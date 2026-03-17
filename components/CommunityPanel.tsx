@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Minus, Maximize2, GripVertical, MessageCircle } from 'lucide-react';
 import ChatWidget from './ChatWidget';
 import PresenceIndicator from './PresenceIndicator';
+import UserPresenceList from './UserPresenceList';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
@@ -114,6 +115,7 @@ const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId })
             </div>
           </div>
           <ChatWidget projectId={projectId} unreadDMs={unreadDMs} />
+          <UserPresenceList />
         </div>
       )}
     </div>

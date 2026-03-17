@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, setDoc, updateDoc, arrayUnion, arrayRemove, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, setDoc, updateDoc, arrayUnion, arrayRemove, getDocs, where, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
 import { User } from '../types';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
+import { Pencil, Trash2, Check, X, Loader2, ArrowLeft, UserCircle } from 'lucide-react';
 
 interface Post {
     id: string;
@@ -35,6 +36,10 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
     const [newPostContent, setNewPostContent] = useState('');
     const [isPosting, setIsPosting] = useState(false);
     const [commentContent, setCommentContent] = useState<Record<string, string>>({});
+    const [editingPostId, setEditingPostId] = useState<string | null>(null);
+    const [editingContent, setEditingContent] = useState('');
+    const [isUpdatingPost, setIsUpdatingPost] = useState(false);
+    const [postToDelete, setPostToDelete] = useState<string | null>(null);
     
     const [attachedImage, setAttachedImage] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -44,6 +49,9 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
     const [userPlots, setUserPlots] = useState<Plot[]>([]);
     const [selectedPlot, setSelectedPlot] = useState<Plot | null>(null);
     const [error, setError] = useState<Error | null>(null);
+
+    const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+    const [selectedProfileName, setSelectedProfileName] = useState<string | null>(null);
 
     const isDark = theme === 'dark';
 
@@ -227,6 +235,68 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
         }
     };
 
+    const handleDeletePost = async () => {
+        if (!user || !postToDelete) return;
+        try {
+            await deleteDoc(doc(db, 'feed_posts', postToDelete));
+            setPostToDelete(null);
+        } catch (err) {
+            console.error("Error deleting post:", err);
+            try {
+                handleFirestoreError(err, OperationType.DELETE, `feed_posts/${postToDelete}`);
+            } catch (e) {
+                setError(e as Error);
+            }
+        }
+    };
+
+    const handleStartEdit = (post: Post) => {
+        setEditingPostId(post.id);
+        setEditingContent(post.content);
+    };
+
+    const handleSaveEdit = async (postId: string) => {
+        if (!user || !editingContent.trim()) return;
+        setIsUpdatingPost(true);
+        try {
+            const postRef = doc(db, 'feed_posts', postId);
+            await updateDoc(postRef, {
+                content: editingContent,
+                updatedAt: serverTimestamp()
+            });
+            setEditingPostId(null);
+            setEditingContent('');
+        } catch (err) {
+            console.error("Error updating post:", err);
+            try {
+                handleFirestoreError(err, OperationType.UPDATE, `feed_posts/${postId}`);
+            } catch (e) {
+                setError(e as Error);
+            }
+        } finally {
+            setIsUpdatingPost(false);
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setEditingPostId(null);
+        setEditingContent('');
+    };
+
+    const handleProfileClick = (userId: string, userName: string) => {
+        setSelectedProfileId(userId);
+        setSelectedProfileName(userName);
+    };
+
+    const clearProfileFilter = () => {
+        setSelectedProfileId(null);
+        setSelectedProfileName(null);
+    };
+
+    const displayedPosts = selectedProfileId 
+        ? posts.filter(p => p.authorId === selectedProfileId)
+        : posts;
+
     if (error) {
         return (
             <div className="p-8 text-center bg-slate-900 rounded-xl border border-red-500/50">
@@ -252,76 +322,97 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
 
     return (
         <div className={`h-full flex flex-col ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            <div className={`p-4 border-b ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
-                <textarea
-                    value={newPostContent}
-                    onChange={(e) => setNewPostContent(e.target.value)}
-                    placeholder="Share an update, ask a question, or post a plot..."
-                    className={`w-full border rounded-xl p-4 text-sm focus:outline-none focus:border-indigo-500 resize-none min-h-[100px] transition-all ${
-                        isDark ? 'bg-slate-950/50 border-white/10 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
-                    }`}
-                />
-                
-                {/* Attachments Preview */}
-                {attachedImage && (
-                    <div className="relative mt-4 inline-block">
-                        <img src={attachedImage} alt="Attachment" className="max-h-48 rounded-lg border border-white/10" />
-                        <button 
-                            onClick={() => setAttachedImage(null)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600"
-                        >
-                            ×
-                        </button>
+            {selectedProfileId ? (
+                <div className={`p-4 border-b flex items-center justify-between ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-white border-slate-200'}`}>
+                    <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-xl ${isDark ? 'bg-gradient-to-br from-indigo-500 to-cyan-500' : 'bg-indigo-600'}`}>
+                            {selectedProfileName?.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <h2 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedProfileName}</h2>
+                            <p className="text-xs text-slate-500">{displayedPosts.length} post{displayedPosts.length !== 1 ? 's' : ''}</p>
+                        </div>
                     </div>
-                )}
-                
-                {selectedPlot && (
-                    <div className="relative mt-4 inline-block bg-slate-800 p-2 rounded-lg border border-indigo-500/50">
-                        <div className="text-xs text-indigo-400 font-bold mb-1 uppercase tracking-wider">Attached Plot</div>
-                        <img src={selectedPlot.imageData} alt="Plot" className="max-h-48 rounded border border-white/10" />
-                        <div className="text-xs text-slate-400 mt-1 truncate max-w-[200px]">{selectedPlot.description}</div>
-                        <button 
-                            onClick={() => setSelectedPlot(null)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600"
-                        >
-                            ×
-                        </button>
-                    </div>
-                )}
-
-                <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
-                    <div className="flex gap-2">
-                        <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            ref={fileInputRef}
-                            onChange={handleImageUpload}
-                        />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isUploading || !!selectedPlot}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-colors disabled:opacity-50 ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
-                        >
-                            <span>📷</span> {isUploading ? 'Compressing...' : 'Image'}
-                        </button>
-                        <button
-                            onClick={fetchUserPlots}
-                            disabled={!!attachedImage}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-colors disabled:opacity-50 border ${isDark ? 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border-indigo-200'}`}
-                        >
-                            <span>📈</span> Share Plot
-                        </button>
-                    </div>
-                    <button
-                        onClick={handlePost}
-                        disabled={isPosting || (!newPostContent.trim() && !attachedImage && !selectedPlot)}
-                        className={`px-6 py-2 font-bold rounded-xl transition-colors disabled:opacity-50 ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'}`}
+                    <button 
+                        onClick={clearProfileFilter}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
                     >
-                        {isPosting ? 'Posting...' : 'Post'}
+                        <ArrowLeft className="w-4 h-4" />
+                        Back to Feed
                     </button>
                 </div>
-            </div>
+            ) : (
+                <div className={`p-4 border-b ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200'}`}>
+                    <textarea
+                        value={newPostContent}
+                        onChange={(e) => setNewPostContent(e.target.value)}
+                        placeholder="Share an update, ask a question, or post a plot..."
+                        className={`w-full border rounded-xl p-4 text-sm focus:outline-none focus:border-indigo-500 resize-none min-h-[100px] transition-all ${
+                            isDark ? 'bg-slate-950/50 border-white/10 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+                        }`}
+                    />
+                    
+                    {/* Attachments Preview */}
+                    {attachedImage && (
+                        <div className="relative mt-4 inline-block">
+                            <img src={attachedImage} alt="Attachment" className="max-h-48 rounded-lg border border-white/10" />
+                            <button 
+                                onClick={() => setAttachedImage(null)}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    )}
+                    
+                    {selectedPlot && (
+                        <div className="relative mt-4 inline-block bg-slate-800 p-2 rounded-lg border border-indigo-500/50">
+                            <div className="text-xs text-indigo-400 font-bold mb-1 uppercase tracking-wider">Attached Plot</div>
+                            <img src={selectedPlot.imageData} alt="Plot" className="max-h-48 rounded border border-white/10" />
+                            <div className="text-xs text-slate-400 mt-1 truncate max-w-[200px]">{selectedPlot.description}</div>
+                            <button 
+                                onClick={() => setSelectedPlot(null)}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/10">
+                        <div className="flex gap-2">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                ref={fileInputRef}
+                                onChange={handleImageUpload}
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading || !!selectedPlot}
+                                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-colors disabled:opacity-50 ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
+                            >
+                                <span>📷</span> {isUploading ? 'Compressing...' : 'Image'}
+                            </button>
+                            <button
+                                onClick={fetchUserPlots}
+                                disabled={!!attachedImage}
+                                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition-colors disabled:opacity-50 border ${isDark ? 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border-indigo-200'}`}
+                            >
+                                <span>📈</span> Share Plot
+                            </button>
+                        </div>
+                        <button
+                            onClick={handlePost}
+                            disabled={isPosting || (!newPostContent.trim() && !attachedImage && !selectedPlot)}
+                            className={`px-6 py-2 font-bold rounded-xl transition-colors disabled:opacity-50 ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'}`}
+                        >
+                            {isPosting ? 'Posting...' : 'Post'}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Plot Selector Modal */}
             {showPlotSelector && (
@@ -359,21 +450,76 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
             )}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                {posts.map(post => (
+                {displayedPosts.map(post => (
                     <div key={post.id} className={`border rounded-2xl p-5 backdrop-blur-xl ${isDark ? 'bg-slate-900/50 border-white/10' : 'bg-white border-slate-200 shadow-sm'}`}>
                         <div className="flex items-center gap-3 mb-4">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white ${isDark ? 'bg-gradient-to-br from-indigo-500 to-cyan-500' : 'bg-indigo-600'}`}>
+                            <button 
+                                onClick={() => handleProfileClick(post.authorId, post.authorName)}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white transition-transform hover:scale-105 ${isDark ? 'bg-gradient-to-br from-indigo-500 to-cyan-500' : 'bg-indigo-600'}`}
+                            >
                                 {post.authorName.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                                <div className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{post.authorName}</div>
+                            </button>
+                            <div className="flex-1">
+                                <button 
+                                    onClick={() => handleProfileClick(post.authorId, post.authorName)}
+                                    className={`font-bold hover:underline ${isDark ? 'text-white' : 'text-slate-900'}`}
+                                >
+                                    {post.authorName}
+                                </button>
                                 <div className="text-xs text-slate-500">
                                     {post.createdAt?.toDate ? post.createdAt.toDate().toLocaleString() : 'Just now'}
                                 </div>
                             </div>
+                            {user.id === post.authorId && (
+                                <div className="flex gap-1">
+                                    <button 
+                                        onClick={() => handleStartEdit(post)}
+                                        className="p-1.5 text-slate-500 hover:text-indigo-400 transition-colors"
+                                        title="Edit Post"
+                                    >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button 
+                                        onClick={() => setPostToDelete(post.id)}
+                                        className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                                        title="Delete Post"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         
-                        {post.content && <p className={`whitespace-pre-wrap mb-4 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{post.content}</p>}
+                        {editingPostId === post.id ? (
+                            <div className="mb-4 space-y-2">
+                                <textarea
+                                    value={editingContent}
+                                    onChange={(e) => setEditingContent(e.target.value)}
+                                    className={`w-full border rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 resize-none min-h-[80px] transition-all ${
+                                        isDark ? 'bg-slate-950/50 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                                    }`}
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <button 
+                                        onClick={handleCancelEdit}
+                                        className="p-2 text-slate-400 hover:text-white transition-colors"
+                                        title="Cancel"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        onClick={() => handleSaveEdit(post.id)}
+                                        disabled={isUpdatingPost || !editingContent.trim()}
+                                        className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                        title="Save Changes"
+                                    >
+                                        {isUpdatingPost ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            post.content && <p className={`whitespace-pre-wrap mb-4 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{post.content}</p>
+                        )}
                         
                         {post.imageUrl && (
                             <img src={post.imageUrl} alt="Post attachment" className={`max-w-full rounded-xl border mb-4 ${isDark ? 'border-white/10' : 'border-slate-200'}`} />
@@ -406,7 +552,12 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                         <div className="mt-4 space-y-3">
                             {post.comments?.map(comment => (
                                 <div key={comment.id} className={`rounded-xl p-3 text-sm ${isDark ? 'bg-slate-950/50' : 'bg-slate-50'}`}>
-                                    <span className={`font-bold mr-2 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}>{comment.authorName}</span>
+                                    <button 
+                                        onClick={() => handleProfileClick(comment.authorId, comment.authorName)}
+                                        className={`font-bold mr-2 hover:underline ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}
+                                    >
+                                        {comment.authorName}
+                                    </button>
                                     <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>{comment.content}</span>
                                 </div>
                             ))}
@@ -430,12 +581,36 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                         </div>
                     </div>
                 ))}
-                {posts.length === 0 && (
+                {displayedPosts.length === 0 && (
                     <div className="text-center text-slate-500 py-10">
-                        No activity yet. Be the first to post!
+                        {selectedProfileId ? "No posts from this user yet." : "No activity yet. Be the first to post!"}
                     </div>
                 )}
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {postToDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                        <h3 className="text-lg font-bold text-white mb-2">Delete Post</h3>
+                        <p className="text-slate-400 text-sm mb-6">Are you sure you want to delete this post? This action cannot be undone.</p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setPostToDelete(null)}
+                                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeletePost}
+                                className="px-4 py-2 text-sm font-bold bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-500/30"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

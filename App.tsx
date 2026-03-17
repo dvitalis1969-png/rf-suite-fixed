@@ -28,6 +28,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import AuthModal from './components/AuthModal';
 import AccountDashboard from './components/AccountDashboard';
 import CommunityPanel from './components/CommunityPanel';
+import UserPresenceList from './components/UserPresenceList';
 import { ActivityFeed } from './components/ActivityFeed';
 
 // RF Toolkit Component Imports
@@ -867,8 +868,11 @@ const App: React.FC = () => {
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex-grow overflow-y-auto scrollbar-hide p-4">
-                                <ActivityFeed user={user} theme={communityTheme} />
+                            <div className="flex-grow overflow-y-auto scrollbar-hide p-4 space-y-6">
+                                <UserPresenceList />
+                                <div className="border-t border-white/5 pt-6">
+                                    <ActivityFeed user={user} theme={communityTheme} />
+                                </div>
                             </div>
                         </div>
                     </aside>

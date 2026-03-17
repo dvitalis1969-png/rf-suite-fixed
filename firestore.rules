@@ -99,12 +99,17 @@ service cloud.firestore {
     // Feed Posts rules
     match /feed_posts/{postId} {
       allow get, list: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid && isValidFeedPost(request.resource.data);
+      allow create: if isAuthenticated() && 
+                    request.resource.data.authorId == request.auth.uid && 
+                    isValidFeedPost(request.resource.data);
       allow update: if isAuthenticated() && (
         // Allow owner to edit content
-        (resource.data.authorId == request.auth.uid && isValidFeedPost(request.resource.data)) ||
+        (resource.data.authorId == request.auth.uid && 
+         request.resource.data.authorId == resource.data.authorId &&
+         isValidFeedPost(request.resource.data)) ||
         // Allow others to like/comment (only specific fields changing)
-        request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes', 'comments'])
+        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['likes', 'comments']) &&
+         request.resource.data.authorId == resource.data.authorId)
       );
       allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
     }
