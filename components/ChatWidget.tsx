@@ -79,27 +79,6 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const activeProjectId = getActiveChannelId();
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    // Set presence
-    const presenceRef = doc(db, 'presence', 'global', 'users', auth.currentUser.uid);
-    setDoc(presenceRef, { 
-      name: auth.currentUser.displayName || 'Anonymous',
-      lastSeen: serverTimestamp()
-    });
-
-    // Heartbeat
-    const interval = setInterval(() => {
-      setDoc(presenceRef, { lastSeen: serverTimestamp() }, { merge: true });
-    }, 30000);
-
-    return () => {
-      clearInterval(interval);
-      deleteDoc(presenceRef);
-    };
-  }, []);
-
-  useEffect(() => {
     if (chatMode === 'dm' && !selectedDmUser) {
       setMessages([]);
       return;
@@ -155,7 +134,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
       unsubscribeTyping();
       unsubscribeOnline();
     };
-  }, [activeProjectId, chatMode, selectedDmUser]);
+  }, [activeProjectId, chatMode, selectedDmUser, auth.currentUser]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

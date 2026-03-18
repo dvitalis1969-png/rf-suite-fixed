@@ -3,7 +3,7 @@ import { Minus, Maximize2, GripVertical, MessageCircle } from 'lucide-react';
 import ChatWidget from './ChatWidget';
 import PresenceIndicator from './PresenceIndicator';
 import UserPresenceList from './UserPresenceList';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
 
@@ -82,6 +82,42 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
     });
     return () => unsub();
   }, []);
+
+  // Global and Project Presence
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const uid = auth.currentUser.uid;
+    const name = auth.currentUser.displayName || 'Anonymous';
+
+    // Global presence
+    const globalRef = doc(db, 'presence', 'global', 'users', uid);
+    setDoc(globalRef, { 
+      name,
+      lastSeen: serverTimestamp()
+    });
+
+    // Project presence
+    const projectRef = doc(db, 'presence', String(projectId), 'users', uid);
+    setDoc(projectRef, {
+      userId: uid,
+      userName: name,
+      lastSeen: serverTimestamp(),
+      projectId: String(projectId)
+    });
+
+    // Heartbeat
+    const interval = setInterval(() => {
+      setDoc(globalRef, { lastSeen: serverTimestamp() }, { merge: true });
+      setDoc(projectRef, { lastSeen: serverTimestamp() }, { merge: true });
+    }, 30000);
+
+    return () => {
+      clearInterval(interval);
+      deleteDoc(globalRef);
+      deleteDoc(projectRef);
+    };
+  }, [projectId, auth.currentUser]);
 
   const totalUnread = Object.keys(unreadDMs).length;
 

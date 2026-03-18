@@ -13,17 +13,6 @@ const PresenceIndicator: React.FC<{ projectId: string | number }> = ({ projectId
   const [users, setUsers] = useState<Presence[]>([]);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    // Update presence
-    const userRef = doc(db, 'presence', String(projectId), 'users', auth.currentUser.uid);
-    setDoc(userRef, {
-      userId: auth.currentUser.uid,
-      userName: auth.currentUser.displayName || 'Anonymous',
-      lastSeen: serverTimestamp(),
-      projectId: String(projectId)
-    });
-
     // Listen for presence
     const q = collection(db, 'presence', String(projectId), 'users');
     const unsubscribe = onSnapshot(q, (snapshot) => {
