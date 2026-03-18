@@ -239,6 +239,14 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
                 projectId: activeProjectId,
                 reactions: {}
               });
+
+              if (chatMode === 'dm' && selectedDmUser) {
+                const unreadRef = doc(db, 'users', selectedDmUser.id, 'unread_dms', auth.currentUser!.uid);
+                await setDoc(unreadRef, { 
+                  hasUnread: true, 
+                  timestamp: serverTimestamp() 
+                }, { merge: true }).catch(console.error);
+              }
             } catch (err) {
               console.error("Failed to send audio:", err);
             }
