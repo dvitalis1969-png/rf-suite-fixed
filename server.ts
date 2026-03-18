@@ -8,6 +8,7 @@ import archiver from "archiver";
 import Stripe from "stripe";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getLinkPreview } from "link-preview-js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -183,6 +184,22 @@ async function startServer() {
   // API routes FIRST
   app.get("/api", (req, res) => {
     res.json({ message: "RF Suite API is running", version: "v2.5.1-STABLE-MARCH-17-13:12" });
+  });
+
+  app.get("/api/link-preview", async (req, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url) return res.status(400).json({ error: "URL is required" });
+      
+      const preview = await getLinkPreview(url, {
+        timeout: 3000,
+        followRedirects: 'follow'
+      });
+      res.json(preview);
+    } catch (err) {
+      console.error("Link preview error:", err);
+      res.status(500).json({ error: "Failed to fetch link preview" });
+    }
   });
 
   app.get("/api/checkout-success", async (req, res) => {

@@ -4,19 +4,26 @@ import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, s
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { getUserColor, formatTimestamp } from '../src/utils/chatUtils';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
-import { ImagePlus, Loader2 } from 'lucide-react';
+import { ImagePlus, Loader2, SmilePlus } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   id: string;
   userId: string;
   userName: string;
+  isPro?: boolean;
   text: string;
   imageUrl?: string;
   timestamp: any;
   projectId: string;
+  reactions?: Record<string, string[]>;
+  replyTo?: { id: string; userName: string; text: string };
+  linkPreview?: { title?: string; description?: string; image?: string; url: string };
 }
 
-const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean> }> = ({ projectId, unreadDMs = {} }) => {
+const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean>; user?: any }> = ({ projectId, unreadDMs = {}, user }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -25,6 +32,9 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const [selectedDmUser, setSelectedDmUser] = useState<{ id: string; name: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [clearTimestamp, setClearTimestamp] = useState<number | null>(null);
+  const [showCommands, setShowCommands] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,7 +131,14 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   }, [messages]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewMessage(e.target.value);
+    const val = e.target.value;
+    setNewMessage(val);
+    
+    if (val === '/') {
+      setShowCommands(true);
+    } else if (!val.startsWith('/')) {
+      setShowCommands(false);
+    }
     
     if (!auth.currentUser || (chatMode === 'dm' && !selectedDmUser)) return;
 
@@ -142,18 +159,79 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     e.preventDefault();
     if (!newMessage.trim() || !auth.currentUser || (chatMode === 'dm' && !selectedDmUser)) return;
 
+    // Handle Slash Commands
+    if (newMessage.trim() === '/shrug') {
+      setNewMessage('¯\\_(ツ)_/¯');
+      setShowCommands(false);
+      return; // Let them send it on the next enter
+    } else if (newMessage.trim() === '/clear') {
+      setClearTimestamp(Date.now());
+      setNewMessage('');
+      setShowCommands(false);
+      return;
+    }
+
+    const messageText = newMessage;
+    setNewMessage('');
+    setShowCommands(false);
+
     // Remove typing status immediately
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
     const typingRef = doc(db, 'messages', activeProjectId, 'typing', auth.currentUser.uid);
     await deleteDoc(typingRef);
 
-    await addDoc(collection(db, 'messages', activeProjectId, 'chat'), {
+    // Check for URLs to fetch link preview
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urls = messageText.match(urlRegex);
+    let linkPreviewData = null;
+
+    if (urls && urls.length > 0) {
+      try {
+        const response = await fetch(`/api/link-preview?url=${encodeURIComponent(urls[0])}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.title) {
+            linkPreviewData = {
+              title: data.title,
+              description: data.description,
+              image: data.images?.[0] || data.favicons?.[0],
+              url: data.url || urls[0]
+            };
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch link preview:", err);
+      }
+    }
+
+    const messageData: any = {
       userId: auth.currentUser.uid,
       userName: auth.currentUser.displayName || 'Anonymous',
-      text: newMessage,
+      isPro: user?.subscriptionStatus === 'active',
+      text: messageText,
       timestamp: serverTimestamp(),
-      projectId: activeProjectId
-    });
+      projectId: activeProjectId,
+      reactions: {}
+    };
+
+    if (replyingTo) {
+      messageData.replyTo = {
+        id: replyingTo.id,
+        userName: replyingTo.userName,
+        text: replyingTo.text
+      };
+      setReplyingTo(null);
+    }
+
+    if (linkPreviewData) {
+      messageData.linkPreview = linkPreviewData;
+    }
+
+    try {
+      await addDoc(collection(db, 'messages', activeProjectId, 'chat'), messageData);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `messages/${activeProjectId}/chat`);
+    }
 
     // Set unread status for the recipient
     if (chatMode === 'dm' && selectedDmUser) {
@@ -165,6 +243,43 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     }
 
     setNewMessage('');
+  };
+
+  const handleReaction = async (messageId: string, emoji: string) => {
+    if (!auth.currentUser) return;
+    const userId = auth.currentUser.uid;
+    
+    const messageRef = doc(db, 'messages', activeProjectId, 'chat', messageId);
+    const message = messages.find(m => m.id === messageId);
+    if (!message) return;
+
+    const currentReactions = message.reactions || {};
+    const usersWhoReacted = currentReactions[emoji] || [];
+    
+    let newUsersWhoReacted;
+    if (usersWhoReacted.includes(userId)) {
+      // Remove reaction
+      newUsersWhoReacted = usersWhoReacted.filter(id => id !== userId);
+    } else {
+      // Add reaction
+      newUsersWhoReacted = [...usersWhoReacted, userId];
+    }
+
+    const newReactions = {
+      ...currentReactions,
+      [emoji]: newUsersWhoReacted
+    };
+
+    // Clean up empty reaction arrays
+    if (newUsersWhoReacted.length === 0) {
+      delete newReactions[emoji];
+    }
+
+    try {
+      await setDoc(messageRef, { reactions: newReactions }, { merge: true });
+    } catch (err) {
+      console.error("Error updating reaction:", err);
+    }
   };
 
   const compressImage = (file: File): Promise<string> => {
@@ -228,6 +343,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
       await addDoc(collection(db, 'messages', activeProjectId, 'chat'), {
         userId: auth.currentUser.uid,
         userName: auth.currentUser.displayName || 'Anonymous',
+        isPro: user?.subscriptionStatus === 'active',
         text: '',
         imageUrl: compressedDataUrl, // Save the Base64 string directly
         timestamp: serverTimestamp(),
@@ -258,7 +374,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const hasAnyUnread = Object.keys(unreadDMs).length > 0;
 
   return (
-    <div className="flex flex-col h-64 bg-slate-900 rounded-lg border border-slate-700 p-4">
+    <div className="flex flex-col flex-1 min-h-0 bg-slate-900 rounded-lg border border-slate-700 p-4">
       <div className="flex gap-2 mb-2">
         <button 
           onClick={() => setChatMode('project')}
@@ -304,25 +420,99 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto mb-4 space-y-2">
+      <div className="flex-1 overflow-y-auto mb-4 space-y-3 px-1">
         {chatMode === 'dm' && !selectedDmUser ? (
           <div className="text-xs text-slate-500 text-center mt-10">
             Select a user from the Lounge to start a private chat.
           </div>
         ) : (
-          messages.map(msg => (
-            <div key={msg.id} className={`text-xs ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}>
-              <span className="text-[10px] text-slate-500 mr-1">{formatTimestamp(msg.timestamp)}</span>
-              <span className="font-bold" style={{ color: getUserColor(msg.userId) }}>{msg.userName}: </span>
-              {msg.imageUrl ? (
-                <div className={`mt-1 mb-1 ${msg.userId === auth.currentUser?.uid ? 'flex justify-end' : 'flex justify-start'}`}>
-                  <img src={msg.imageUrl} alt="Uploaded" className="max-w-[150px] max-h-[150px] rounded-md border border-slate-700 object-cover" referrerPolicy="no-referrer" />
+          <AnimatePresence initial={false}>
+          {messages.filter(m => !clearTimestamp || m.timestamp?.toMillis() > clearTimestamp).map(msg => (
+            <motion.div 
+              key={msg.id} 
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              layout
+              className={`text-xs group relative ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}
+            >
+              <div className={`flex flex-col ${msg.userId === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[10px] text-slate-500">{formatTimestamp(msg.timestamp)}</span>
+                  <span className="font-bold" style={{ color: getUserColor(msg.userId) }}>{msg.userName}</span>
+                  {msg.isPro && (
+                    <span className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider" title="Pro User">
+                      Pro
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <span className="text-slate-200">{msg.text}</span>
-              )}
-            </div>
-          ))
+                
+                <div className="relative group/bubble max-w-[85%]">
+                  {msg.replyTo && (
+                    <div className={`mb-1 text-[10px] p-1.5 rounded bg-slate-900/50 border-l-2 border-indigo-500 text-left opacity-80 truncate max-w-full ${msg.userId === auth.currentUser?.uid ? 'ml-auto' : 'mr-auto'}`}>
+                      <span className="font-bold text-indigo-300">{msg.replyTo.userName}:</span> {msg.replyTo.text}
+                    </div>
+                  )}
+                  {msg.imageUrl ? (
+                    <div className={`mt-1 mb-1 ${msg.userId === auth.currentUser?.uid ? 'flex justify-end' : 'flex justify-start'}`}>
+                      <img src={msg.imageUrl} alt="Uploaded" className="max-w-[150px] max-h-[150px] rounded-md border border-slate-700 object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                  ) : (
+                    <div className={`inline-block px-3 py-2 rounded-xl text-left ${msg.userId === auth.currentUser?.uid ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-800 text-slate-200 rounded-tl-sm'}`}>
+                      <div className="markdown-body prose prose-invert prose-sm max-w-none text-xs prose-p:leading-snug prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-700 prose-pre:p-2 prose-pre:rounded-md prose-code:text-indigo-300 prose-code:bg-slate-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                        <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
+                      </div>
+                    </div>
+                  )}
+
+                  {msg.linkPreview && (
+                    <a href={msg.linkPreview.url} target="_blank" rel="noopener noreferrer" className={`block mt-1 p-2 rounded-lg border border-slate-700 bg-slate-900/50 hover:bg-slate-800 transition-colors text-left overflow-hidden ${msg.userId === auth.currentUser?.uid ? 'ml-auto' : 'mr-auto'}`}>
+                      {msg.linkPreview.image && (
+                        <img src={msg.linkPreview.image} alt="Preview" className="w-full h-24 object-cover rounded mb-2" referrerPolicy="no-referrer" />
+                      )}
+                      <div className="font-bold text-indigo-300 truncate">{msg.linkPreview.title}</div>
+                      <div className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{msg.linkPreview.description}</div>
+                    </a>
+                  )}
+
+                  {/* Reaction Menu (Hover) */}
+                  <div className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-full p-1 shadow-lg z-10 ${msg.userId === auth.currentUser?.uid ? 'right-full mr-2' : 'left-full ml-2'}`}>
+                    <button 
+                      onClick={() => setReplyingTo(msg)}
+                      className="hover:bg-slate-700 px-2 py-0.5 rounded text-[10px] font-bold text-indigo-300 transition-colors mr-1"
+                    >
+                      Reply
+                    </button>
+                    {['👍', '❤️', '🚀', '👀', '🔥'].map(emoji => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleReaction(msg.id, emoji)}
+                        className="hover:scale-125 transition-transform px-1 text-sm"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Active Reactions */}
+                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                  <div className={`flex flex-wrap gap-1 mt-1 ${msg.userId === auth.currentUser?.uid ? 'justify-end' : 'justify-start'}`}>
+                    {Object.entries(msg.reactions).map(([emoji, users]) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleReaction(msg.id, emoji)}
+                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border transition-colors ${users.includes(auth.currentUser?.uid || '') ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:bg-slate-700'}`}
+                      >
+                        <span>{emoji}</span>
+                        <span>{users.length}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          ))}
+          </AnimatePresence>
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -339,7 +529,32 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         </div>
       )}
       
-      <form onSubmit={sendMessage} className="flex gap-2 items-center">
+      <div className="relative">
+        {replyingTo && (
+          <div className="absolute bottom-full left-0 right-0 mb-2 p-2 bg-slate-800 border border-slate-700 rounded-lg text-xs flex justify-between items-start shadow-lg">
+            <div className="overflow-hidden">
+              <div className="font-bold text-indigo-400 text-[10px] mb-0.5">Replying to {replyingTo.userName}</div>
+              <div className="text-slate-300 truncate">{replyingTo.text}</div>
+            </div>
+            <button onClick={() => setReplyingTo(null)} className="text-slate-500 hover:text-white ml-2">×</button>
+          </div>
+        )}
+
+        {showCommands && (
+          <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-20">
+            <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/50">Commands</div>
+            <button onClick={() => { setNewMessage('/shrug '); setShowCommands(false); fileInputRef.current?.focus(); }} className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors flex justify-between">
+              <span className="font-mono">/shrug</span>
+              <span className="opacity-50">¯\_(ツ)_/¯</span>
+            </button>
+            <button onClick={() => { setClearTimestamp(Date.now()); setNewMessage(''); setShowCommands(false); }} className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors flex justify-between">
+              <span className="font-mono">/clear</span>
+              <span className="opacity-50">Clear chat</span>
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={sendMessage} className="flex gap-2 items-center">
         <input
           type="file"
           accept="image/*"
@@ -373,6 +588,10 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
           Send
         </button>
       </form>
+      </div>
+      <div className="mt-1.5 text-[9px] text-slate-500 text-right px-1">
+        Supports **markdown** and `code`
+      </div>
     </div>
   );
 };

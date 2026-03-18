@@ -7,12 +7,16 @@ import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
 
-const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId }) => {
+import { User } from '../types';
+
+const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }> = ({ projectId, user }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [position, setPosition] = useState({ x: 16, y: 16 });
+  const [size, setSize] = useState({ width: 384, height: 600 });
   const [unreadDMs, setUnreadDMs] = useState<Record<string, boolean>>({});
   const panelRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
+  const isResizing = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -20,23 +24,40 @@ const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId })
     lastMousePos.current = { x: e.clientX, y: e.clientY };
   };
 
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    isResizing.current = true;
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+  };
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging.current) return;
-      
-      const deltaX = e.clientX - lastMousePos.current.x;
-      const deltaY = e.clientY - lastMousePos.current.y;
-      
-      setPosition(prev => ({
-        x: prev.x - deltaX,
-        y: prev.y - deltaY
-      }));
-      
-      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      if (isDragging.current) {
+        const deltaX = e.clientX - lastMousePos.current.x;
+        const deltaY = e.clientY - lastMousePos.current.y;
+        
+        setPosition(prev => ({
+          x: prev.x - deltaX,
+          y: prev.y - deltaY
+        }));
+        
+        lastMousePos.current = { x: e.clientX, y: e.clientY };
+      } else if (isResizing.current) {
+        const deltaX = e.clientX - lastMousePos.current.x;
+        const deltaY = e.clientY - lastMousePos.current.y;
+        
+        setSize(prev => ({
+          width: Math.max(300, prev.width - deltaX),
+          height: Math.max(400, prev.height - deltaY)
+        }));
+        
+        lastMousePos.current = { x: e.clientX, y: e.clientY };
+      }
     };
 
     const handleMouseUp = () => {
       isDragging.current = false;
+      isResizing.current = false;
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -71,18 +92,20 @@ const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId })
         position: 'fixed', 
         right: `${position.x}px`, 
         bottom: `${position.y}px`,
+        width: isMinimized ? '48px' : `${size.width}px`,
+        height: isMinimized ? '48px' : `${size.height}px`,
         zIndex: 100
       }}
-      className={`bg-slate-950 border border-slate-700 rounded-xl shadow-2xl transition-all duration-300 overflow-hidden ${isMinimized ? 'w-12 h-12' : 'w-80 h-auto'}`}
+      className={`bg-slate-950 border border-slate-700 rounded-xl shadow-2xl transition-all duration-300 overflow-hidden flex flex-col`}
     >
       {isMinimized ? (
         <button 
           onClick={() => setIsMinimized(false)}
           onMouseDown={handleMouseDown}
           className="w-full h-full flex flex-col items-center justify-center relative group hover:bg-slate-900 transition-colors"
-          title="Open Community Hub"
+          title="Open The Intercom"
         >
-          <span className="text-[10px] font-black text-indigo-400 group-hover:text-indigo-300 transition-colors tracking-tighter">CH</span>
+          <span className="text-[10px] font-black text-indigo-400 group-hover:text-indigo-300 transition-colors tracking-tighter">INT</span>
           {totalUnread > 0 && (
             <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border-2 border-slate-950 animate-pulse">
               <span className="text-[8px] font-bold text-white">{totalUnread}</span>
@@ -93,12 +116,16 @@ const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId })
           </div>
         </button>
       ) : (
-        <div className="p-4">
-          <div className="flex justify-between items-center mb-2 cursor-grab" onMouseDown={handleMouseDown}>
+        <div className="p-4 flex flex-col h-full relative">
+          <div 
+            className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize z-50"
+            onMouseDown={handleResizeMouseDown}
+          />
+          <div className="flex justify-between items-center mb-2 cursor-grab shrink-0" onMouseDown={handleMouseDown}>
             <div className="flex items-center gap-2">
               <GripVertical className="w-4 h-4 text-slate-600" />
               <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                Community Hub
+                The Intercom
                 {totalUnread > 0 && (
                   <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse flex items-center gap-1">
                     <MessageCircle className="w-3 h-3" />
@@ -114,8 +141,12 @@ const CommunityPanel: React.FC<{ projectId: string | number }> = ({ projectId })
               </button>
             </div>
           </div>
-          <ChatWidget projectId={projectId} unreadDMs={unreadDMs} />
-          <UserPresenceList />
+          <div className="flex-1 min-h-0 flex flex-col">
+            <ChatWidget projectId={projectId} unreadDMs={unreadDMs} user={user} />
+          </div>
+          <div className="shrink-0">
+            <UserPresenceList />
+          </div>
         </div>
       )}
     </div>

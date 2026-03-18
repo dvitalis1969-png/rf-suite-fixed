@@ -63,6 +63,13 @@ service cloud.firestore {
         !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
+      allow update: if isAuthenticated() && (
+        !chatId.matches('^dm_.*') || 
+        chatId.matches('.*' + request.auth.uid + '.*')
+      ) && (
+        // Allow anyone in the chat to update reactions
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+      );
     }
 
     // Typing status rules

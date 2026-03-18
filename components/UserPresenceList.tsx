@@ -6,6 +6,7 @@ interface UserStatus {
   name: string;
   lastSeen: number; // timestamp in ms
   isOnline: boolean;
+  isPro?: boolean;
 }
 
 const DUMMY_NAMES = [
@@ -36,7 +37,8 @@ const UserPresenceList: React.FC = () => {
         id: `user-${index}`,
         name,
         lastSeen,
-        isOnline
+        isOnline,
+        isPro: index % 3 === 0 // Make every 3rd user a Pro user for demo purposes
       };
     });
   }, []);
@@ -75,6 +77,11 @@ const UserPresenceList: React.FC = () => {
                 <span className="text-[11px] font-medium text-slate-300 group-hover:text-white transition-colors truncate">
                   {user.name}
                 </span>
+                {user.isPro && (
+                  <span className="ml-auto inline-flex items-center px-1 py-0.5 rounded text-[7px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider" title="Pro User">
+                    Pro
+                  </span>
+                )}
               </div>
             ))}
           </div>

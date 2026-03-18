@@ -198,6 +198,7 @@ const App: React.FC = () => {
 
     const [tourPlanningState, setTourPlanningState] = useState<TourPlanningState>(initialTourPlanningState);
     const [wmasState, setWmasState] = useState<WMASState>(initialWMASState);
+    const [previewEquipment, setPreviewEquipment] = useState<{ profile: EquipmentProfile; frequency: number } | null>(null);
 
     const [isProjectDashboardOpen, setProjectDashboardOpen] = useState(false);
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
@@ -783,7 +784,7 @@ const App: React.FC = () => {
                                     {activeTab === 'whitespace' && <WhiteSpaceTab />}
                                     
                                     {/* Analysis & Visualization */}
-                                    {activeTab === 'spectrum' && <SpectrumTab projectId={currentProject?.id} analyzerFrequencies={frequencies} generatorFrequencies={generatorFrequencies} scanData={scanData} setScanData={setScanData} setInclusionRanges={setInclusionRanges} setActiveTab={setActiveTab} scenes={scenes} festivalActs={festivalActs} constantSystems={festivalConstantSystems} houseSystems={festivalHouseSystems} talkbackPairs={tbResults} talkbackManual={tbManualPairs} zonalResults={zonalResults} wmasState={wmasState} />}
+                                    {activeTab === 'spectrum' && <SpectrumTab projectId={currentProject?.id} analyzerFrequencies={frequencies} generatorFrequencies={generatorFrequencies} scanData={scanData} setScanData={setScanData} setInclusionRanges={setInclusionRanges} setActiveTab={setActiveTab} scenes={scenes} festivalActs={festivalActs} constantSystems={festivalConstantSystems} houseSystems={festivalHouseSystems} talkbackPairs={tbResults} talkbackManual={tbManualPairs} zonalResults={zonalResults} wmasState={wmasState} previewEquipment={previewEquipment} setPreviewEquipment={setPreviewEquipment} />}
                                     {activeTab === 'waterfall' && <WaterfallTab analyzerFrequencies={frequencies} generatorFrequencies={generatorFrequencies} scanData={scanData} wmasState={wmasState} />}
                                     
                                     {/* Comms Planning */}
@@ -809,7 +810,6 @@ const App: React.FC = () => {
                                     {activeTab === 'plotGallery' && (
                                         <PlotGallery 
                                             onImportScanData={(data) => {
-                                                console.log("App.tsx: Importing scan data:", data);
                                                 setScanData(data);
                                                 setActiveTab('spectrum'); // Switch to spectrum analyzer tab
                                             }} 
@@ -830,7 +830,7 @@ const App: React.FC = () => {
                                     {activeTab === 'audioTone' && <AudioToneGeneratorTab />}
 
                                     {/* Settings & Hardware */}
-                                    {activeTab === 'equipmentDatabase' && <EquipmentDatabaseTab customEquipment={customEquipment} overrides={equipmentOverrides} setOverrides={setEquipmentOverrides} onManageCustomEquipment={() => setCustomEquipmentManagerOpen(true)} />}
+                                    {activeTab === 'equipmentDatabase' && <EquipmentDatabaseTab customEquipment={customEquipment} overrides={equipmentOverrides} setOverrides={setEquipmentOverrides} onManageCustomEquipment={() => setCustomEquipmentManagerOpen(true)} onPreviewEquipment={(profile, frequency) => setPreviewEquipment({ profile, frequency })} />}
                                 </div>
                             </>
                         )}
@@ -886,7 +886,7 @@ const App: React.FC = () => {
                     </aside>
                 )}
             </div>
-                    {currentProject && <CommunityPanel projectId={currentProject.id} />}
+                    {currentProject && <CommunityPanel projectId={currentProject.id} user={user} />}
                 </>
             )}
             <SaveProjectModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSaveAsNewProject} />

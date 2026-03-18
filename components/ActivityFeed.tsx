@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { motion } from 'motion/react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, setDoc, updateDoc, arrayUnion, arrayRemove, getDocs, where, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
 import { User } from '../types';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
-import { Pencil, Trash2, Check, X, Loader2, ArrowLeft, UserCircle } from 'lucide-react';
+import { Pencil, Trash2, Check, X, Loader2, ArrowLeft, UserCircle, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 interface Post {
     id: string;
     authorId: string;
     authorName: string;
+    isPro?: boolean;
     content: string;
     imageUrl?: string;
     plotData?: any;
@@ -21,6 +24,7 @@ interface Comment {
     id: string;
     authorId: string;
     authorName: string;
+    isPro?: boolean;
     content: string;
     createdAt: any;
 }
@@ -54,6 +58,8 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
 
     const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
     const [selectedProfileName, setSelectedProfileName] = useState<string | null>(null);
+    const [expandedImage, setExpandedImage] = useState<string | null>(null);
+    const [imageZoom, setImageZoom] = useState(1);
 
     const isDark = theme === 'dark';
 
@@ -115,8 +121,8 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                 img.src = event.target?.result as string;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 800;
-                    const MAX_HEIGHT = 800;
+                    const MAX_WIDTH = 1920;
+                    const MAX_HEIGHT = 1920;
                     let width = img.width;
                     let height = img.height;
 
@@ -136,7 +142,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx?.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    resolve(canvas.toDataURL('image/jpeg', 0.85));
                 };
                 img.onerror = (error) => reject(error);
             };
@@ -174,6 +180,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
             const postData: any = {
                 authorId: user.id,
                 authorName: user.name,
+                isPro: user.subscriptionStatus === 'active',
                 content: newPostContent,
                 createdAt: serverTimestamp(),
                 likes: [],
@@ -233,6 +240,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                 id: Date.now().toString(),
                 authorId: user.id,
                 authorName: user.name,
+                isPro: user.subscriptionStatus === 'active',
                 content: commentContent[postId],
                 createdAt: new Date()
             };
@@ -367,7 +375,12 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                     {/* Attachments Preview */}
                     {attachedImage && (
                         <div className="relative mt-4 inline-block">
-                            <img src={attachedImage} alt="Attachment" className="max-h-48 rounded-lg border border-white/10" />
+                            <img 
+                                src={attachedImage} 
+                                alt="Attachment" 
+                                className="max-h-48 rounded-lg border border-white/10 cursor-pointer hover:opacity-90 transition-opacity" 
+                                onClick={() => setExpandedImage(attachedImage)}
+                            />
                             <button 
                                 onClick={() => setAttachedImage(null)}
                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600"
@@ -380,7 +393,12 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                     {selectedPlot && (
                         <div className="relative mt-4 inline-block bg-slate-800 p-2 rounded-lg border border-indigo-500/50">
                             <div className="text-xs text-indigo-400 font-bold mb-1 uppercase tracking-wider">Attached Plot</div>
-                            <img src={selectedPlot.imageData} alt="Plot" className="max-h-48 rounded border border-white/10" />
+                            <img 
+                                src={selectedPlot.imageData} 
+                                alt="Plot" 
+                                className="max-h-48 rounded border border-white/10 cursor-pointer hover:opacity-90 transition-opacity" 
+                                onClick={() => setExpandedImage(selectedPlot.imageData)}
+                            />
                             <div className="text-xs text-slate-400 mt-1 truncate max-w-[200px]">{selectedPlot.description}</div>
                             <button 
                                 onClick={() => setSelectedPlot(null)}
@@ -427,8 +445,8 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
             )}
 
             {/* Plot Selector Modal */}
-            {showPlotSelector && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            {showPlotSelector && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
                     <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-4xl w-full max-h-[80vh] flex flex-col">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-black text-white uppercase tracking-widest">Select a Plot</h2>
@@ -458,7 +476,82 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Expanded Image Modal */}
+            {expandedImage && createPortal(
+                <div className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center p-4">
+                    <motion.div 
+                        drag 
+                        dragMomentum={false}
+                        className="pointer-events-auto bg-slate-900 border border-white/10 shadow-2xl rounded-2xl flex flex-col overflow-hidden"
+                        style={{ width: '80vw', height: '80vh', maxWidth: '1200px', maxHeight: '900px' }}
+                    >
+                        {/* Draggable Header */}
+                        <div className="bg-slate-800/80 backdrop-blur-md p-3 flex justify-between items-center cursor-grab active:cursor-grabbing border-b border-white/10">
+                            <h3 className="text-white font-medium text-sm px-2">Image Viewer</h3>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 bg-slate-900/50 rounded-lg p-1 mr-2">
+                                    <button 
+                                        onClick={() => setImageZoom(prev => Math.max(0.25, prev - 0.25))}
+                                        className="text-slate-400 hover:text-white hover:bg-slate-700/50 p-1.5 rounded-md transition-colors cursor-pointer"
+                                        title="Zoom Out"
+                                    >
+                                        <ZoomOut className="w-4 h-4" />
+                                    </button>
+                                    <span className="text-slate-300 text-xs font-mono w-12 text-center">
+                                        {Math.round(imageZoom * 100)}%
+                                    </span>
+                                    <button 
+                                        onClick={() => setImageZoom(prev => Math.min(5, prev + 0.25))}
+                                        className="text-slate-400 hover:text-white hover:bg-slate-700/50 p-1.5 rounded-md transition-colors cursor-pointer"
+                                        title="Zoom In"
+                                    >
+                                        <ZoomIn className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        onClick={() => setImageZoom(1)}
+                                        className="text-slate-400 hover:text-white hover:bg-slate-700/50 p-1.5 rounded-md transition-colors cursor-pointer ml-1 border-l border-white/10 pl-2"
+                                        title="Reset Zoom"
+                                    >
+                                        <RotateCcw className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        setExpandedImage(null);
+                                        setImageZoom(1);
+                                    }}
+                                    className="text-slate-400 hover:text-white bg-slate-700/50 hover:bg-red-500/80 p-1.5 rounded-lg transition-colors cursor-pointer"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                        {/* Image Content */}
+                        <div 
+                            className="flex-1 overflow-auto bg-black/80 p-2 flex items-center justify-center cursor-move"
+                            onWheel={(e) => {
+                                if (e.deltaY < 0) {
+                                    setImageZoom(prev => Math.min(5, prev + 0.1));
+                                } else {
+                                    setImageZoom(prev => Math.max(0.25, prev - 0.1));
+                                }
+                            }}
+                        >
+                            <img 
+                                src={expandedImage} 
+                                alt="Expanded" 
+                                className="max-w-full max-h-full object-contain transition-transform duration-100 origin-center" 
+                                style={{ transform: `scale(${imageZoom})` }}
+                                draggable={false} 
+                            />
+                        </div>
+                    </motion.div>
+                </div>,
+                document.body
             )}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
@@ -472,12 +565,19 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                                 {post.authorName.charAt(0).toUpperCase()}
                             </button>
                             <div className="flex-1">
-                                <button 
-                                    onClick={() => handleProfileClick(post.authorId, post.authorName)}
-                                    className={`font-bold hover:underline ${isDark ? 'text-white' : 'text-slate-900'}`}
-                                >
-                                    {post.authorName}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={() => handleProfileClick(post.authorId, post.authorName)}
+                                        className={`font-bold hover:underline ${isDark ? 'text-white' : 'text-slate-900'}`}
+                                    >
+                                        {post.authorName}
+                                    </button>
+                                    {post.isPro && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider" title="Pro User">
+                                            Pro
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="text-xs text-slate-500">
                                     {post.createdAt?.toDate ? post.createdAt.toDate().toLocaleString() : 'Just now'}
                                 </div>
@@ -534,7 +634,12 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                         )}
                         
                         {post.imageUrl && (
-                            <img src={post.imageUrl} alt="Post attachment" className={`max-w-full rounded-xl border mb-4 ${isDark ? 'border-white/10' : 'border-slate-200'}`} />
+                            <img 
+                                src={post.imageUrl} 
+                                alt="Post attachment" 
+                                className={`max-w-full rounded-xl border mb-4 cursor-pointer hover:opacity-90 transition-opacity ${isDark ? 'border-white/10' : 'border-slate-200'}`} 
+                                onClick={() => setExpandedImage(post.imageUrl!)}
+                            />
                         )}
                         
                         {post.plotData && (
@@ -542,7 +647,12 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                                 <div className="flex items-center gap-2 mb-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
                                     <span>📈</span> Shared Plot
                                 </div>
-                                <img src={post.plotData.imageData} alt="Shared Plot" className={`w-full rounded-lg border ${isDark ? 'border-white/5' : 'border-slate-200'}`} />
+                                <img 
+                                    src={post.plotData.imageData} 
+                                    alt="Shared Plot" 
+                                    className={`w-full rounded-lg border cursor-pointer hover:opacity-90 transition-opacity ${isDark ? 'border-white/5' : 'border-slate-200'}`} 
+                                    onClick={() => setExpandedImage(post.plotData.imageData)}
+                                />
                                 <div className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{post.plotData.description}</div>
                             </div>
                         )}
@@ -564,12 +674,19 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                         <div className="mt-4 space-y-3">
                             {post.comments?.map(comment => (
                                 <div key={comment.id} className={`rounded-xl p-3 text-sm ${isDark ? 'bg-slate-950/50' : 'bg-slate-50'}`}>
-                                    <button 
-                                        onClick={() => handleProfileClick(comment.authorId, comment.authorName)}
-                                        className={`font-bold mr-2 hover:underline ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}
-                                    >
-                                        {comment.authorName}
-                                    </button>
+                                    <div className="inline-flex items-center gap-2 mr-2">
+                                        <button 
+                                            onClick={() => handleProfileClick(comment.authorId, comment.authorName)}
+                                            className={`font-bold hover:underline ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`}
+                                        >
+                                            {comment.authorName}
+                                        </button>
+                                        {comment.isPro && (
+                                            <span className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider" title="Pro User">
+                                                Pro
+                                            </span>
+                                        )}
+                                    </div>
                                     <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>{comment.content}</span>
                                 </div>
                             ))}
@@ -600,9 +717,8 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                 )}
             </div>
 
-            {/* Delete Confirmation Modal */}
-            {postToDelete && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            {postToDelete && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
                     <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
                         <h3 className="text-lg font-bold text-white mb-2">Delete Post</h3>
                         <p className="text-slate-400 text-sm mb-6">Are you sure you want to delete this post? This action cannot be undone.</p>
@@ -621,7 +737,8 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

@@ -8,6 +8,7 @@ interface EquipmentDatabaseTabProps {
     overrides: Record<string, Partial<Thresholds>>;
     setOverrides: React.Dispatch<React.SetStateAction<Record<string, Partial<Thresholds>>>>;
     onManageCustomEquipment: () => void;
+    onPreviewEquipment: (profile: EquipmentProfile, frequency: number) => void;
 }
 
 const buttonBase = "px-3 py-1.5 rounded-lg font-bold uppercase tracking-wider transition-all duration-200 focus:outline-none text-[10px]";
@@ -15,7 +16,7 @@ const primaryButton = `bg-blue-600 text-white hover:bg-blue-500 ${buttonBase}`;
 const secondaryButton = `bg-slate-700 text-slate-200 hover:bg-slate-600 ${buttonBase}`;
 const dangerButton = `bg-red-600/80 text-white hover:bg-red-500 ${buttonBase}`;
 
-const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquipment, overrides, setOverrides, onManageCustomEquipment }) => {
+const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquipment, overrides, setOverrides, onManageCustomEquipment, onPreviewEquipment }) => {
     const [expandedManufacturers, setExpandedManufacturers] = useState<Set<string>>(new Set());
     const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
@@ -278,6 +279,13 @@ const EquipmentDatabaseTab: React.FC<EquipmentDatabaseTabProps> = ({ customEquip
                                                                 className={`text-[9px] font-black uppercase tracking-tighter transition-all ${override ? 'text-red-400 hover:text-red-300' : 'text-slate-700 opacity-20'}`}
                                                             >
                                                                 Seed
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => onPreviewEquipment(p, 500)} 
+                                                                className="text-[9px] font-black uppercase tracking-tighter text-indigo-400 hover:text-indigo-300 ml-2"
+                                                                title="Visualize theoretical IMD products for this equipment on the Spectrum Analyzer"
+                                                            >
+                                                                Preview
                                                             </button>
                                                         </td>
                                                     </tr>

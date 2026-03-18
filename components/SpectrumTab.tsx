@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
-import { Frequency, TabID, ScanDataPoint, Scene, FestivalAct, Plot, PlotState, DuplexPair, ZonalResult, TxType, ConstantSystemRequest, WMASState } from '../types';
+import { Frequency, TabID, ScanDataPoint, Scene, FestivalAct, Plot, PlotState, DuplexPair, ZonalResult, TxType, ConstantSystemRequest, WMASState, EquipmentProfile, Thresholds } from '../types';
 import Card, { CardTitle } from './Card';
 import { US_TV_CHANNELS, UK_TV_CHANNELS } from '../constants';
 import * as dbService from '../services/dbService';
+import { calculateIMD } from '../utils/imdCalculator';
 
 interface SpectrumFrequency extends Frequency {
     isTx?: boolean;
@@ -26,6 +27,8 @@ interface SpectrumTabProps {
     talkbackManual?: DuplexPair[] | null;
     zonalResults?: ZonalResult[] | null;
     wmasState?: WMASState;
+    previewEquipment?: { profile: EquipmentProfile; frequency: number } | null;
+    setPreviewEquipment: (preview: { profile: EquipmentProfile; frequency: number } | null) => void;
 }
 
 const buttonBase = "px-4 py-2 rounded-lg font-semibold uppercase tracking-wide transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-xs";
@@ -97,7 +100,7 @@ const parseScanData = async (file: File): Promise<ScanDataPoint[]> => {
     });
 };
 
-const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencies, generatorFrequencies, scanData, setScanData, setInclusionRanges, setActiveTab, scenes, festivalActs, constantSystems, houseSystems, talkbackPairs, talkbackManual, zonalResults, wmasState }) => {
+const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencies, generatorFrequencies, scanData, setScanData, setInclusionRanges, setActiveTab, scenes, festivalActs, constantSystems, houseSystems, talkbackPairs, talkbackManual, zonalResults, wmasState, previewEquipment, setPreviewEquipment }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isRunning, setIsRunning] = useState(false);
@@ -115,10 +118,6 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
     const [selectedActIds, setSelectedActIds] = useState<Set<string>>(new Set());
     const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
-    useEffect(() => {
-        console.log("SpectrumTab scanData updated:", scanData);
-    }, [scanData]);
-
     const [visualBw, setVisualBw] = useState(0.200);
     const [freqStep, setFreqStep] = useState<number>(0.025); 
     const [spanStep, setSpanStep] = useState<number>(1.0); 
@@ -132,6 +131,17 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
 
     const hasTalkback = useMemo(() => (talkbackPairs && talkbackPairs.length > 0) || (talkbackManual && talkbackManual.length > 0), [talkbackPairs, talkbackManual]);
     const hasZonal = useMemo(() => zonalResults && zonalResults.some(z => z.pairs.length > 0), [zonalResults]);
+
+    const previewImd = useMemo(() => {
+        if (!previewEquipment) return [];
+        const frequencies: Frequency[] = [
+            ...analyzerFrequencies,
+            { id: 'preview', value: previewEquipment.frequency, label: previewEquipment.profile.name, locked: true, type: 'mic' }
+        ];
+        const defaultThresholds: Thresholds = { fundamental: 0.35, twoTone: 0.05, threeTone: 0.05, fiveTone: 0.02, sevenTone: 0.01 };
+        const thresholds = { ...defaultThresholds, ...previewEquipment.profile.recommendedThresholds } as Thresholds;
+        return calculateIMD(frequencies, thresholds);
+    }, [previewEquipment, analyzerFrequencies]);
 
     const freqsToDisplay = useMemo(() => {
         let pool: SpectrumFrequency[] = [];
@@ -437,6 +447,24 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
             drawGaussianPeaks(freqsToDisplay.map(f => ({ val: f.value, baseAmp: f.type === 'iem' ? SIGNAL_CONFIG.fundamentalIEM.amp : (f.type === 'comms' ? SIGNAL_CONFIG.fundamentalComms.amp : (f.type === 'wmas' ? SIGNAL_CONFIG.fundamentalWMAS.amp : SIGNAL_CONFIG.fundamental.amp)) })));
             drawGaussianPeaks(imdProducts.filter(p => p.type === '2t').map(p => ({ val: p.val, baseAmp: SIGNAL_CONFIG.imd2.amp })));
             drawGaussianPeaks(imdProducts.filter(p => p.type === '3t').map(p => ({ val: p.val, baseAmp: SIGNAL_CONFIG.imd3.amp })));
+            
+            const drawGhostPeaks = (peakList: { val: number; baseAmp: number }[]) => {
+                peakList.forEach(f => {
+                    const centerPx = ((f.val - range.min) / freqRange) * chartWidth;
+                    const x = padding.left + centerPx;
+                    const y = ampToY(f.baseAmp);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([2, 2]);
+                    ctx.beginPath();
+                    ctx.moveTo(x, height - padding.bottom);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                });
+            };
+            drawGhostPeaks(previewImd.map(p => ({ val: p.freq, baseAmp: p.type === '2-Tone' ? SIGNAL_CONFIG.imd2.amp : SIGNAL_CONFIG.imd3.amp })));
+
             if (showPeakHold) {
                 for (let i = 0; i < chartWidth; i++) peakHoldData.current[i] = Math.max(peakHoldData.current[i], liveTrace[i]);
                 ctx.beginPath(); ctx.strokeStyle = SIGNAL_CONFIG.peakHold.color; ctx.lineWidth = 1;
@@ -458,7 +486,7 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
         };
         if (isRunning) animationFrameId = requestAnimationFrame(render); else render();
         return () => cancelAnimationFrame(animationFrameId);
-    }, [isRunning, range, displayMode, noiseFloor, showPeakHold, overlayChannels, region, scanData, freqsToDisplay, imdProducts, freqStep, spanStep, visualBw, binnedScanDataArray, wmasState, dimensions]);
+    }, [isRunning, range, displayMode, noiseFloor, showPeakHold, overlayChannels, region, scanData, freqsToDisplay, imdProducts, freqStep, spanStep, visualBw, binnedScanDataArray, wmasState, dimensions, previewImd]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -511,6 +539,12 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
             <div className="flex flex-col lg:flex-row gap-4 mb-4">
                 <div className="flex-1 space-y-4">
                     <CardTitle className="!mb-0">Professional Spectrum Analyzer</CardTitle>
+                    {previewEquipment && (
+                        <div className="flex items-center gap-2 bg-indigo-900/30 border border-indigo-500/30 p-2 rounded-lg text-xs text-indigo-300">
+                            <span>👁️ Previewing: <strong>{previewEquipment.profile.name}</strong> at {previewEquipment.frequency} MHz</span>
+                            <button onClick={() => setPreviewEquipment(null)} className="ml-auto text-indigo-400 hover:text-white font-bold underline">Clear</button>
+                        </div>
+                    )}
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                         <button onClick={() => setIsRunning(!isRunning)} className={isRunning ? dangerButton : primaryButton}>
                             {isRunning ? 'STOP TRACE' : 'START TRACE'}
