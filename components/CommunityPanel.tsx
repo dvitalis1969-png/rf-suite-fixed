@@ -141,7 +141,7 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
         height: isMinimized ? '48px' : `${size.height}px`,
         zIndex: 100
       }}
-      className={`bg-slate-950 border border-slate-700 rounded-xl shadow-2xl transition-all duration-300 overflow-hidden flex flex-col`}
+      className={`bg-slate-950 border border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col ${isMinimized ? 'transition-all duration-300' : ''}`}
     >
       {isMinimized ? (
         <button 
@@ -186,10 +186,10 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
               </button>
             </div>
           </div>
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 flex flex-col border-b border-slate-800">
             <ChatWidget projectId={projectId} unreadDMs={unreadDMs} user={user} />
           </div>
-          <div className="shrink-0">
+          <div className="h-32 shrink-0 overflow-hidden bg-slate-900/20">
             <UserPresenceList />
           </div>
         </div>

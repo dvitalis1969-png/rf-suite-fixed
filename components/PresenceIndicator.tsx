@@ -26,14 +26,24 @@ const PresenceIndicator: React.FC<{ projectId: string | number }> = ({ projectId
   }, [projectId]);
 
   return (
-    <div className="flex items-center gap-2 text-xs text-slate-400">
-      <span>Active:</span>
-      {users.map(user => (
-        <div key={user.userId} className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-full">
-          <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-          <span>{user.userName}</span>
-        </div>
-      ))}
+    <div className="flex items-center gap-2 text-[10px] text-slate-400 h-6 overflow-hidden">
+      <span className="shrink-0">Active:</span>
+      <div className="flex -space-x-1 overflow-hidden">
+        {users.slice(0, 3).map(user => (
+          <div 
+            key={user.userId} 
+            className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[8px] font-bold text-indigo-400"
+            title={user.userName}
+          >
+            {user.userName[0]}
+          </div>
+        ))}
+        {users.length > 3 && (
+          <div className="w-5 h-5 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-[8px] font-bold text-white">
+            +{users.length - 3}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

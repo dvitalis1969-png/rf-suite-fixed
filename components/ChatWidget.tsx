@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { db, auth, storage } from '../src/lib/firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc, deleteDoc, where } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -473,68 +473,25 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
 
   const hasAnyUnread = Object.keys(unreadDMs).length > 0;
 
-  return (
-    <div className="flex flex-col flex-1 min-h-0 bg-slate-900 rounded-lg border border-slate-700 p-4">
-      <div className="flex gap-2 mb-2">
-        <button 
-          onClick={() => setChatMode('project')}
-          className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${chatMode === 'project' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Project
-        </button>
-        <button 
-          onClick={() => setChatMode('lounge')}
-          className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded relative ${chatMode === 'lounge' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Lounge
-          {hasAnyUnread && chatMode !== 'lounge' && (
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          )}
-        </button>
-        {chatMode === 'dm' && selectedDmUser && (
-          <button 
-            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded bg-indigo-600 text-white"
-          >
-            DM: {selectedDmUser.name}
-          </button>
-        )}
-      </div>
-      
-      {chatMode === 'lounge' && (
-        <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-800 pb-2">
-          Online: {onlineUsers.length > 0 ? onlineUsers.map((u, i) => (
-            <span key={u.id} className="relative inline-block">
-              <button 
-                onClick={() => startDM(u)}
-                className="hover:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
-                title={`Message ${u.name} privately`}
-              >
-                {u.name}
-                {unreadDMs[u.id] && (
-                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="New message!" />
-                )}
-              </button>
-              {i < onlineUsers.length - 1 ? <span className="mr-1">,</span> : ''}
-            </span>
-          )) : 'Just you'}
+  const renderedMessages = useMemo(() => {
+    if (chatMode === 'dm' && !selectedDmUser) {
+      return (
+        <div className="text-xs text-slate-500 text-center mt-10">
+          Select a user from the Lounge to start a private chat.
         </div>
-      )}
+      );
+    }
 
-      <div className="flex-1 overflow-y-auto mb-4 space-y-3 px-1">
-        {chatMode === 'dm' && !selectedDmUser ? (
-          <div className="text-xs text-slate-500 text-center mt-10">
-            Select a user from the Lounge to start a private chat.
-          </div>
-        ) : (
-          <AnimatePresence initial={false}>
-          {messages.filter(m => !clearTimestamp || m.timestamp?.toMillis() > clearTimestamp).map((msg, index, arr) => {
-            const isNew = dividerTimestamp && msg.timestamp?.toMillis() > dividerTimestamp && msg.userId !== auth.currentUser?.uid;
-            const prevMsg = arr[index - 1];
-            const prevIsNew = dividerTimestamp && prevMsg?.timestamp?.toMillis() > dividerTimestamp && prevMsg?.userId !== auth.currentUser?.uid;
-            const showDivider = Boolean(isNew && !prevIsNew);
-            const isMentioned = auth.currentUser?.displayName && msg.text.includes(`@${auth.currentUser.displayName}`);
+    return (
+      <AnimatePresence initial={false}>
+        {messages.filter(m => !clearTimestamp || m.timestamp?.toMillis() > clearTimestamp).map((msg, index, arr) => {
+          const isNew = dividerTimestamp && msg.timestamp?.toMillis() > dividerTimestamp && msg.userId !== auth.currentUser?.uid;
+          const prevMsg = arr[index - 1];
+          const prevIsNew = dividerTimestamp && prevMsg?.timestamp?.toMillis() > dividerTimestamp && prevMsg?.userId !== auth.currentUser?.uid;
+          const showDivider = Boolean(isNew && !prevIsNew);
+          const isMentioned = auth.currentUser?.displayName && msg.text.includes(`@${auth.currentUser.displayName}`);
 
-            return (
+          return (
             <React.Fragment key={msg.id}>
               {showDivider && (
                 <div className="w-full text-center text-[10px] text-red-400 border-b border-red-500/30 my-3 leading-[0.1em]">
@@ -544,7 +501,6 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
               <motion.div 
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                layout
                 className={`text-xs group relative ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}
               >
                 <div className={`flex flex-col ${msg.userId === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
@@ -593,7 +549,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
                     ) : msg.text ? (
                       <div className={`inline-block px-3 py-2 rounded-xl text-left ${msg.userId === auth.currentUser?.uid ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-800 text-slate-200 rounded-tl-sm'}`}>
                         <div className="markdown-body prose prose-invert prose-sm max-w-none text-xs prose-p:leading-snug prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-700 prose-pre:p-2 prose-pre:rounded-md prose-code:text-indigo-300 prose-code:bg-slate-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
-                          <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
+                          <Markdown>{msg.text}</Markdown>
                         </div>
                         {msg.editedAt && <span className="text-[8px] opacity-50 italic mt-1 block">(edited)</span>}
                       </div>
@@ -656,18 +612,71 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
               </div>
             </motion.div>
             </React.Fragment>
-            );
-          })}
-          </AnimatePresence>
+          );
+        })}
+      </AnimatePresence>
+    );
+  }, [messages, chatMode, selectedDmUser, clearTimestamp, dividerTimestamp, editingMessageId, editMessageText, auth.currentUser?.uid]);
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0 bg-slate-900 rounded-lg border border-slate-700 p-4">
+      <div className="flex gap-2 mb-2">
+        <button 
+          onClick={() => setChatMode('project')}
+          className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${chatMode === 'project' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+        >
+          Project
+        </button>
+        <button 
+          onClick={() => setChatMode('lounge')}
+          className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded relative ${chatMode === 'lounge' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+        >
+          Lounge
+          {hasAnyUnread && chatMode !== 'lounge' && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          )}
+        </button>
+        {chatMode === 'dm' && selectedDmUser && (
+          <button 
+            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded bg-indigo-600 text-white"
+          >
+            DM: {selectedDmUser.name}
+          </button>
         )}
+      </div>
+      
+      {chatMode === 'lounge' && (
+        <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-800 pb-2">
+          Online: {onlineUsers.length > 0 ? onlineUsers.map((u, i) => (
+            <span key={u.id} className="relative inline-block">
+              <button 
+                onClick={() => startDM(u)}
+                className="hover:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                title={`Message ${u.name} privately`}
+              >
+                {u.name}
+                {unreadDMs[u.id] && (
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="New message!" />
+                )}
+              </button>
+              {i < onlineUsers.length - 1 ? <span className="mr-1">,</span> : ''}
+            </span>
+          )) : 'Just you'}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto mb-4 space-y-3 px-1">
+        {renderedMessages}
         <div ref={messagesEndRef} />
       </div>
       
-      {typingUsers.length > 0 && (
-        <div className="text-[10px] text-slate-500 italic mb-2">
-          {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
-        </div>
-      )}
+      <div className="h-4 flex items-center px-1">
+        {typingUsers.length > 0 && (
+          <div className="text-[10px] text-slate-500 italic">
+            {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+          </div>
+        )}
+      </div>
 
       {uploadError && (
         <div className="text-[10px] text-red-400 mb-2 bg-red-950/50 p-1 rounded border border-red-900/50">
