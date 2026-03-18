@@ -21,9 +21,14 @@
         "userName": { "type": "string", "description": "The sender's name" },
         "text": { "type": "string", "description": "The message text" },
         "timestamp": { "type": "number", "description": "Message timestamp" },
-        "projectId": { "type": "string", "description": "The project ID" }
+        "projectId": { "type": "string", "description": "The project ID" },
+        "imageUrl": { "type": "string", "description": "Optional image URL" },
+        "audioUrl": { "type": "string", "description": "Optional audio URL" },
+        "editedAt": { "type": "object", "description": "Optional edit timestamp" },
+        "linkPreview": { "type": "object", "description": "Optional link preview data" },
+        "reactions": { "type": "object", "description": "Map of emoji to user IDs" }
       },
-      "required": ["userId", "userName", "text", "timestamp", "projectId"]
+      "required": ["userId", "userName", "timestamp", "projectId"]
     },
     "Plot": {
       "title": "Plot",

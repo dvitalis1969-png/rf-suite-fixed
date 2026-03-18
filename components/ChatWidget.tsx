@@ -4,7 +4,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, s
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { getUserColor, formatTimestamp } from '../src/utils/chatUtils';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
-import { ImagePlus, Loader2, SmilePlus } from 'lucide-react';
+import { ImagePlus, Loader2, SmilePlus, Mic, Square, Edit2, Trash2, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,6 +21,8 @@ interface Message {
   reactions?: Record<string, string[]>;
   replyTo?: { id: string; userName: string; text: string };
   linkPreview?: { title?: string; description?: string; image?: string; url: string };
+  editedAt?: any;
+  audioUrl?: string;
 }
 
 const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean>; user?: any }> = ({ projectId, unreadDMs = {}, user }) => {
@@ -35,9 +37,33 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [clearTimestamp, setClearTimestamp] = useState<number | null>(null);
   const [showCommands, setShowCommands] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editMessageText, setEditMessageText] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [dividerTimestamp, setDividerTimestamp] = useState<number | null>(null);
+
+  const [canRecord, setCanRecord] = useState(false);
+
+  useEffect(() => {
+    const checkSupport = async () => {
+      const hasSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+      const isSecure = window.isSecureContext;
+      setCanRecord(hasSupport && isSecure);
+      
+      if (!isSecure && hasSupport) {
+        console.warn("Microphone access requires a secure context (HTTPS).");
+      }
+    };
+    checkSupport();
+  }, []);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const lastSeenRef = useRef<Record<string, number>>({});
 
   const getActiveChannelId = () => {
     if (chatMode === 'project') return String(projectId);
@@ -78,6 +104,11 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
       setMessages([]);
       return;
     }
+
+    // Set divider timestamp based on last seen
+    const last = lastSeenRef.current[activeProjectId] || 0;
+    setDividerTimestamp(last);
+    lastSeenRef.current[activeProjectId] = Date.now();
 
     // Clear unread status if we are in a DM with this user
     if (chatMode === 'dm' && selectedDmUser && auth.currentUser) {
@@ -139,6 +170,14 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     } else if (!val.startsWith('/')) {
       setShowCommands(false);
     }
+
+    // Mentions logic
+    const mentionMatch = val.match(/@(\w*)$/);
+    if (mentionMatch) {
+      setMentionQuery(mentionMatch[1].toLowerCase());
+    } else {
+      setMentionQuery(null);
+    }
     
     if (!auth.currentUser || (chatMode === 'dm' && !selectedDmUser)) return;
 
@@ -153,6 +192,88 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     typingTimeout.current = setTimeout(async () => {
       await deleteDoc(typingRef);
     }, 3000);
+  };
+
+  const insertMention = (name: string) => {
+    const newVal = newMessage.replace(/@\w*$/, `@${name} `);
+    setNewMessage(newVal);
+    setMentionQuery(null);
+    fileInputRef.current?.focus();
+  };
+
+  const startEditing = (msg: Message) => {
+    setEditingMessageId(msg.id);
+    setEditMessageText(msg.text);
+  };
+
+  const saveEdit = async () => {
+    if (!editingMessageId || !editMessageText.trim()) return;
+    const path = `messages/${activeProjectId}/chat/${editingMessageId}`;
+    try {
+      const msgRef = doc(db, 'messages', activeProjectId, 'chat', editingMessageId);
+      await setDoc(msgRef, { text: editMessageText, editedAt: serverTimestamp() }, { merge: true });
+      setEditingMessageId(null);
+      setEditMessageText('');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  };
+
+  const deleteMessage = async (id: string) => {
+    const path = `messages/${activeProjectId}/chat/${id}`;
+    try {
+      await deleteDoc(doc(db, 'messages', activeProjectId, 'chat', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+            const base64Audio = reader.result as string;
+            try {
+              await addDoc(collection(db, 'messages', activeProjectId, 'chat'), {
+                userId: auth.currentUser!.uid,
+                userName: auth.currentUser!.displayName || 'Anonymous',
+                isPro: user?.subscriptionStatus === 'active',
+                text: '',
+                audioUrl: base64Audio,
+                timestamp: serverTimestamp(),
+                projectId: activeProjectId,
+                reactions: {}
+              });
+            } catch (err) {
+              console.error("Failed to send audio:", err);
+            }
+          };
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+      } catch (err) {
+        console.error("Error accessing microphone", err);
+        setUploadError("Microphone access denied.");
+      }
+    }
   };
 
   const sendMessage = async (e: React.FormEvent) => {
@@ -427,72 +548,116 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
           </div>
         ) : (
           <AnimatePresence initial={false}>
-          {messages.filter(m => !clearTimestamp || m.timestamp?.toMillis() > clearTimestamp).map(msg => (
-            <motion.div 
-              key={msg.id} 
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              layout
-              className={`text-xs group relative ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}
-            >
-              <div className={`flex flex-col ${msg.userId === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
-                <div className="flex items-center gap-1 mb-1">
-                  <span className="text-[10px] text-slate-500">{formatTimestamp(msg.timestamp)}</span>
-                  <span className="font-bold" style={{ color: getUserColor(msg.userId) }}>{msg.userName}</span>
-                  {msg.isPro && (
-                    <span className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider" title="Pro User">
-                      Pro
-                    </span>
-                  )}
+          {messages.filter(m => !clearTimestamp || m.timestamp?.toMillis() > clearTimestamp).map((msg, index, arr) => {
+            const isNew = dividerTimestamp && msg.timestamp?.toMillis() > dividerTimestamp && msg.userId !== auth.currentUser?.uid;
+            const prevMsg = arr[index - 1];
+            const prevIsNew = dividerTimestamp && prevMsg?.timestamp?.toMillis() > dividerTimestamp && prevMsg?.userId !== auth.currentUser?.uid;
+            const showDivider = isNew && !prevIsNew;
+            const isMentioned = auth.currentUser?.displayName && msg.text.includes(`@${auth.currentUser.displayName}`);
+
+            return (
+            <React.Fragment key={msg.id}>
+              {showDivider && (
+                <div className="w-full text-center text-[10px] text-red-400 border-b border-red-500/30 my-3 leading-[0.1em]">
+                  <span className="bg-slate-900 px-2 font-bold uppercase tracking-wider">New Messages</span>
                 </div>
-                
-                <div className="relative group/bubble max-w-[85%]">
-                  {msg.replyTo && (
-                    <div className={`mb-1 text-[10px] p-1.5 rounded bg-slate-900/50 border-l-2 border-indigo-500 text-left opacity-80 truncate max-w-full ${msg.userId === auth.currentUser?.uid ? 'ml-auto' : 'mr-auto'}`}>
-                      <span className="font-bold text-indigo-300">{msg.replyTo.userName}:</span> {msg.replyTo.text}
-                    </div>
-                  )}
-                  {msg.imageUrl ? (
-                    <div className={`mt-1 mb-1 ${msg.userId === auth.currentUser?.uid ? 'flex justify-end' : 'flex justify-start'}`}>
-                      <img src={msg.imageUrl} alt="Uploaded" className="max-w-[150px] max-h-[150px] rounded-md border border-slate-700 object-cover" referrerPolicy="no-referrer" />
-                    </div>
-                  ) : (
-                    <div className={`inline-block px-3 py-2 rounded-xl text-left ${msg.userId === auth.currentUser?.uid ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-800 text-slate-200 rounded-tl-sm'}`}>
-                      <div className="markdown-body prose prose-invert prose-sm max-w-none text-xs prose-p:leading-snug prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-700 prose-pre:p-2 prose-pre:rounded-md prose-code:text-indigo-300 prose-code:bg-slate-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
-                        <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
-                      </div>
-                    </div>
-                  )}
-
-                  {msg.linkPreview && (
-                    <a href={msg.linkPreview.url} target="_blank" rel="noopener noreferrer" className={`block mt-1 p-2 rounded-lg border border-slate-700 bg-slate-900/50 hover:bg-slate-800 transition-colors text-left overflow-hidden ${msg.userId === auth.currentUser?.uid ? 'ml-auto' : 'mr-auto'}`}>
-                      {msg.linkPreview.image && (
-                        <img src={msg.linkPreview.image} alt="Preview" className="w-full h-24 object-cover rounded mb-2" referrerPolicy="no-referrer" />
-                      )}
-                      <div className="font-bold text-indigo-300 truncate">{msg.linkPreview.title}</div>
-                      <div className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{msg.linkPreview.description}</div>
-                    </a>
-                  )}
-
-                  {/* Reaction Menu (Hover) */}
-                  <div className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-full p-1 shadow-lg z-10 ${msg.userId === auth.currentUser?.uid ? 'right-full mr-2' : 'left-full ml-2'}`}>
-                    <button 
-                      onClick={() => setReplyingTo(msg)}
-                      className="hover:bg-slate-700 px-2 py-0.5 rounded text-[10px] font-bold text-indigo-300 transition-colors mr-1"
-                    >
-                      Reply
-                    </button>
-                    {['👍', '❤️', '🚀', '👀', '🔥'].map(emoji => (
-                      <button
-                        key={emoji}
-                        onClick={() => handleReaction(msg.id, emoji)}
-                        className="hover:scale-125 transition-transform px-1 text-sm"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
+              )}
+              <motion.div 
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                layout
+                className={`text-xs group relative ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}
+              >
+                <div className={`flex flex-col ${msg.userId === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className="text-[10px] text-slate-500">{formatTimestamp(msg.timestamp)}</span>
+                    <span className="font-bold" style={{ color: getUserColor(msg.userId) }}>{msg.userName}</span>
+                    {msg.isPro && (
+                      <span className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider" title="Pro User">
+                        Pro
+                      </span>
+                    )}
                   </div>
-                </div>
+                  
+                  <div className={`relative group/bubble max-w-[85%] ${isMentioned ? 'ring-1 ring-indigo-500 rounded-xl shadow-[0_0_10px_rgba(99,102,241,0.2)]' : ''}`}>
+                    {msg.replyTo && (
+                      <div className={`mb-1 text-[10px] p-1.5 rounded bg-slate-900/50 border-l-2 border-indigo-500 text-left opacity-80 truncate max-w-full ${msg.userId === auth.currentUser?.uid ? 'ml-auto' : 'mr-auto'}`}>
+                        <span className="font-bold text-indigo-300">{msg.replyTo.userName}:</span> {msg.replyTo.text}
+                      </div>
+                    )}
+                    
+                    {msg.audioUrl && (
+                      <div className={`mt-1 mb-1 p-2 rounded-xl ${msg.userId === auth.currentUser?.uid ? 'bg-indigo-600' : 'bg-slate-800'}`}>
+                        <audio src={msg.audioUrl} controls className="h-8 w-48" />
+                      </div>
+                    )}
+
+                    {msg.imageUrl ? (
+                      <div className={`mt-1 mb-1 ${msg.userId === auth.currentUser?.uid ? 'flex justify-end' : 'flex justify-start'}`}>
+                        <img src={msg.imageUrl} alt="Uploaded" className="max-w-[150px] max-h-[150px] rounded-md border border-slate-700 object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                    ) : editingMessageId === msg.id ? (
+                      <div className="flex flex-col gap-1 bg-slate-800 p-2 rounded-xl border border-indigo-500 text-left">
+                        <input 
+                          type="text" 
+                          value={editMessageText} 
+                          onChange={e => setEditMessageText(e.target.value)}
+                          className="bg-slate-900 text-white text-xs px-2 py-1 rounded border border-slate-700 w-full"
+                          autoFocus
+                          onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                        />
+                        <div className="flex justify-end gap-1 mt-1">
+                          <button onClick={() => setEditingMessageId(null)} className="p-1 hover:bg-slate-700 rounded text-slate-400"><X className="w-3 h-3"/></button>
+                          <button onClick={saveEdit} className="p-1 hover:bg-indigo-500 rounded text-indigo-300 hover:text-white"><Check className="w-3 h-3"/></button>
+                        </div>
+                      </div>
+                    ) : msg.text ? (
+                      <div className={`inline-block px-3 py-2 rounded-xl text-left ${msg.userId === auth.currentUser?.uid ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-800 text-slate-200 rounded-tl-sm'}`}>
+                        <div className="markdown-body prose prose-invert prose-sm max-w-none text-xs prose-p:leading-snug prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-700 prose-pre:p-2 prose-pre:rounded-md prose-code:text-indigo-300 prose-code:bg-slate-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
+                          <Markdown remarkPlugins={[remarkGfm]}>{msg.text}</Markdown>
+                        </div>
+                        {msg.editedAt && <span className="text-[8px] opacity-50 italic mt-1 block">(edited)</span>}
+                      </div>
+                    ) : null}
+
+                    {msg.linkPreview && (
+                      <a href={msg.linkPreview.url} target="_blank" rel="noopener noreferrer" className={`block mt-1 p-2 rounded-lg border border-slate-700 bg-slate-900/50 hover:bg-slate-800 transition-colors text-left overflow-hidden ${msg.userId === auth.currentUser?.uid ? 'ml-auto' : 'mr-auto'}`}>
+                        {msg.linkPreview.image && (
+                          <img src={msg.linkPreview.image} alt="Preview" className="w-full h-24 object-cover rounded mb-2" referrerPolicy="no-referrer" />
+                        )}
+                        <div className="font-bold text-indigo-300 truncate">{msg.linkPreview.title}</div>
+                        <div className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{msg.linkPreview.description}</div>
+                      </a>
+                    )}
+
+                    {/* Reaction Menu (Hover) */}
+                    <div className={`absolute top-0 -translate-y-1/2 opacity-0 group-hover/bubble:opacity-100 transition-opacity flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-full p-1 shadow-lg z-10 ${msg.userId === auth.currentUser?.uid ? 'right-full mr-2' : 'left-full ml-2'}`}>
+                      {msg.userId === auth.currentUser?.uid && (
+                        <>
+                          {!msg.imageUrl && !msg.audioUrl && (
+                            <button onClick={() => startEditing(msg)} className="hover:bg-slate-700 p-1 rounded text-slate-400 hover:text-indigo-300 transition-colors"><Edit2 className="w-3 h-3" /></button>
+                          )}
+                          <button onClick={() => deleteMessage(msg.id)} className="hover:bg-slate-700 p-1 rounded text-slate-400 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
+                          <div className="w-px h-3 bg-slate-700 mx-0.5" />
+                        </>
+                      )}
+                      <button 
+                        onClick={() => setReplyingTo(msg)}
+                        className="hover:bg-slate-700 px-2 py-0.5 rounded text-[10px] font-bold text-indigo-300 transition-colors mr-1"
+                      >
+                        Reply
+                      </button>
+                      {['👍', '❤️', '🚀', '👀', '🔥'].map(emoji => (
+                        <button
+                          key={emoji}
+                          onClick={() => handleReaction(msg.id, emoji)}
+                          className="hover:scale-125 transition-transform px-1 text-sm"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
                 {/* Active Reactions */}
                 {msg.reactions && Object.keys(msg.reactions).length > 0 && (
@@ -511,7 +676,9 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
                 )}
               </div>
             </motion.div>
-          ))}
+            </React.Fragment>
+            );
+          })}
           </AnimatePresence>
         )}
         <div ref={messagesEndRef} />
@@ -554,6 +721,21 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
           </div>
         )}
 
+        {mentionQuery !== null && (
+          <div className="absolute bottom-full left-0 mb-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-20 max-h-32 overflow-y-auto">
+            <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/50">Mentions</div>
+            {onlineUsers.filter(u => u.name.toLowerCase().includes(mentionQuery)).map(u => (
+              <button 
+                key={u.id}
+                onClick={() => insertMention(u.name)} 
+                className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-indigo-600 hover:text-white transition-colors"
+              >
+                {u.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={sendMessage} className="flex gap-2 items-center">
         <input
           type="file"
@@ -571,6 +753,15 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
           title="Upload image"
         >
           {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+        </button>
+        <button
+          type="button"
+          onClick={toggleRecording}
+          disabled={!canRecord || isUploading || (chatMode === 'dm' && !selectedDmUser)}
+          className={`transition-colors ${isRecording ? 'text-red-500 animate-pulse' : 'text-slate-400 hover:text-indigo-400'} disabled:opacity-30`}
+          title={!canRecord ? "Microphone requires HTTPS and browser support" : (isRecording ? "Stop recording" : "Record audio")}
+        >
+          {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
         </button>
         <input
           type="text"

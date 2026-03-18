@@ -68,7 +68,15 @@ service cloud.firestore {
         chatId.matches('.*' + request.auth.uid + '.*')
       ) && (
         // Allow anyone in the chat to update reactions
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']) ||
+        // Allow owner to edit text, editedAt, or linkPreview
+        (resource.data.userId == request.auth.uid && 
+         request.resource.data.userId == resource.data.userId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasAny(['text', 'editedAt', 'linkPreview']))
+      );
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid && (
+        !chatId.matches('^dm_.*') || 
+        chatId.matches('.*' + request.auth.uid + '.*')
       );
     }
 
