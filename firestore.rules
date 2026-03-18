@@ -35,9 +35,9 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email == "dvitalis1969@gmail.com" && request.auth.token.email_verified == true) ||
-        (request.auth.token.email == "dnomsed@live.co.uk" && request.auth.token.email_verified == true) ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        request.auth.token.email in ["dvitalis1969@gmail.com", "dnomsed@live.co.uk"] ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
@@ -49,13 +49,13 @@ service cloud.firestore {
 
     // Presence rules
     match /presence/{projectId}/users/{userId} {
-      allow get, list: if isAuthenticated();
+      allow read: if isAuthenticated();
       allow write: if isOwner(userId);
     }
 
     // Chat message rules
     match /messages/{chatId}/chat/{messageId} {
-      allow get, list: if isAuthenticated() && (
+      allow read: if isAuthenticated() && (
         !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
@@ -82,7 +82,7 @@ service cloud.firestore {
 
     // Typing status rules
     match /messages/{chatId}/typing/{userId} {
-      allow get, list: if isAuthenticated() && (
+      allow read: if isAuthenticated() && (
         !chatId.matches('^dm_.*') || 
         chatId.matches('.*' + request.auth.uid + '.*')
       );
@@ -94,26 +94,25 @@ service cloud.firestore {
 
     // Plot rules
     match /plots/{plotId} {
-      allow get, list: if isAuthenticated();
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     // User rules
     match /users/{userId} {
-      allow get, list: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId) || isAdmin();
-    }
-
-    // Unread DMs rules
-    match /users/{userId}/unread_dms/{senderId} {
-      allow get, list: if isOwner(userId);
-      allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == senderId);
+      allow read, write: if isOwner(userId) || isAdmin();
+      
+      // Unread DMs subcollection
+      match /unread_dms/{senderId} {
+        allow read: if isOwner(userId);
+        allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == senderId);
+      }
     }
 
     // Feed Posts rules
     match /feed_posts/{postId} {
-      allow get, list: if isAuthenticated();
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
                     request.resource.data.authorId == request.auth.uid && 
                     isValidFeedPost(request.resource.data);

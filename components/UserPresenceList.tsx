@@ -27,8 +27,8 @@ const UserPresenceList: React.FC = () => {
       const fetchedUsers = snapshot.docs.map(doc => {
         const data = doc.data();
         const lastSeenMillis = data.lastSeen?.toMillis() || 0;
-        // Consider online if seen in last 2 minutes
-        const isOnline = now - lastSeenMillis < 120000;
+        // Consider online if status is 'online' AND seen in last 5 minutes (fallback)
+        const isOnline = data.status === 'online' && (now - lastSeenMillis < 300000);
         
         return {
           id: doc.id,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../src/lib/firebase';
-import { collection, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
 
 interface Presence {
@@ -14,7 +14,7 @@ const PresenceIndicator: React.FC<{ projectId: string | number }> = ({ projectId
 
   useEffect(() => {
     // Listen for presence
-    const q = collection(db, 'presence', String(projectId), 'users');
+    const q = query(collection(db, 'presence', String(projectId), 'users'), where('status', '==', 'online'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const activeUsers = snapshot.docs.map(doc => doc.data() as Presence);
       setUsers(activeUsers);

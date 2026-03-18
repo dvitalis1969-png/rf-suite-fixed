@@ -119,7 +119,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     });
 
     // Listen for online users
-    const onlineQ = query(collection(db, 'presence', 'global', 'users'));
+    const onlineQ = query(collection(db, 'presence', 'global', 'users'), where('status', '==', 'online'));
     const unsubscribeOnline = onSnapshot(onlineQ, (snapshot) => {
       const online = snapshot.docs
         .filter(doc => doc.id !== auth.currentUser?.uid)
@@ -134,7 +134,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
       unsubscribeTyping();
       unsubscribeOnline();
     };
-  }, [activeProjectId, chatMode, selectedDmUser, auth.currentUser]);
+  }, [activeProjectId, chatMode, selectedDmUser, auth.currentUser?.uid]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -531,7 +531,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
             const isNew = dividerTimestamp && msg.timestamp?.toMillis() > dividerTimestamp && msg.userId !== auth.currentUser?.uid;
             const prevMsg = arr[index - 1];
             const prevIsNew = dividerTimestamp && prevMsg?.timestamp?.toMillis() > dividerTimestamp && prevMsg?.userId !== auth.currentUser?.uid;
-            const showDivider = isNew && !prevIsNew;
+            const showDivider = Boolean(isNew && !prevIsNew);
             const isMentioned = auth.currentUser?.displayName && msg.text.includes(`@${auth.currentUser.displayName}`);
 
             return (

@@ -88,36 +88,45 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
     if (!auth.currentUser) return;
 
     const uid = auth.currentUser.uid;
-    const name = auth.currentUser.displayName || 'Anonymous';
+    const name = auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Anonymous';
 
-    // Global presence
-    const globalRef = doc(db, 'presence', 'global', 'users', uid);
-    setDoc(globalRef, { 
-      name,
-      lastSeen: serverTimestamp()
-    });
+    const updatePresence = async () => {
+      try {
+        // Global presence
+        const globalRef = doc(db, 'presence', 'global', 'users', uid);
+        await setDoc(globalRef, { 
+          name,
+          lastSeen: serverTimestamp(),
+          status: 'online'
+        }, { merge: true });
 
-    // Project presence
-    const projectRef = doc(db, 'presence', String(projectId), 'users', uid);
-    setDoc(projectRef, {
-      userId: uid,
-      userName: name,
-      lastSeen: serverTimestamp(),
-      projectId: String(projectId)
-    });
+        // Project presence
+        const projectRef = doc(db, 'presence', String(projectId), 'users', uid);
+        await setDoc(projectRef, {
+          userId: uid,
+          userName: name,
+          lastSeen: serverTimestamp(),
+          projectId: String(projectId),
+          status: 'online'
+        }, { merge: true });
+      } catch (err) {
+        console.error("Error updating presence:", err);
+      }
+    };
+
+    updatePresence();
 
     // Heartbeat
-    const interval = setInterval(() => {
-      setDoc(globalRef, { lastSeen: serverTimestamp() }, { merge: true });
-      setDoc(projectRef, { lastSeen: serverTimestamp() }, { merge: true });
-    }, 30000);
+    const interval = setInterval(updatePresence, 30000);
 
     return () => {
       clearInterval(interval);
-      deleteDoc(globalRef);
-      deleteDoc(projectRef);
+      const globalRef = doc(db, 'presence', 'global', 'users', uid);
+      const projectRef = doc(db, 'presence', String(projectId), 'users', uid);
+      setDoc(globalRef, { status: 'offline', lastSeen: serverTimestamp() }, { merge: true }).catch(console.error);
+      setDoc(projectRef, { status: 'offline', lastSeen: serverTimestamp() }, { merge: true }).catch(console.error);
     };
-  }, [projectId, auth.currentUser]);
+  }, [projectId, auth.currentUser?.uid]);
 
   const totalUnread = Object.keys(unreadDMs).length;
 
