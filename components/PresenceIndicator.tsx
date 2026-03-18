@@ -9,7 +9,7 @@ interface Presence {
   lastSeen: any;
 }
 
-const PresenceIndicator: React.FC<{ projectId: string | number }> = ({ projectId }) => {
+const PresenceIndicator: React.FC<{ projectId: string | number }> = React.memo(({ projectId }) => {
   const [users, setUsers] = useState<Presence[]>([]);
 
   useEffect(() => {
@@ -46,6 +46,6 @@ const PresenceIndicator: React.FC<{ projectId: string | number }> = ({ projectId
       </div>
     </div>
   );
-};
+});
 
 export default PresenceIndicator;

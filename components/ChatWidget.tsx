@@ -25,7 +25,7 @@ interface Message {
   audioUrl?: string;
 }
 
-const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean>; user?: any }> = ({ projectId, unreadDMs = {}, user }) => {
+const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean>; user?: any }> = React.memo(({ projectId, unreadDMs = {}, user }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -618,6 +618,28 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     );
   }, [messages, chatMode, selectedDmUser, clearTimestamp, dividerTimestamp, editingMessageId, editMessageText, auth.currentUser?.uid]);
 
+  const renderedOnlineUsers = useMemo(() => (
+    chatMode === 'lounge' && (
+      <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-800 pb-2">
+        Online: {onlineUsers.length > 0 ? onlineUsers.map((u, i) => (
+          <span key={u.id} className="relative inline-block">
+            <button 
+              onClick={() => startDM(u)}
+              className="hover:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+              title={`Message ${u.name} privately`}
+            >
+              {u.name}
+              {unreadDMs[u.id] && (
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="New message!" />
+              )}
+            </button>
+            {i < onlineUsers.length - 1 ? <span className="mr-1">,</span> : ''}
+          </span>
+        )) : 'Just you'}
+      </div>
+    )
+  ), [chatMode, onlineUsers, unreadDMs]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-slate-900 rounded-lg border border-slate-700 p-4">
       <div className="flex gap-2 mb-2">
@@ -645,25 +667,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         )}
       </div>
       
-      {chatMode === 'lounge' && (
-        <div className="text-[10px] text-slate-400 mb-2 border-b border-slate-800 pb-2">
-          Online: {onlineUsers.length > 0 ? onlineUsers.map((u, i) => (
-            <span key={u.id} className="relative inline-block">
-              <button 
-                onClick={() => startDM(u)}
-                className="hover:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
-                title={`Message ${u.name} privately`}
-              >
-                {u.name}
-                {unreadDMs[u.id] && (
-                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" title="New message!" />
-                )}
-              </button>
-              {i < onlineUsers.length - 1 ? <span className="mr-1">,</span> : ''}
-            </span>
-          )) : 'Just you'}
-        </div>
-      )}
+      {renderedOnlineUsers}
 
       <div className="flex-1 overflow-y-auto mb-4 space-y-3 px-1">
         {renderedMessages}
@@ -773,6 +777,6 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
       </div>
     </div>
   );
-};
+});
 
 export default ChatWidget;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Users, Clock } from 'lucide-react';
 import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../src/lib/firebase';
@@ -11,7 +11,7 @@ interface UserStatus {
   isPro?: boolean;
 }
 
-const UserPresenceList: React.FC = () => {
+const UserPresenceList: React.FC = React.memo(() => {
   const [users, setUsers] = useState<UserStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +26,8 @@ const UserPresenceList: React.FC = () => {
       const now = Date.now();
       const fetchedUsers = snapshot.docs.map(doc => {
         const data = doc.data();
-        const lastSeenMillis = data.lastSeen?.toMillis() || 0;
+        // Handle null lastSeen (latency compensation) by assuming it's current
+        const lastSeenMillis = data.lastSeen?.toMillis() || now;
         // Consider online if status is 'online' AND seen in last 5 minutes (fallback)
         const isOnline = data.status === 'online' && (now - lastSeenMillis < 300000);
         
@@ -51,6 +52,60 @@ const UserPresenceList: React.FC = () => {
   const onlineUsers = users.filter(u => u.isOnline);
   const recentUsers = users.filter(u => !u.isOnline);
 
+  const renderedOnline = useMemo(() => (
+    onlineUsers.length > 0 ? (
+      <div>
+        <div className="text-[8px] font-bold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5">
+          <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+          Active ({onlineUsers.length})
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {onlineUsers.map(user => (
+            <div 
+              key={user.id} 
+              className="flex items-center gap-1.5 bg-slate-900/50 border border-slate-800/50 rounded px-1.5 py-1 hover:bg-slate-800 transition-colors group cursor-default"
+            >
+              <div className="relative shrink-0">
+                <div className="w-5 h-5 rounded-full bg-indigo-900/30 flex items-center justify-center text-[9px] font-bold text-indigo-400 border border-indigo-500/20">
+                  {user.name[0]}
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full border border-slate-950" />
+              </div>
+              <span className="text-[10px] font-medium text-slate-300 group-hover:text-white transition-colors truncate">
+                {user.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : (
+      <div className="text-[9px] text-slate-600 italic px-1">No users online</div>
+    )
+  ), [onlineUsers]);
+
+  const renderedRecent = useMemo(() => (
+    recentUsers.length > 0 && (
+      <div className="pb-1">
+        <div className="text-[8px] font-bold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5">
+          <Clock className="w-2 h-2" />
+          Recent ({recentUsers.length})
+        </div>
+        <div className="flex flex-wrap gap-x-2 gap-y-1 px-1">
+          {recentUsers.map(user => (
+            <div key={user.id} className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+              <span className="text-[9px] text-slate-400 font-medium">
+                {user.name}
+              </span>
+              <span className="text-[7px] text-slate-600 italic">
+                {user.lastSeen ? `${Math.floor((Date.now() - user.lastSeen) / 60000)}m` : 'now'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  ), [recentUsers]);
+
   if (loading && users.length === 0) {
     return (
       <div className="mt-4 border-t border-slate-800 pt-4 animate-pulse">
@@ -73,60 +128,11 @@ const UserPresenceList: React.FC = () => {
       </div>
 
       <div className="flex-1 min-h-0 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
-        {/* Online Section */}
-        {onlineUsers.length > 0 ? (
-          <div>
-            <div className="text-[8px] font-bold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5">
-              <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
-              Active ({onlineUsers.length})
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {onlineUsers.map(user => (
-                <div 
-                  key={user.id} 
-                  className="flex items-center gap-1.5 bg-slate-900/50 border border-slate-800/50 rounded px-1.5 py-1 hover:bg-slate-800 transition-colors group cursor-default"
-                >
-                  <div className="relative shrink-0">
-                    <div className="w-5 h-5 rounded-full bg-indigo-900/30 flex items-center justify-center text-[9px] font-bold text-indigo-400 border border-indigo-500/20">
-                      {user.name[0]}
-                    </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full border border-slate-950" />
-                  </div>
-                  <span className="text-[10px] font-medium text-slate-300 group-hover:text-white transition-colors truncate">
-                    {user.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="text-[9px] text-slate-600 italic px-1">No users online</div>
-        )}
-
-        {/* Recent Section */}
-        {recentUsers.length > 0 && (
-          <div className="pb-1">
-            <div className="text-[8px] font-bold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5">
-              <Clock className="w-2 h-2" />
-              Recent ({recentUsers.length})
-            </div>
-            <div className="flex flex-wrap gap-x-2 gap-y-1 px-1">
-              {recentUsers.map(user => (
-                <div key={user.id} className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
-                  <span className="text-[9px] text-slate-400 font-medium">
-                    {user.name}
-                  </span>
-                  <span className="text-[7px] text-slate-600 italic">
-                    {user.lastSeen ? `${Math.floor((Date.now() - user.lastSeen) / 60000)}m` : 'now'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {renderedOnline}
+        {renderedRecent}
       </div>
     </div>
   );
-};
+});
 
 export default UserPresenceList;
