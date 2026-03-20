@@ -1586,12 +1586,60 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                         >
                             {showTabulation ? 'Hide Site Ledger' : '📋 View Site Ledger'}
                         </button>
+                        <div className="relative">
+                            <button 
+                                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} 
+                                className={`w-full py-2.5 rounded-xl font-black uppercase tracking-widest transition-all ${secondaryButton} text-[10px] flex items-center justify-center gap-2`}
+                            >
+                                <span>📥</span> EXPORT RF PLAN <span className="text-[8px] opacity-60">▼</span>
+                            </button>
+                            {isExportMenuOpen && (
+                                <div className="absolute top-full right-0 mt-2 bg-slate-800 border border-indigo-500/40 rounded-xl shadow-2xl z-[120] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 divide-y divide-white/5 min-w-[220px]">
+                                    <div className="bg-indigo-500/15 p-2">
+                                        <div className="px-2 py-1.5 flex items-center gap-2 mb-2 border-b border-indigo-500/20">
+                                            <span className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.1em]">WWB Smart Export (.TXT)</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                            <button onClick={() => handleWwbSmartExport()} className="w-full text-left px-3 py-2.5 hover:bg-indigo-600 rounded bg-indigo-500/30 text-[9px] font-black text-white uppercase tracking-tighter transition-all border border-indigo-400/20 shadow-sm">
+                                                &bull; Full Site Frequency List
+                                            </button>
+                                            {uniqueWwbGroups.length > 0 ? uniqueWwbGroups.map(group => (
+                                                <button 
+                                                    key={group.key}
+                                                    onClick={() => handleWwbSmartExport(group.key)}
+                                                    className="w-full text-left px-3 py-2.5 hover:bg-slate-700 rounded bg-slate-950/60 border border-white/10 text-[9px] font-bold text-indigo-200 uppercase tracking-tighter transition-all"
+                                                >
+                                                    &bull; Export {group.name} - {group.count} CH
+                                                </button>
+                                            )) : (
+                                                <div className="text-[8px] text-slate-500 px-3 py-2 italic">Coordinate site to populate hardware groups...</div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 divide-y divide-white/5">
+                                        <button onClick={() => handleExportPlan('pdf')} className="w-full text-left p-3.5 hover:bg-slate-700 transition-colors flex items-center justify-between">
+                                            <span className="text-white font-bold text-[10px] uppercase tracking-wider">PDF Site Ledger</span>
+                                            <span className="text-xs">📄</span>
+                                        </button>
+                                        <button onClick={() => handleExportPlan('xlsx')} className="w-full text-left p-3.5 hover:bg-slate-700 transition-colors flex items-center justify-between">
+                                            <span className="text-white font-bold text-[10px] uppercase tracking-wider">Excel Spreadsheet</span>
+                                            <span className="text-xs">📊</span>
+                                        </button>
+                                        <button onClick={() => handleExportPlan('txt')} className="w-full text-left p-3.5 hover:bg-slate-700 transition-colors flex items-center justify-between">
+                                            <span className="text-white font-bold text-[10px] uppercase tracking-wider">Plain Text (.TXT)</span>
+                                            <span className="text-xs">📄</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </Card>
             </div>
 
             {/* RESULTS & TABBED CONTENT */}
-            <div className="lg:col-span-12 space-y-6">
+            <div className="lg:col-span-12 space-y-2">
                 {showTabulation && (
                     <Card className="!bg-black/40 border-cyan-500/30 shadow-[0_0_50px_rgba(34,211,238,0.1)] animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="flex justify-between items-center mb-4">
@@ -1680,13 +1728,11 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                         );
                     })}
                 </div>
-            </div>
 
-            {/* TAB ACTIONS & CONTENT LISTS */}
-            <div className="lg:col-span-12 space-y-6">
-            {activeSubTab === 'acts' && (
-                <div className="space-y-4 mt-4">
-                    <div className="flex gap-2">
+                {/* TAB ACTIONS & CONTENT LISTS */}
+                {activeSubTab === 'acts' && (
+                    <div className="space-y-2">
+                        <div className="flex gap-2">
                         <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className={`${vibrantButton} flex-1`}>+ Add Act</button>
                         <button onClick={() => fileInputRef.current?.click()} className={`flex-1 px-4 py-2.5 bg-slate-800 text-slate-400 border-b-4 border-slate-950 hover:bg-slate-700 ${buttonBase}`}>Import CSV</button>
                         <button onClick={() => setIsConverterOpen(true)} className={`${vibrantButton} flex-1`}>🧮 EXCEL CONVERTER</button>
@@ -1714,20 +1760,14 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     </div>
 
                     {/* Command Center Strip */}
-                    <div className="bg-slate-950/50 p-3 rounded-xl border border-indigo-500/30 flex flex-col gap-3">
-                        <div className="flex items-center justify-between px-1">
-                            <div className="flex items-center gap-2">
-                                <span className={`text-xs ${isGenerating ? 'animate-spin' : ''}`}>{isGenerating ? '⚙️' : (optimizationReport ? (optimizationReport.shortfall === 0 ? '✅' : '👨‍🔧') : '📊')}</span>
-                                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Command Center</h5>
+                    <div className="bg-slate-950/50 p-1 rounded-xl border border-indigo-500/30 flex flex-col gap-1">
+                        {optimizationReport && (
+                            <div className="flex items-center justify-end px-1 pt-1">
+                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${optimizationReport.shortfall === 0 ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
+                                    {optimizationReport.found}/{optimizationReport.requested} CHANNELS OK
+                                </span>
                             </div>
-                            {optimizationReport && (
-                                <div className="flex items-center gap-2">
-                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${optimizationReport.shortfall === 0 ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
-                                        {optimizationReport.found}/{optimizationReport.requested} CHANNELS OK
-                                    </span>
-                                </div>
-                            )}
-                        </div>
+                        )}
 
                         <div className="flex flex-wrap gap-2">
                             <button 
@@ -1798,66 +1838,9 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 </div>
             )}
 
-            {/* SITE EXPORT & DISTRIBUTION CARD */}
-            <Card className="!bg-slate-900 border-2 border-cyan-500/40 shadow-2xl relative z-40 mt-4">
-                <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
-                    <div className="flex-1 space-y-2">
-                        <CardTitle className="!mb-0 text-cyan-400 text-sm uppercase tracking-[0.2em]">Site Export & Distribution</CardTitle>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase">Generate authoritative coordination files for distribution or device import.</p>
-                    </div>
-                    <div className="w-full lg:w-auto">
-                        <div className="relative">
-                            <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className={`${actionButton} w-full lg:w-64 !py-3 flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10`}>
-                                <span>📥</span> EXPORT RF PLAN <span className="text-[8px] opacity-60">▼</span>
-                            </button>
-                            {isExportMenuOpen && (
-                                <div className="absolute top-full right-0 mt-2 bg-slate-800 border border-indigo-500/40 rounded-xl shadow-2xl z-[120] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 divide-y divide-white/5">
-                                    <div className="bg-indigo-500/15 p-2">
-                                        <div className="px-2 py-1.5 flex items-center gap-2 mb-2 border-b border-indigo-500/20">
-                                            <span className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.1em]">WWB Smart Export (.TXT)</span>
-                                        </div>
-                                        <div className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                            <button onClick={() => handleWwbSmartExport()} className="w-full text-left px-3 py-2.5 hover:bg-indigo-600 rounded bg-indigo-500/30 text-[9px] font-black text-white uppercase tracking-tighter transition-all border border-indigo-400/20 shadow-sm">
-                                                &bull; Full Site Frequency List
-                                            </button>
-                                            {uniqueWwbGroups.length > 0 ? uniqueWwbGroups.map(group => (
-                                                <button 
-                                                    key={group.key}
-                                                    onClick={() => handleWwbSmartExport(group.key)}
-                                                    className="w-full text-left px-3 py-2.5 hover:bg-slate-700 rounded bg-slate-950/60 border border-white/10 text-[9px] font-bold text-indigo-200 uppercase tracking-tighter transition-all"
-                                                >
-                                                    &bull; Export {group.name} - {group.count} CH
-                                                </button>
-                                            )) : (
-                                                <div className="text-[8px] text-slate-500 px-3 py-2 italic">Coordinate site to populate hardware groups...</div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 divide-y divide-white/5">
-                                        <button onClick={() => handleExportPlan('pdf')} className="w-full text-left p-3.5 hover:bg-slate-700 transition-colors flex items-center justify-between">
-                                            <span className="text-white font-bold text-[10px] uppercase tracking-wider">PDF Site Ledger</span>
-                                            <span className="text-xs">📄</span>
-                                        </button>
-                                        <button onClick={() => handleExportPlan('xlsx')} className="w-full text-left p-3.5 hover:bg-slate-700 transition-colors flex items-center justify-between">
-                                            <span className="text-white font-bold text-[10px] uppercase tracking-wider">Excel Spreadsheet</span>
-                                            <span className="text-xs">📊</span>
-                                        </button>
-                                        <button onClick={() => handleExportPlan('txt')} className="w-full text-left p-3.5 hover:bg-slate-700 transition-colors flex items-center justify-between">
-                                            <span className="text-white font-bold text-[10px] uppercase tracking-wider">Plain Text (.TXT)</span>
-                                            <span className="text-xs">📄</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </Card>
-
             {/* CONTENT LISTS */}
             {activeSubTab === 'acts' && (
-                <div className="space-y-4 mt-4 animate-in fade-in duration-500 relative z-0">
+                <div className="space-y-4 animate-in fade-in duration-500 relative z-0">
                     {festivalActs.map(act => (
                         <Card key={act.id} className="!p-4 !bg-slate-900/80">
                             <div className="flex justify-between items-center mb-2">
@@ -1912,7 +1895,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
             )}
 
             {activeSubTab === 'constant' && (
-                <div className="space-y-4 mt-4 animate-in fade-in duration-500 relative z-0">
+                <div className="space-y-4 animate-in fade-in duration-500 relative z-0">
                     {constantSystems.map((sys, idx) => (
                         <Card key={idx} className="!p-4 !bg-slate-900/80">
                             <h4 className="font-bold text-indigo-400 mb-4 border-b border-white/5 pb-1 uppercase text-xs tracking-widest">{sys.stageName} - Static Gear</h4>
@@ -1946,7 +1929,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
             )}
 
             {activeSubTab === 'house' && (
-                <div className="space-y-4 mt-4 animate-in fade-in duration-500 relative z-0">
+                <div className="space-y-4 animate-in fade-in duration-500 relative z-0">
                     {houseSystems.map((sys, idx) => (
                         <Card key={idx} className="!p-4 !bg-slate-900/80">
                             <h4 className="font-bold text-yellow-400 mb-4 border-b border-white/5 pb-1 uppercase text-xs tracking-widest">{sys.stageName} - House Gear</h4>
