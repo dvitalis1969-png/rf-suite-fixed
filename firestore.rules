@@ -120,7 +120,7 @@ service cloud.firestore {
 
     // Public Profiles rules
     match /public_profiles/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isOwner(userId) || isAdmin();
     }
 
