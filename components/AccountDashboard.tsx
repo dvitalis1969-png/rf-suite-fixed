@@ -29,13 +29,29 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
     const [availableForWork, setAvailableForWork] = useState(currentUser?.availableForWork || false);
     const [isUpdatingName, setIsUpdatingName] = useState(false);
 
+    React.useEffect(() => {
+        if (currentUser) {
+            setDisplayName(currentUser.name || '');
+            setTitle(currentUser.title || '');
+            setLocation(currentUser.location || '');
+            setCurrentTour(currentUser.currentTour || '');
+            setSpecialties(currentUser.specialties?.join(', ') || '');
+            setGearInventory(currentUser.gearInventory || '');
+            setAvailableForWork(currentUser.availableForWork || false);
+        }
+    }, [currentUser]);
+
     const handleUpdateProfile = async () => {
-        if (!displayName.trim() || !auth.currentUser) return;
+        if (!displayName.trim() || !auth.currentUser) {
+            console.error("Missing display name or auth user:", { displayName: displayName.trim(), user: auth.currentUser });
+            return;
+        }
+        console.log("Updating profile for user:", auth.currentUser.uid);
         try {
             setIsUpdatingName(true);
             const { updateProfile } = await import('firebase/auth');
-            const { auth } = await import('../src/lib/firebase');
-            await updateProfile(auth.currentUser, { displayName: displayName });
+            const { auth: firebaseAuth } = await import('../src/lib/firebase');
+            await updateProfile(firebaseAuth.currentUser!, { displayName: displayName });
             
             // Update user document in Firestore too
             const { doc, setDoc } = await import('firebase/firestore');
@@ -51,12 +67,14 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                 availableForWork
             };
 
+            console.log("Saving to Firestore:", { uid: auth.currentUser.uid, profileData });
             await setDoc(doc(db, 'users', auth.currentUser.uid), profileData, { merge: true });
             await setDoc(doc(db, 'public_profiles', auth.currentUser.uid), {
                 id: auth.currentUser.uid,
                 ...profileData,
                 lastSeen: new Date()
             }, { merge: true });
+            console.log("Firestore save successful");
             
             setCurrentUser({ ...currentUser, ...profileData });
             alert('Profile updated successfully!');
@@ -77,6 +95,13 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                 const data = userDoc.data();
                 setCurrentUser({
                     ...user,
+                    name: data.name || user.name,
+                    title: data.title || user.title,
+                    location: data.location || user.location,
+                    currentTour: data.currentTour || user.currentTour,
+                    specialties: data.specialties || user.specialties,
+                    gearInventory: data.gearInventory || user.gearInventory,
+                    availableForWork: data.availableForWork !== undefined ? data.availableForWork : user.availableForWork,
                     subscription: data.subscription || 'none',
                     subscriptionStatus: data.subscriptionStatus || 'none',
                     stripeCustomerId: data.stripeCustomerId || null
