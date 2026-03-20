@@ -16,6 +16,7 @@ interface LiveScanAnalyzerProps {
     threshold: number;
     onThresholdChange: (value: number) => void;
     onScanDataUpdate?: (data: ScanDataPoint[]) => void;
+    className?: string;
 }
 
 import { requestSerialPort, connectToTinySA, readTinySAScan, SerialDevice, getDeviceVersion } from '../services/serialService';
@@ -29,7 +30,8 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
     onSimulate,
     threshold,
     onThresholdChange,
-    onScanDataUpdate
+    onScanDataUpdate,
+    className = ""
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -535,7 +537,7 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
     };
 
     return (
-        <Card className="relative z-10 overflow-hidden">
+        <Card className={`relative z-10 overflow-hidden flex flex-col ${className}`}>
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-start gap-3">
                     <div className="flex flex-col gap-1">
@@ -548,8 +550,8 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                         <span className="text-[10px]">⚠️</span> Requires Chrome, Edge, or Opera (Safari/Firefox not supported)
                     </div>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap justify-end">
-                    <div className="flex items-center gap-2 bg-slate-900/50 border border-white/5 rounded-lg px-2 py-1">
+                <div className="flex items-center gap-3 flex-wrap justify-start sm:justify-end w-full">
+                    <div className="flex items-center gap-2 bg-slate-900/50 border border-white/5 rounded-lg px-2 py-1 flex-shrink-0">
                         <div className="flex items-center">
                             <span className="text-[8px] text-slate-500 font-bold mr-1">START</span>
                             <input 
@@ -579,12 +581,12 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                         </button>
                     </div>
 
-                    <div className="flex bg-slate-800/50 rounded-lg p-0.5 border border-white/5">
+                    <div className="flex bg-slate-800/50 rounded-lg p-0.5 border border-white/5 flex-shrink-0">
                         <button 
                             onClick={() => setShowTvGrid(!showTvGrid)}
                             className={`text-[8px] font-black uppercase px-2 py-1 rounded transition-all ${showTvGrid ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                         >
-                            Quad-State TV Grid
+                            TV Grid
                         </button>
                         <button 
                             onClick={() => setShowMaxHold(!showMaxHold)}
@@ -593,42 +595,45 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                             Max Hold
                         </button>
                     </div>
-                    <button 
-                        onClick={handleResetMaxHold}
-                        className="text-[8px] font-black uppercase px-2 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 transition-all shadow-md"
-                    >
-                        Reset Max
-                    </button>
-                    <div className="h-4 w-px bg-white/10 mx-1" />
-                    <button 
-                        onClick={handleShareScanClick}
-                        disabled={isSharing || !auth.currentUser}
-                        className="text-[8px] font-black uppercase px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                        title={!auth.currentUser ? "Log in to share scans" : "Share to Plot Gallery"}
-                    >
-                        {isSharing ? 'Sharing...' : 'Share Scan'}
-                    </button>
-                    <div className="h-4 w-px bg-white/10 mx-1" />
-                    <button 
-                        onClick={() => {
-                            const nextStates = { ...tvChannelStates };
-                            let count = 0;
-                            Object.entries(channels).forEach(([chStr]) => {
-                                const ch = parseInt(chStr);
-                                if (nextStates[ch] === 'blocked') {
-                                    nextStates[ch] = 'available';
-                                    count++;
-                                }
-                            });
-                            onBulkUpdateChannels(nextStates);
-                        }}
-                        className="text-[8px] font-black uppercase px-2 py-1 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded transition-all shadow-md border border-emerald-500/30"
-                        title="Clear all blocked channels"
-                    >
-                        Reset Blocks
-                    </button>
+                    
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button 
+                            onClick={handleResetMaxHold}
+                            className="text-[8px] font-black uppercase px-2 py-1 bg-blue-900 text-white rounded hover:bg-blue-800 transition-all shadow-md"
+                        >
+                            Reset Max
+                        </button>
+                        <div className="h-4 w-px bg-white/10 mx-1" />
+                        <button 
+                            onClick={handleShareScanClick}
+                            disabled={isSharing || !auth.currentUser}
+                            className="text-[8px] font-black uppercase px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                            title={!auth.currentUser ? "Log in to share scans" : "Share to Plot Gallery"}
+                        >
+                            {isSharing ? 'Sharing...' : 'Share Scan'}
+                        </button>
+                        <div className="h-4 w-px bg-white/10 mx-1" />
+                        <button 
+                            onClick={() => {
+                                const nextStates = { ...tvChannelStates };
+                                let count = 0;
+                                Object.entries(channels).forEach(([chStr]) => {
+                                    const ch = parseInt(chStr);
+                                    if (nextStates[ch] === 'blocked') {
+                                        nextStates[ch] = 'available';
+                                        count++;
+                                    }
+                                });
+                                onBulkUpdateChannels(nextStates);
+                            }}
+                            className="text-[8px] font-black uppercase px-2 py-1 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded transition-all shadow-md border border-emerald-500/30"
+                            title="Clear all blocked channels"
+                        >
+                            Reset Blocks
+                        </button>
+                    </div>
 
-                    <div className="flex flex-col items-center">
+                    <div className="flex flex-col items-center ml-auto sm:ml-0">
                         <div className="text-[10px] font-mono text-cyan-400 bg-black/40 px-2 py-1 rounded border border-white/5 min-w-[160px] text-center">
                             {hoverFreq ? `${hoverFreq.toFixed(3)} MHz` : '---.--- MHz'} | {hoverAmp ? `${hoverAmp.toFixed(1)} dBm` : '--.- dBm'}
                         </div>
@@ -643,8 +648,8 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
 
             <div 
                 ref={containerRef} 
-                className={`relative bg-black/60 rounded-xl border border-white/10 overflow-hidden ${isPanning ? 'cursor-grabbing' : 'cursor-crosshair'}`}
-                style={{ height: '300px' }}
+                className={`relative bg-black/60 rounded-xl border border-white/10 overflow-hidden flex-grow ${isPanning ? 'cursor-grabbing' : 'cursor-crosshair'}`}
+                style={{ minHeight: '300px' }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}

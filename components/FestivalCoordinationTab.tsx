@@ -1422,7 +1422,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
             </Card>
 
             {/* BENTO GRID: ANALYSIS & PARAMETERS */}
-            <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 lg:grid-rows-[auto,1fr] gap-6 h-full">
                 <Card className="md:col-span-1 !hover:translate-y-0">
                     <div className="flex justify-between items-center mb-4">
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-cyan-400">📍 Stage Distance Matrix (m)</h4>
@@ -1500,35 +1500,59 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     </div>
                 </Card>
 
-                <Card className="md:col-span-2 !hover:translate-y-0">
+                <div className="md:col-span-2 h-full">
+                    <LiveScanAnalyzer 
+                        className="h-full"
+                        scanData={scanData}
+                        tvRegion={tvRegion}
+                        tvChannelStates={tvStates}
+                        onBlockChannel={(ch, state) => {
+                            const next = { ...tvStates, [ch]: state };
+                            setTvStates(next);
+                            setTvChannelStates(next);
+                        }}
+                        onBulkUpdateChannels={(updates) => {
+                            setTvStates(updates);
+                            setTvChannelStates(updates);
+                        }}
+                        onSimulate={onSimulateScan || (() => {})}
+                        onScanDataUpdate={setScanData}
+                        threshold={exclusionThreshold}
+                        onThresholdChange={setExclusionThreshold}
+                    />
+                </div>
+            </div>
+
+            <div className="lg:col-span-4 flex flex-col gap-6 h-full">
+                <Card className="!hover:translate-y-0 flex-grow">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                         <div>
                             <CardTitle className="!mb-0 text-base">📺 Quad-State TV Grid</CardTitle>
-                            <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tighter mt-1">Define protected whitespace. Click to cycle states.</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter mt-1">Define protected whitespace. Click to cycle states.</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex gap-2 text-[7px] font-black uppercase">
-                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span>Avail</span></div>
-                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded bg-sky-400 border border-sky-300" /> <span>Mic</span></div>
-                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded bg-amber-500 border border-amber-400" /> <span>IEM</span></div>
-                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded bg-rose-600 border border-rose-500" /> <span>Off</span></div>
+                            <div className="flex gap-2 text-xs font-black uppercase">
+                                <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span>Avail</span></div>
+                                <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-sky-400 border border-sky-300" /> <span>Mic</span></div>
+                                <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-amber-500 border border-amber-400" /> <span>IEM</span></div>
+                                <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-rose-600 border border-rose-500" /> <span>Off</span></div>
                             </div>
                             <div className="flex gap-1.5">
-                                <button onClick={handleBlockAllTvChannels} className="text-[8px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
-                                <button onClick={handleClearTv} className="text-[8px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-700 hover:text-white transition-all">Clear</button>
+                                <button onClick={handleBlockAllTvChannels} className="text-xs font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
+                                <button onClick={handleClearTv} className="text-xs font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded hover:bg-slate-700 hover:text-white transition-all">Clear</button>
                             </div>
-                            <select value={tvRegion} onChange={e => setTvRegion(e.target.value as any)} className="bg-slate-800 text-[9px] border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 font-bold uppercase">
+                            <select value={tvRegion} onChange={e => setTvRegion(e.target.value as any)} className="bg-slate-800 text-xs border border-slate-700 rounded px-2 py-1 text-slate-200 font-bold uppercase">
                                 <option value="uk">UK</option>
                                 <option value="us">US</option>
                             </select>
                         </div>
                     </div>
-                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5 p-2 bg-slate-950/30 rounded-xl">
+                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-4 lg:grid-cols-6 gap-3 p-4 bg-slate-950/30 rounded-xl">
                         {Object.entries(tvRegion === 'uk' ? UK_TV_CHANNELS : US_TV_CHANNELS).map(([chStr, [start, end]]) => {
                             const ch = parseInt(chStr);
                             const state = tvStates[ch] || 'available';
                             
-                            let channelClasses = 'p-1 text-center rounded border transition-all cursor-pointer select-none ';
+                            let channelClasses = 'py-4 px-2 text-center rounded border transition-all cursor-pointer select-none ';
                             if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
                             else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
                             else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
@@ -1536,34 +1560,15 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
 
                             return (
                                 <button key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses}>
-                                    <div className={`text-[9px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>{ch}</div>
-                                    <div className={`text-[6px] font-mono tracking-tighter ${state === 'available' ? 'text-slate-500' : 'text-white/60'}`}>{start}</div>
+                                    <div className={`text-sm font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>{ch}</div>
+                                    <div className={`text-[10px] font-mono font-bold tracking-tighter ${state === 'available' ? 'text-slate-500' : 'text-white/60'}`}>
+                                        {start}-{end}
+                                    </div>
                                 </button>
                             );
                         })}
                     </div>
                 </Card>
-            </div>
-
-            <div className="lg:col-span-4 flex flex-col gap-6">
-                <LiveScanAnalyzer 
-                    scanData={scanData}
-                    tvRegion={tvRegion}
-                    tvChannelStates={tvStates}
-                    onBlockChannel={(ch, state) => {
-                        const next = { ...tvStates, [ch]: state };
-                        setTvStates(next);
-                        setTvChannelStates(next);
-                    }}
-                    onBulkUpdateChannels={(updates) => {
-                        setTvStates(updates);
-                        setTvChannelStates(updates);
-                    }}
-                    onSimulate={onSimulateScan || (() => {})}
-                    onScanDataUpdate={setScanData}
-                    threshold={exclusionThreshold}
-                    onThresholdChange={setExclusionThreshold}
-                />
                 
                 <Card className="bg-indigo-600/10 border-indigo-500/30 !p-4">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-3">Engine Controls</h4>
