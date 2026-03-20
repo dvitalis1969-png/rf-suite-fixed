@@ -4,10 +4,11 @@ import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, s
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { getUserColor, formatTimestamp } from '../src/utils/chatUtils';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
-import { ImagePlus, Loader2, SmilePlus, Mic, Square, Edit2, Trash2, Check, X } from 'lucide-react';
+import { ImagePlus, Loader2, SmilePlus, Mic, Square, Edit2, Trash2, Check, X, Search, ArrowDown, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import UserPresenceList from './UserPresenceList';
 
 interface Message {
   id: string;
@@ -44,6 +45,10 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const [dividerTimestamp, setDividerTimestamp] = useState<number | null>(null);
 
   const [canRecord, setCanRecord] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkSupport = async () => {
@@ -123,7 +128,12 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     const unsubscribeOnline = onSnapshot(onlineQ, (snapshot) => {
       const online = snapshot.docs
         .filter(doc => doc.id !== auth.currentUser?.uid)
-        .map(doc => ({ id: doc.id, name: doc.data().name }));
+        .map(doc => ({ 
+          id: doc.id, 
+          name: doc.data().name,
+          statusMessage: doc.data().statusMessage,
+          isPro: doc.data().isPro
+        }));
       setOnlineUsers(online);
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, 'presence/global/users');
@@ -137,8 +147,21 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   }, [activeProjectId, chatMode, selectedDmUser, auth.currentUser?.uid]);
 
   useEffect(() => {
+    if (!showScrollToBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, showScrollToBottom]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const isAtBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 100;
+    setShowScrollToBottom(!isAtBottom);
+  };
+
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    setShowScrollToBottom(false);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -481,10 +504,20 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
 
   const hasAnyUnread = Object.keys(unreadDMs).length > 0;
 
+  const filteredMessages = useMemo(() => {
+    const msgs = messages.filter(m => !clearTimestamp || m.timestamp?.toMillis() > clearTimestamp);
+    if (!searchQuery.trim()) return msgs;
+    const query = searchQuery.toLowerCase();
+    return msgs.filter(m => 
+      m.text.toLowerCase().includes(query) || 
+      m.userName.toLowerCase().includes(query)
+    );
+  }, [messages, searchQuery, clearTimestamp]);
+
   const renderedMessages = useMemo(() => {
     if (chatMode === 'dm' && !selectedDmUser) {
       return (
-        <div className="text-xs text-slate-500 text-center mt-10">
+        <div className="text-xs text-slate-400 text-center mt-10">
           Select a user from the Lounge to start a private chat.
         </div>
       );
@@ -492,7 +525,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
 
     return (
       <AnimatePresence initial={false}>
-        {messages.filter(m => !clearTimestamp || m.timestamp?.toMillis() > clearTimestamp).map((msg, index, arr) => {
+        {filteredMessages.map((msg, index, arr) => {
           const isNew = dividerTimestamp && msg.timestamp?.toMillis() > dividerTimestamp && msg.userId !== auth.currentUser?.uid;
           const prevMsg = arr[index - 1];
           const prevIsNew = dividerTimestamp && prevMsg?.timestamp?.toMillis() > dividerTimestamp && prevMsg?.userId !== auth.currentUser?.uid;
@@ -512,9 +545,16 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
                 className={`text-xs group relative ${msg.userId === auth.currentUser?.uid ? 'text-right' : 'text-left'}`}
               >
                 <div className={`flex flex-col ${msg.userId === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
-                  <div className="flex items-center gap-1 mb-1">
-                    <span className="text-[10px] text-slate-500">{formatTimestamp(msg.timestamp)}</span>
-                    <span className="font-bold" style={{ color: getUserColor(msg.userId) }}>{msg.userName}</span>
+                  <div className={`flex items-center gap-1.5 mb-1 ${msg.userId === auth.currentUser?.uid ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <button 
+                      onClick={() => setSelectedProfile({ id: msg.userId, name: msg.userName, isPro: msg.isPro })}
+                      className="text-[10px] font-black text-slate-300 hover:text-indigo-300 transition-colors uppercase tracking-tighter"
+                    >
+                      {msg.userName}
+                    </button>
+                    <span className="text-[8px] text-slate-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                      {formatTimestamp(msg.timestamp)}
+                    </span>
                     {msg.isPro && (
                       <span className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 uppercase tracking-wider" title="Pro User">
                         Pro
@@ -555,7 +595,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
                         </div>
                       </div>
                     ) : msg.text ? (
-                      <div className={`inline-block px-3 py-2 rounded-xl text-left ${msg.userId === auth.currentUser?.uid ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-800 text-slate-200 rounded-tl-sm'}`}>
+                      <div className={`inline-block px-3 py-2 rounded-xl text-left ${msg.userId === auth.currentUser?.uid ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-800 text-slate-100 rounded-tl-sm'}`}>
                         <div className="markdown-body prose prose-invert prose-sm max-w-none text-xs prose-p:leading-snug prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-700 prose-pre:p-2 prose-pre:rounded-md prose-code:text-indigo-300 prose-code:bg-slate-900/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded">
                           <Markdown>{msg.text}</Markdown>
                         </div>
@@ -624,7 +664,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         })}
       </AnimatePresence>
     );
-  }, [messages, chatMode, selectedDmUser, clearTimestamp, dividerTimestamp, editingMessageId, editMessageText, auth.currentUser?.uid]);
+  }, [filteredMessages, chatMode, selectedDmUser, dividerTimestamp, editingMessageId, editMessageText, auth.currentUser?.uid]);
 
   const renderedOnlineUsers = useMemo(() => (
     chatMode === 'lounge' && (
@@ -632,9 +672,9 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         Online: {onlineUsers.length > 0 ? onlineUsers.map((u, i) => (
           <span key={u.id} className="relative inline-block">
             <button 
-              onClick={() => startDM(u)}
+              onClick={() => setSelectedProfile(u)}
               className="hover:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
-              title={`Message ${u.name} privately`}
+              title={`View ${u.name}'s profile`}
             >
               {u.name}
               {unreadDMs[u.id] && (
@@ -649,45 +689,127 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   ), [chatMode, onlineUsers, unreadDMs]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-slate-900 rounded-lg border border-slate-700 p-4">
-      <div className="flex gap-2 mb-2">
-        <button 
-          onClick={() => setChatMode('project')}
-          className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${chatMode === 'project' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Project
-        </button>
-        <button 
-          onClick={() => setChatMode('lounge')}
-          className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded relative ${chatMode === 'lounge' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-        >
-          Lounge
-          {hasAnyUnread && chatMode !== 'lounge' && (
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          )}
-        </button>
-        {chatMode === 'dm' && selectedDmUser && (
+    <div className="flex flex-col flex-1 min-h-0 bg-slate-950/40 rounded-lg border border-white/5 p-4 relative backdrop-blur-sm">
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <div className="flex gap-1">
           <button 
-            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded bg-indigo-600 text-white"
+            onClick={() => setChatMode('project')}
+            className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${chatMode === 'project' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
           >
-            DM: {selectedDmUser.name}
+            Project
           </button>
-        )}
+          <button 
+            onClick={() => setChatMode('lounge')}
+            className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded relative ${chatMode === 'lounge' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+          >
+            Lounge
+            {hasAnyUnread && chatMode !== 'lounge' && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            )}
+          </button>
+          {chatMode === 'dm' && selectedDmUser && (
+            <button 
+              className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded bg-indigo-600 text-white"
+            >
+              DM: {selectedDmUser.name}
+            </button>
+          )}
+        </div>
+        
+        <div className="relative group">
+          <Search className="w-3 h-3 text-slate-500 group-focus-within:text-indigo-400 transition-colors absolute left-2 top-1/2 -translate-y-1/2" />
+          <input 
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search..."
+            className="bg-slate-950 border border-slate-800 rounded-full pl-6 pr-2 py-1 text-[9px] text-white focus:outline-none focus:border-indigo-500/50 w-24 focus:w-32 transition-all"
+          />
+        </div>
       </div>
       
       {renderedOnlineUsers}
 
-      <div className="flex-1 overflow-y-auto mb-4 space-y-3 px-1">
+      <div 
+        className="flex-1 overflow-y-auto mb-4 space-y-3 px-1 relative"
+        onScroll={handleScroll}
+        ref={messagesContainerRef}
+      >
         {renderedMessages}
         <div ref={messagesEndRef} />
+        
+        <AnimatePresence>
+          {showScrollToBottom && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              onClick={scrollToBottom}
+              className="absolute bottom-2 right-2 bg-indigo-600 text-white p-1.5 rounded-full shadow-lg hover:bg-indigo-500 transition-colors z-10"
+            >
+              <ArrowDown className="w-3 h-3" />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Profile Popover */}
+      <AnimatePresence>
+        {selectedProfile && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+          >
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-[240px] shadow-2xl relative">
+              <button 
+                onClick={() => setSelectedProfile(null)}
+                className="absolute top-2 right-2 text-slate-500 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-2xl font-bold text-white mb-3 shadow-xl border-4 border-slate-800">
+                  {selectedProfile.name[0]}
+                </div>
+                <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+                  {selectedProfile.name}
+                  {selectedProfile.isPro && (
+                    <span className="text-[8px] bg-amber-500/20 text-amber-500 px-1 rounded border border-amber-500/30 uppercase font-black">PRO</span>
+                  )}
+                </h3>
+                <p className="text-[10px] text-slate-400 italic mb-4">
+                  {selectedProfile.statusMessage || "No status set"}
+                </p>
+                
+                <button
+                  onClick={() => {
+                    startDM(selectedProfile);
+                    setSelectedProfile(null);
+                  }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <SmilePlus className="w-3 h-3" />
+                  Send Message
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
-      <div className="h-4 flex items-center px-1">
-        {typingUsers.length > 0 && (
-          <div className="text-[10px] text-slate-500 italic">
+      {typingUsers.length > 0 && (
+        <div className="h-4 flex items-center px-1">
+          <div className="text-[10px] text-slate-400 italic">
             {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
           </div>
-        )}
+        </div>
+      )}
+
+      <div className="max-h-32 overflow-y-auto border-t border-white/5 bg-slate-900/10">
+        <UserPresenceList />
       </div>
 
       {uploadError && (

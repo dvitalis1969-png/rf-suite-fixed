@@ -111,7 +111,7 @@ const IEMStudyTab: React.FC = () => {
     const [selectedRbw, setSelectedRbw] = useState<number>(0.025); // 25kHz
     const [tuningStep, setTuningStep] = useState<number>(0.0125); 
     const [refLevel, setRefLevel] = useState<number>(0);
-    const [showFloatingMonitor, setShowFloatingMonitor] = useState(true);
+    const [showFloatingMonitor, setShowFloatingMonitor] = useState(false);
 
     const [isAutoView, setIsAutoView] = useState(true);
     const [centerFreq, setCenterFreq] = useState(457.0);
@@ -597,7 +597,7 @@ const IEMStudyTab: React.FC = () => {
         <div className="flex flex-col gap-6 relative">
             {/* FLOATING COMPOUND MONITOR */}
             <div 
-                className={`fixed bottom-8 right-8 z-[100] transition-all duration-500 transform ${showFloatingMonitor ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 pointer-events-none scale-90'}`}
+                className={`fixed bottom-4 right-20 z-[100] transition-all duration-500 transform ${showFloatingMonitor ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 pointer-events-none scale-90'}`}
             >
                 <div className="bg-slate-900/90 backdrop-blur-xl border-2 border-indigo-500/40 rounded-2xl shadow-2xl overflow-hidden w-[340px] group">
                     <div className="bg-indigo-900/40 px-3 py-2.5 border-b border-white/10 flex justify-between items-center">
@@ -628,7 +628,7 @@ const IEMStudyTab: React.FC = () => {
             {!showFloatingMonitor && (
                 <button 
                     onClick={() => setShowFloatingMonitor(true)}
-                    className="fixed bottom-8 right-8 z-[100] bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-2xl transition-all border-2 border-indigo-400 animate-in fade-in zoom-in slide-in-from-right-4"
+                    className="fixed bottom-4 right-20 z-[100] bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-2xl transition-all border-2 border-indigo-400 animate-in fade-in zoom-in slide-in-from-right-4"
                     title="Show Compound Monitor"
                 >
                     <span className="text-xl">🚚</span>

@@ -350,7 +350,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                         </div>
                         <div>
                             <h2 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedProfileName}</h2>
-                            <p className="text-xs text-slate-500">{displayedPosts.length} post{displayedPosts.length !== 1 ? 's' : ''}</p>
+                            <p className="text-xs text-slate-400">{displayedPosts.length} post{displayedPosts.length !== 1 ? 's' : ''}</p>
                         </div>
                     </div>
                     <button 
@@ -368,7 +368,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                         onChange={(e) => setNewPostContent(e.target.value)}
                         placeholder="Share an update, ask a question, or post a plot..."
                         className={`w-full border rounded-xl p-4 text-sm focus:outline-none focus:border-indigo-500 resize-none min-h-[100px] transition-all ${
-                            isDark ? 'bg-slate-950/50 border-white/10 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
+                            isDark ? 'bg-slate-950/50 border-white/10 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
                         }`}
                     />
                     
@@ -399,7 +399,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                                 className="max-h-48 rounded border border-white/10 cursor-pointer hover:opacity-90 transition-opacity" 
                                 onClick={() => setExpandedImage(selectedPlot.imageData)}
                             />
-                            <div className="text-xs text-slate-400 mt-1 truncate max-w-[200px]">{selectedPlot.description}</div>
+                            <div className="text-xs text-slate-300 mt-1 truncate max-w-[200px]">{selectedPlot.description}</div>
                             <button 
                                 onClick={() => setSelectedPlot(null)}
                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-600"
@@ -455,7 +455,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                         
                         <div className="flex-1 overflow-y-auto pr-2">
                             {userPlots.length === 0 ? (
-                                <div className="text-center text-slate-500 py-10">You haven't saved any plots yet.</div>
+                                <div className="text-center text-slate-400 py-10">You haven't saved any plots yet.</div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {userPlots.map(plot => (
@@ -578,7 +578,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                                         </span>
                                     )}
                                 </div>
-                                <div className="text-xs text-slate-500">
+                                <div className="text-xs text-slate-400">
                                     {post.createdAt?.toDate ? post.createdAt.toDate().toLocaleString() : 'Just now'}
                                 </div>
                             </div>
@@ -586,14 +586,14 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                                 <div className="flex gap-1">
                                     <button 
                                         onClick={() => handleStartEdit(post)}
-                                        className="p-1.5 text-slate-500 hover:text-indigo-400 transition-colors"
+                                        className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors"
                                         title="Edit Post"
                                     >
                                         <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                     <button 
                                         onClick={() => setPostToDelete(post.id)}
-                                        className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                                        className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
                                         title="Delete Post"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
@@ -653,19 +653,19 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                                     className={`w-full rounded-lg border cursor-pointer hover:opacity-90 transition-opacity ${isDark ? 'border-white/5' : 'border-slate-200'}`} 
                                     onClick={() => setExpandedImage(post.plotData.imageData)}
                                 />
-                                <div className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{post.plotData.description}</div>
+                                <div className={`mt-2 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{post.plotData.description}</div>
                             </div>
                         )}
                         
                         <div className={`flex items-center gap-4 pt-4 border-t ${isDark ? 'border-white/10' : 'border-slate-100'}`}>
                             <button 
                                 onClick={() => handleLike(post.id, post.likes || [])}
-                                className={`flex items-center gap-2 text-sm font-medium transition-colors ${post.likes?.includes(user?.id || '') ? 'text-rose-500' : 'text-slate-400 hover:text-white'}`}
+                                className={`flex items-center gap-2 text-sm font-medium transition-colors ${post.likes?.includes(user?.id || '') ? 'text-rose-500' : 'text-slate-300 hover:text-white'}`}
                             >
                                 <span>{post.likes?.includes(user?.id || '') ? '❤️' : '🤍'}</span>
                                 {post.likes?.length || 0} Likes
                             </button>
-                            <div className="text-sm font-medium text-slate-400">
+                            <div className="text-sm font-medium text-slate-300">
                                 💬 {post.comments?.length || 0} Comments
                             </div>
                         </div>
@@ -711,7 +711,7 @@ export const ActivityFeed: React.FC<{ user: User | null; theme?: 'light' | 'dark
                     </div>
                 ))}
                 {displayedPosts.length === 0 && (
-                    <div className="text-center text-slate-500 py-10">
+                    <div className="text-center text-slate-400 py-10">
                         {selectedProfileId ? "No posts from this user yet." : "No activity yet. Be the first to post!"}
                     </div>
                 )}

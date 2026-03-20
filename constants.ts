@@ -174,9 +174,9 @@ export const EQUIPMENT_DATABASE: Record<string, EquipmentProfile> = {
     'shure-ad-k4e': { name: 'Shure Axient Digital', band: 'K4E (606-666 MHz)', minFreq: 606.125, maxFreq: 665.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.350, twoTone: 0.075, threeTone: 0.000 } },
 
     // --- SHURE UR4S / UHF-R (Analogue) ---
-    'shure-ur4s-g1': { name: 'Shure UR4S (Analogue)', band: 'G1 (470-530 MHz)', minFreq: 470.125, maxFreq: 529.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.325, twoTone: 0.175, threeTone: 0.05 } },
-    'shure-ur4s-h4': { name: 'Shure UR4S (Analogue)', band: 'H4 (518-578 MHz)', minFreq: 518.125, maxFreq: 577.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.325, twoTone: 0.175, threeTone: 0.05 } },
-    'shure-ur4s-k4e': { name: 'Shure UR4S (Analogue)', band: 'K4E (606-666 MHz)', minFreq: 606.125, maxFreq: 665.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.325, twoTone: 0.175, threeTone: 0.05 } },
+    'shure-ur4s-g1': { name: 'Shure UR4S (Analogue)', band: 'G1 (470-530 MHz)', minFreq: 470.125, maxFreq: 529.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.325, twoTone: 0.175, threeTone: 0.050 } },
+    'shure-ur4s-h4': { name: 'Shure UR4S (Analogue)', band: 'H4 (518-578 MHz)', minFreq: 518.125, maxFreq: 577.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.325, twoTone: 0.175, threeTone: 0.050 } },
+    'shure-ur4s-k4e': { name: 'Shure UR4S (Analogue)', band: 'K4E (606-666 MHz)', minFreq: 606.125, maxFreq: 665.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.325, twoTone: 0.175, threeTone: 0.050 } },
 
     // --- SHURE ULX-D / QLX-D ---
     'shure-ulxd-g51': { name: 'Shure ULX-D', band: 'G51 (470-534 MHz)', minFreq: 470.125, maxFreq: 533.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.350, twoTone: 0.075, threeTone: 0.000 } },
@@ -199,6 +199,7 @@ export const EQUIPMENT_DATABASE: Record<string, EquipmentProfile> = {
     'shure-psm1000-k10E': { name: 'Shure PSM 1000', band: 'K10E (596-668 MHz)', minFreq: 596.125, maxFreq: 667.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.375, twoTone: 0.250, threeTone: 0.050 } },
     'shure-psm1000-l8': { name: 'Shure PSM 1000', band: 'L8 (626-698 MHz)', minFreq: 626.125, maxFreq: 697.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.375, twoTone: 0.250, threeTone: 0.050 } },
     'shure-psm900-l6E': { name: 'Shure PSM 900', band: 'L6E (656-692 MHz)', minFreq: 656.125, maxFreq: 691.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.375, twoTone: 0.275, threeTone: 0.050 } },
+    'shure-adpsm-g56': { name: 'Shure Analog_FM', band: 'G56 (470-616 MHz)', minFreq: 470.125, maxFreq: 615.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.350, twoTone: 0.250, threeTone: 0.050 } },
     'shure-psm900-k1E': { name: 'Shure PSM 900', band: 'K1E (596-632 MHz)', minFreq: 596.125, maxFreq: 631.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.375, twoTone: 0.275, threeTone: 0.050 } },
     
     // --- SENNHEISER DIGITAL 6000/9000 ---
@@ -207,28 +208,27 @@ export const EQUIPMENT_DATABASE: Record<string, EquipmentProfile> = {
     'sennheiser-d9000': { name: 'Sennheiser Digital 9000', band: '470-798 MHz', minFreq: 470.125, maxFreq: 797.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.35, twoTone: 0.050, threeTone: 0.000 } },
 
     // --- SENNHEISER 2000 SERIES MICS ---
-    'sennheiser-2000-aw': { name: 'Sennheiser 2000 series', band: 'Aw (516-558 MHz)', minFreq: 516.125, maxFreq: 557.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-2000-bw': { name: 'Sennheiser 2000 series', band: 'Bw (626-668 MHz)', minFreq: 626.125, maxFreq: 667.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-2000-gw': { name: 'Sennheiser 2000 series', band: 'Gw (558-626 MHz)', minFreq: 558.125, maxFreq: 625.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
+    'sennheiser-2000-aw': { name: 'Sennheiser 2000 series', band: 'Aw (516-558 MHz)', minFreq: 516.125, maxFreq: 557.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.375, twoTone: 0.125, threeTone: 0.125 } },
+    'sennheiser-2000-bw': { name: 'Sennheiser 2000 series', band: 'Bw (626-668 MHz)', minFreq: 626.125, maxFreq: 667.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.375, twoTone: 0.125, threeTone: 0.125 } },
+    'sennheiser-2000-gw': { name: 'Sennheiser 2000 series', band: 'Gw (558-626 MHz)', minFreq: 558.125, maxFreq: 625.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.375, twoTone: 0.125, threeTone: 0.125 } },
 
     // --- SENNHEISER 2000 SERIES IEM ---
-    'sennheiser-2000iem-aw': { name: 'Sennheiser 2000 IEM', band: 'Aw (516-558 MHz)', minFreq: 516.125, maxFreq: 557.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-2000iem-bw': { name: 'Sennheiser 2000 IEM', band: 'Bw (626-668 MHz)', minFreq: 626.125, maxFreq: 667.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-2000iem-gw': { name: 'Sennheiser 2000 IEM', band: 'Gw (558-626 MHz)', minFreq: 558.125, maxFreq: 625.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
+    'sennheiser-2000iem-aw': { name: 'Sennheiser 2000 IEM', band: 'Aw (516-558 MHz)', minFreq: 516.125, maxFreq: 557.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.200, threeTone: 0.200 } },
+    'sennheiser-2000iem-bw': { name: 'Sennheiser 2000 IEM', band: 'Bw (626-668 MHz)', minFreq: 626.125, maxFreq: 667.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.200, threeTone: 0.200 } },
+    'sennheiser-2000iem-gw': { name: 'Sennheiser 2000 IEM', band: 'Gw (558-626 MHz)', minFreq: 558.125, maxFreq: 625.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.200, threeTone: 0.200 } },
 
     // --- SENNHEISER EW-G4 ---
-    'sennheiser-ewg4-gb': {  name: 'Sennheiser EW-G4', band: 'GB (606-648 MHz)', minFreq: 606.125, maxFreq: 647.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-ewg4-gbw': { name: 'Sennheiser EW-G4', band: 'GBw (606-678 MHz)', minFreq: 606.125, maxFreq: 677.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-ewg4iem-gb': { name: 'Sennheiser EW-G4 IEM', band: 'GB (606-648 MHz)', minFreq: 606.125, maxFreq: 647.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
+    'sennheiser-ewg4-gb': {  name: 'Sennheiser EW-G4', band: 'GB (606-648 MHz)', minFreq: 606.125, maxFreq: 647.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.375, twoTone: 0.125, threeTone: 0.125 } },
+    'sennheiser-ewg4-gbw': { name: 'Sennheiser EW-G4', band: 'GBw (606-678 MHz)', minFreq: 606.125, maxFreq: 677.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.375, twoTone: 0.125, threeTone: 0.125} },
+    'sennheiser-ewg4iem-gb': { name: 'Sennheiser EW-G4 IEM', band: 'GB (606-648 MHz)', minFreq: 606.125, maxFreq: 647.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.200, threeTone: 0.200 } },
     
     // --- SENNHEISER EW 300 G3 ---
-    'sennheiser-ew300-g3mic-gb': { name: 'Sennheiser EW 300 G3 MIC', band: 'GB (606-648 MHz)', minFreq: 606.125, maxFreq: 647.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-ew300-g3mic-g': { name: 'Sennheiser EW 300 G3 MIC', band: 'G (566-608 MHz)', minFreq: 566.125, maxFreq: 607.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-ew300-g3mic-a': { name: 'Sennheiser EW 300 G3 MIC', band: 'A (516-558 MHz)', minFreq: 516.125, maxFreq: 557.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-ew300-g3mic-b': { name: 'Sennheiser EW 300 G3 MIC', band: 'B (626-668 MHz)', minFreq: 626.125, maxFreq: 667.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },
-    'sennheiser-ew300-g3iem-g': { name: 'Sennheiser EW 300 G3 IEM', band: 'G (566-606 MHz)', minFreq: 566.125, maxFreq: 605.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.500, twoTone: 0.200, threeTone: 0.200 } },
-    'sennheiser-ew300-g3iem-a': { name: 'Sennheiser EW 300 G3 IEM', band: 'A (516-558 MHz)', minFreq: 516.125, maxFreq: 557.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.500, twoTone: 0.200, threeTone: 0.200 } },
-    'sennheiser-ew300-g3iem-b': { name: 'Sennheiser EW 300 G3 IEM', band: 'B (626-668 MHz)', minFreq: 626.125, maxFreq: 667.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.500, twoTone: 0.200, threeTone: 0.200 } },
+    'sennheiser-ew300-g3mic-gb': { name: 'Sennheiser EW 300 G3 MIC', band: 'GB (606-648 MHz)', minFreq: 606.125, maxFreq: 647.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.375, twoTone: 0.125, threeTone: 0.125 } },
+    'sennheiser-ew300-g3mic-g': { name: 'Sennheiser EW 300 G3 MIC', band: 'G (566-608 MHz)', minFreq: 566.125, maxFreq: 607.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.375, twoTone: 0.125, threeTone: 0.125 } },
+    'sennheiser-ew300-g3mic-b': { name: 'Sennheiser EW 300 G3 MIC', band: 'B (626-668 MHz)', minFreq: 626.125, maxFreq: 667.875, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.375, twoTone: 0.125, threeTone: 0.125 } },
+    'sennheiser-ew300-g3iem-g': { name: 'Sennheiser EW 300 G3 IEM', band: 'G (566-606 MHz)', minFreq: 566.125, maxFreq: 605.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.200, threeTone: 0.200 } },
+    'sennheiser-ew300-g3iem-a': { name: 'Sennheiser EW 300 G3 IEM', band: 'A (516-558 MHz)', minFreq: 516.125, maxFreq: 557.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.200, threeTone: 0.200 } },
+    'sennheiser-ew300-g3iem-b': { name: 'Sennheiser EW 300 G3 IEM', band: 'B (626-668 MHz)', minFreq: 626.125, maxFreq: 667.875, tuningStep: 0.025, type: 'iem', recommendedThresholds: { fundamental: 0.400, twoTone: 0.200, threeTone: 0.200 } },
     // --- LECTROSONICS ---
     'lectro-dsqd-a1b1': { name: 'Lectrosonics D-Squared', band: 'A1B1 (470.1-607.9 MHz)', minFreq: 470.1, maxFreq: 607.95, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.350, twoTone: 0.075, threeTone: 0.000 } },
     'lectro-venue-blk21': { name: 'Lectrosonics Venue', band: 'Blk 21 (537-563 MHz)', minFreq: 537.6, maxFreq: 563.1, tuningStep: 0.025, type: 'mic', recommendedThresholds: { fundamental: 0.400, twoTone: 0.250, threeTone: 0.100 } },

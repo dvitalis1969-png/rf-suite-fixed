@@ -52,6 +52,7 @@ interface FestivalCoordinationTabProps {
     setTvChannelStates: (states: Record<number, TVChannelState>) => void;
     onSimulateScan?: () => void;
     wmasState?: WMASState;
+    setIsCalculating?: (is: boolean) => void;
 }
 
 const buttonBase = "px-4 py-2 rounded-lg font-semibold uppercase tracking-wide transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-[10px]";
@@ -778,7 +779,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     initialThresholds, customEquipment, compatibilityMatrix, 
     setCompatibilityMatrix,
     scanData, setScanData, siteMapState, equipmentOverrides = {},
-    tvChannelStates: initialTvStates = {}, setTvChannelStates, onSimulateScan, wmasState
+    tvChannelStates: initialTvStates = {}, setTvChannelStates, onSimulateScan, wmasState, setIsCalculating
 }) => {
     const [activeSubTab, setActiveSubTab] = useState<'acts' | 'constant' | 'house'>('acts');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -806,6 +807,40 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     const [ledgerFilters, setLedgerFilters] = useState<Partial<Record<keyof PlanRow, string>>>({});
 
     const [diagSelectedIds, setDiagSelectedIds] = useState<Set<string>>(new Set());
+
+    const parsedExclusions = useMemo(() => {
+        return manualExclusions.split(',')
+            .map(s => {
+                const parts = s.split('-').map(p => parseFloat(p.trim()));
+                return parts.length === 2 ? { min: parts[0], max: parts[1] } : null;
+            })
+            .filter((x): x is { min: number, max: number } => x !== null);
+    }, [manualExclusions]);
+
+    const handleExclusionZoneAdd = (min: number, max: number) => {
+        const newRange = `${min.toFixed(3)}-${max.toFixed(3)}`;
+        setManualExclusions(prev => prev ? `${prev}, ${newRange}` : newRange);
+    };
+
+    const handleExclusionZoneRemove = (index: number) => {
+        const zones = manualExclusions.split(',').map(s => s.trim()).filter(s => s !== '');
+        zones.splice(index, 1);
+        setManualExclusions(zones.join(', '));
+    };
+
+    const handleFrequencyClick = (freq: any) => {
+        setShowTabulation(true);
+        setTimeout(() => {
+            const element = document.getElementById(`ledger-row-${freq.id}`) || document.getElementById(`ledger-card-${freq.id}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                element.classList.add('bg-indigo-500/40');
+                setTimeout(() => {
+                    if (element) element.classList.remove('bg-indigo-500/40');
+                }, 2000);
+            }
+        }, 100);
+    };
 
     useEffect(() => {
         setNumZonesInput(numZones.toString());
@@ -1064,6 +1099,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     };
 
     const handleGenerate = async () => {
+        if (setIsCalculating) setIsCalculating(true);
         setIsGenerating(true); setOptimizationReport(null);
         let reqTotal = 0;
         [...constantSystems, ...houseSystems, ...festivalActs].forEach(s => [...(s.micRequests || []), ...(s.iemRequests || [])].forEach(r => reqTotal += r.count));
@@ -1081,7 +1117,10 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
             const { results: plan, report } = await generateFestivalPlan(festivalActs, newConstants, newHouse, zoneConfigs, distances, overlapMinutes, fullEquipmentDatabase, manualEx, compatibilityMatrix, (p) => setProgress(prev => ({ ...p, totalRequested: reqTotal, status: p.status || prev.status })), undefined, null, equipmentOverrides, tvStates, tvRegion, wmasState);
             setFestivalActs(plan); setOptimizationReport(report);
             setIsHudMinimized(false);
-        } catch (e) { console.error(e); } finally { setIsGenerating(false); }
+        } catch (e) { console.error(e); } finally { 
+            setIsGenerating(false); 
+            if (setIsCalculating) setIsCalculating(false);
+        }
     };
 
     const handleAnalyzeDiagnostic = () => {
@@ -1296,11 +1335,11 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
 
     const SortIcon = ({ field }: { field: keyof PlanRow }) => {
         if (ledgerSort.field !== field || !ledgerSort.direction) return <span className="ml-1 opacity-20">⇅</span>;
-        return <span className="ml-1 text-cyan-400 font-bold">{ledgerSort.direction === 'asc' ? '▲' : '▼'}</span>;
+        return <span className="ml-1 text-cyan-400 font-bold">{ledgerSort.direction === 'asc' ? '↑' : '↓'}</span>;
     };
 
     return (
-        <div className="space-y-6 relative pb-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative pb-20">
             {isConverterOpen && (
                 <ExcelToCsvConverter 
                     onClose={() => setIsConverterOpen(false)} 
@@ -1309,10 +1348,9 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 />
             )}
             
-            {/* Removed floating Command Center HUD */}
-
-            <Card className="!p-4 !bg-slate-900 border-2 border-indigo-500/40 shadow-2xl relative z-10">
-                <div className="flex flex-col xl:flex-row justify-between items-stretch gap-6 mb-6 pb-6 border-b border-white/5">
+            {/* TOP SECTION: SETUP & TOPOLOGY */}
+            <Card className="lg:col-span-12 !p-4 !bg-slate-900 border-2 border-indigo-500/40 shadow-2xl relative z-10">
+                <div className="flex flex-col xl:flex-row justify-between items-stretch gap-6">
                     <div className="flex-1 space-y-4">
                         <div className="flex justify-between items-center">
                             <CardTitle className="!mb-0 text-2xl">Festival Setup & Topology</CardTitle>
@@ -1355,120 +1393,142 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                             <div>
                                 <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Manual Exclusions (MHz)</label>
                                 <input value={manualExclusions} onChange={e => setManualExclusions(e.target.value)} placeholder="e.g. 500-505, 606.5-608" className="w-full bg-slate-950 border border-slate-700 p-2 rounded text-xs font-mono text-slate-300" />
+                                
+                                {parsedExclusions.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {parsedExclusions.map((zone, idx) => (
+                                            <div key={idx} className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 rounded-full px-2 py-0.5 text-[9px] font-black text-rose-400">
+                                                <span>{zone.min.toFixed(3)}-{zone.max.toFixed(3)}</span>
+                                                <button 
+                                                    onClick={() => handleExclusionZoneRemove(idx)}
+                                                    className="hover:text-white transition-colors ml-1"
+                                                >
+                                                    &times;
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button 
+                                            onClick={() => setManualExclusions('')}
+                                            className="text-[8px] text-slate-500 hover:text-rose-400 uppercase font-black tracking-widest transition-colors"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-cyan-400">📍 Stage Distance Matrix (m)</h4>
-                            <div className="flex bg-slate-950 border border-indigo-500/30 rounded-lg p-1 items-center gap-2">
-                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-2">Global Separation:</span>
-                                <input 
-                                    type="number" 
-                                    value={globalDistInput} 
-                                    onChange={e => setGlobalDistInput(e.target.value)}
-                                    className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-xs font-mono text-cyan-400 text-center outline-none" 
-                                />
-                                <button 
-                                    onClick={handleApplyGlobalDistance}
-                                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded transition-colors"
-                                >
-                                    Apply All
-                                </button>
-                            </div>
-                        </div>
-                        <div className="overflow-x-auto rounded-xl border border-slate-700 bg-black/20">
-                            <table className="w-full text-[10px] text-center border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-950">
-                                        <th className="p-3 border border-slate-800"></th>
-                                        {zoneConfigs.map((z, i) => <th key={i} className="p-3 border border-slate-800 text-slate-500 font-black">{z.name}</th>)}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {distances.map((row, rIdx) => (
-                                        <tr key={rIdx}>
-                                            <th className="p-3 border border-slate-800 bg-slate-950 text-slate-500 font-black text-left">{zoneConfigs[rIdx]?.name}</th>
-                                            {row.map((val, cIdx) => (
-                                                <td key={cIdx} className="p-0 border border-slate-800">
-                                                    {rIdx === cIdx ? <div className="h-10 bg-slate-900/50" /> : <input type="number" value={val} onChange={e => {
-                                                        const next = [...distances.map(r => [...r])];
-                                                        next[rIdx][cIdx] = parseInt(e.target.value) || 0;
-                                                        if (rIdx !== cIdx) next[cIdx][rIdx] = next[rIdx][cIdx];
-                                                        setDistances(next);
-                                                    }} className="w-full h-10 bg-transparent text-center font-mono text-cyan-400 outline-none focus:bg-indigo-600/10" />}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400">⛓️ Manual Compatibility Links</h4>
-                        <div className="overflow-x-auto rounded-xl border border-slate-700 bg-black/20">
-                            <table className="w-full text-[10px] text-center border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-950">
-                                        <th className="p-3 border border-slate-800"></th>
-                                        {zoneConfigs.map((z, i) => <th key={i} className="p-3 border border-slate-800 text-slate-500 font-black">{z.name}</th>)}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {compatibilityMatrix.map((row, rIdx) => (
-                                        <tr key={rIdx}>
-                                            <th className="p-3 border border-slate-800 bg-slate-950 text-slate-500 font-black text-left">{zoneConfigs[rIdx]?.name}</th>
-                                            {row.map((val, cIdx) => (
-                                                <td key={cIdx} className="p-3 border border-slate-800 text-center">{rIdx === cIdx ? '—' : <input type="checkbox" checked={val} onChange={() => {
-                                                    const next = compatibilityMatrix.map(r => [...r]);
-                                                    next[rIdx][cIdx] = !next[rIdx][cIdx];
-                                                    if (rIdx !== cIdx) next[cIdx][rIdx] = next[rIdx][cIdx];
-                                                    setCompatibilityMatrix(next);
-                                                }} className="w-4 h-4 accent-indigo-500" />}</td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
                         </div>
                     </div>
                 </div>
             </Card>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-                <Card className="relative z-10 h-full">
+            {/* BENTO GRID: ANALYSIS & PARAMETERS */}
+            <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="md:col-span-1 !hover:translate-y-0">
                     <div className="flex justify-between items-center mb-4">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-cyan-400">📍 Stage Distance Matrix (m)</h4>
+                        <div className="flex bg-slate-950 border border-indigo-500/30 rounded-lg p-1 items-center gap-2">
+                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-2">Global:</span>
+                            <input 
+                                type="number" 
+                                value={globalDistInput} 
+                                onChange={e => setGlobalDistInput(e.target.value)}
+                                className="w-10 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-[10px] font-mono text-cyan-400 text-center outline-none" 
+                            />
+                            <button 
+                                onClick={handleApplyGlobalDistance}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white text-[7px] font-black uppercase px-1.5 py-1 rounded transition-colors"
+                            >
+                                Apply
+                            </button>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-slate-700 bg-black/20 custom-scrollbar">
+                        <table className="w-full text-[10px] text-center border-collapse">
+                            <thead>
+                                <tr className="bg-slate-950">
+                                    <th className="p-2 border border-slate-800"></th>
+                                    {zoneConfigs.map((z, i) => <th key={i} className="p-2 border border-slate-800 text-slate-500 font-black">{z.name}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {distances.map((row, rIdx) => (
+                                    <tr key={rIdx}>
+                                        <th className="p-2 border border-slate-800 bg-slate-950 text-slate-500 font-black text-left">{zoneConfigs[rIdx]?.name}</th>
+                                        {row.map((val, cIdx) => (
+                                            <td key={cIdx} className="p-0 border border-slate-800">
+                                                {rIdx === cIdx ? <div className="h-8 bg-slate-900/50" /> : <input type="number" value={val} onChange={e => {
+                                                    const next = [...distances.map(r => [...r])];
+                                                    next[rIdx][cIdx] = parseInt(e.target.value) || 0;
+                                                    if (rIdx !== cIdx) next[cIdx][rIdx] = next[rIdx][cIdx];
+                                                    setDistances(next);
+                                                }} className="w-full h-8 bg-transparent text-center font-mono text-cyan-400 outline-none focus:bg-indigo-600/10" />}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+
+                <Card className="md:col-span-1 !hover:translate-y-0">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">⛓️ Manual Compatibility Links</h4>
+                    <div className="overflow-x-auto rounded-xl border border-slate-700 bg-black/20 custom-scrollbar">
+                        <table className="w-full text-[10px] text-center border-collapse">
+                            <thead>
+                                <tr className="bg-slate-950">
+                                    <th className="p-2 border border-slate-800"></th>
+                                    {zoneConfigs.map((z, i) => <th key={i} className="p-2 border border-slate-800 text-slate-500 font-black">{z.name}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {compatibilityMatrix.map((row, rIdx) => (
+                                    <tr key={rIdx}>
+                                        <th className="p-2 border border-slate-800 bg-slate-950 text-slate-500 font-black text-left">{zoneConfigs[rIdx]?.name}</th>
+                                        {row.map((val, cIdx) => (
+                                            <td key={cIdx} className="p-2 border border-slate-800 text-center">{rIdx === cIdx ? '—' : <input type="checkbox" checked={val} onChange={() => {
+                                                const next = compatibilityMatrix.map(r => [...r]);
+                                                next[rIdx][cIdx] = !next[rIdx][cIdx];
+                                                if (rIdx !== cIdx) next[cIdx][rIdx] = next[rIdx][cIdx];
+                                                setCompatibilityMatrix(next);
+                                            }} className="w-4 h-4 accent-indigo-500" />}</td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+
+                <Card className="md:col-span-2 !hover:translate-y-0">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                         <div>
                             <CardTitle className="!mb-0 text-base">📺 Quad-State TV Grid</CardTitle>
                             <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tighter mt-1">Define protected whitespace. Click to cycle states.</p>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex gap-3 text-[8px] font-black uppercase overflow-x-auto pb-1 scrollbar-hide">
-                                <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span className="text-slate-400">Avail</span></div>
-                                <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-sky-400 border border-sky-300" /> <span className="text-sky-400">Mic Only</span></div>
-                                <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-amber-500 border border-amber-400" /> <span className="text-amber-500">IEM</span></div>
-                                <div className="flex items-center gap-1.5 whitespace-nowrap"><div className="w-2 h-2 rounded bg-rose-600 border border-rose-500" /> <span className="text-rose-500">Blocked</span></div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex gap-2 text-[7px] font-black uppercase">
+                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span>Avail</span></div>
+                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded bg-sky-400 border border-sky-300" /> <span>Mic</span></div>
+                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded bg-amber-500 border border-amber-400" /> <span>IEM</span></div>
+                                <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded bg-rose-600 border border-rose-500" /> <span>Off</span></div>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={handleBlockAllTvChannels} className="text-[9px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
-                                <button onClick={handleClearTv} className="text-[9px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded hover:bg-slate-700 hover:text-white transition-all">Clear All</button>
+                            <div className="flex gap-1.5">
+                                <button onClick={handleBlockAllTvChannels} className="text-[8px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.5 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
+                                <button onClick={handleClearTv} className="text-[8px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-700 hover:text-white transition-all">Clear</button>
                             </div>
-                            <select value={tvRegion} onChange={e => setTvRegion(e.target.value as any)} className="bg-slate-800 text-xs border border-slate-700 rounded px-2 py-1 text-slate-200">
-                                <option value="uk">UK (8MHz)</option>
-                                <option value="us">US (6MHz)</option>
+                            <select value={tvRegion} onChange={e => setTvRegion(e.target.value as any)} className="bg-slate-800 text-[9px] border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 font-bold uppercase">
+                                <option value="uk">UK</option>
+                                <option value="us">US</option>
                             </select>
                         </div>
                     </div>
-                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2 p-2 bg-slate-950/30 rounded-xl">
+                    <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5 p-2 bg-slate-950/30 rounded-xl">
                         {Object.entries(tvRegion === 'uk' ? UK_TV_CHANNELS : US_TV_CHANNELS).map(([chStr, [start, end]]) => {
                             const ch = parseInt(chStr);
                             const state = tvStates[ch] || 'available';
                             
-                            let channelClasses = 'p-1.5 text-center rounded-lg border-2 transition-all cursor-pointer select-none ';
+                            let channelClasses = 'p-1 text-center rounded border transition-all cursor-pointer select-none ';
                             if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
                             else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
                             else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
@@ -1476,20 +1536,16 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
 
                             return (
                                 <button key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses}>
-                                    <div className={`text-[10px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>CH {ch}</div>
-                                    <div className={`text-[8px] font-mono tracking-tighter ${state === 'available' ? 'text-slate-500' : 'text-white/60'}`}>{start}-{end}</div>
-                                    <div className={`mt-1 text-[7px] font-black uppercase ${state === 'available' ? 'text-white/10' : 'text-white/40'}`}>
-                                        {state === 'mic-only' && 'MIC'}
-                                        {state === 'iem-only' && 'IEM'}
-                                        {state === 'blocked' && 'OFF'}
-                                        {state === 'available' && '—'}
-                                    </div>
+                                    <div className={`text-[9px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>{ch}</div>
+                                    <div className={`text-[6px] font-mono tracking-tighter ${state === 'available' ? 'text-slate-500' : 'text-white/60'}`}>{start}</div>
                                 </button>
                             );
                         })}
                     </div>
                 </Card>
+            </div>
 
+            <div className="lg:col-span-4 flex flex-col gap-6">
                 <LiveScanAnalyzer 
                     scanData={scanData}
                     tvRegion={tvRegion}
@@ -1508,76 +1564,121 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     threshold={exclusionThreshold}
                     onThresholdChange={setExclusionThreshold}
                 />
-            </div>
-
-
-            {showTabulation && (
-                <Card className="!bg-black/40 border-cyan-500/30 shadow-[0_0_50px_rgba(34,211,238,0.1)] relative z-20 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="flex justify-between items-center mb-4">
-                        <CardTitle className="!mb-0 text-sm uppercase tracking-[0.2em] text-cyan-400">Authoritative Site RF Ledger</CardTitle>
-                        <button onClick={() => setShowTabulation(false)} className="text-slate-500 hover:text-white transition-colors text-xs font-bold uppercase tracking-widest">&times; Close Ledger</button>
-                    </div>
-                    <div className="max-h-[600px] overflow-auto rounded-xl border border-white/5 shadow-inner custom-scrollbar">
-                        <table className="w-full text-left border-collapse text-[10px]">
-                            <thead className="bg-slate-900 sticky top-0 z-10 shadow-sm">
-                                <tr className="uppercase font-black text-slate-500 border-b border-white/10">
-                                    <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('frequency')}>Freq <SortIcon field="frequency" /></th>
-                                    <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('label')}>Label <SortIcon field="label" /></th>
-                                    <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('type')}>Type <SortIcon field="type" /></th>
-                                    <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('stage')}>Stage <SortIcon field="stage" /></th>
-                                    <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('times')}>Date & Times <SortIcon field="times" /></th>
-                                    <th className="p-3">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {processedTabulatedPlan.map((row, i) => (
-                                    <tr key={i} className="hover:bg-white/5 transition-colors group">
-                                        <td className="p-3 font-mono text-cyan-400 font-black">{row.frequency.toFixed(3)}</td>
-                                        <td className="p-3 text-white font-bold">{row.label}</td>
-                                        <td className="p-3"><span className={`px-1.5 py-0.5 rounded-[4px] uppercase text-[8px] font-black border ${row.type === 'iem' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>{row.type}</span></td>
-                                        <td className="p-3 text-indigo-300 font-bold uppercase tracking-tighter">{row.stage}</td>
-                                        <td className="p-3 font-mono text-slate-400">{row.times}</td>
-                                        <td className="p-3 text-center text-sm">{row.status}</td>
-                                    </tr>
-                                ))}
-                                {processedTabulatedPlan.length === 0 && (
-                                    <tr>
-                                        <td colSpan={6} className="p-12 text-center text-slate-600 uppercase font-black tracking-widest italic opacity-50">No frequencies allocated in the site plan.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                
+                <Card className="bg-indigo-600/10 border-indigo-500/30 !p-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-3">Engine Controls</h4>
+                    <div className="space-y-3">
+                        <button 
+                            onClick={handleGenerate} 
+                            disabled={isGenerating}
+                            className={`w-full py-3 rounded-xl font-black uppercase tracking-[0.2em] transition-all ${generateButton} text-xs`}
+                        >
+                            {isGenerating ? 'Calculating Plan...' : '🚀 Generate Site Plan'}
+                        </button>
+                        <button 
+                            onClick={() => setShowTabulation(!showTabulation)}
+                            className={`w-full py-2.5 rounded-xl font-black uppercase tracking-widest transition-all ${secondaryButton} text-[10px]`}
+                        >
+                            {showTabulation ? 'Hide Site Ledger' : '📋 View Site Ledger'}
+                        </button>
                     </div>
                 </Card>
-            )}
-
-            <div className="bg-slate-800/50 p-2 rounded-lg flex flex-wrap gap-2 relative z-10">
-                {(['acts', 'constant', 'house'] as const).map(tab => {
-                    let styles = "";
-                    if (tab === 'acts') {
-                        styles = activeSubTab === tab 
-                            ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg' 
-                            : 'bg-indigo-900/20 border-indigo-500/20 text-indigo-400 hover:bg-indigo-900/40';
-                    } else if (tab === 'constant') {
-                        styles = activeSubTab === tab 
-                            ? 'bg-green-500 border-green-400 text-slate-950 shadow-lg' 
-                            : 'bg-green-900/20 border-green-500/20 text-green-400 hover:bg-green-900/40';
-                    } else if (tab === 'house') {
-                        styles = activeSubTab === tab 
-                            ? 'bg-blue-800 border-blue-600 text-white shadow-lg' 
-                            : 'bg-blue-900/20 border-blue-500/20 text-blue-400 hover:bg-blue-900/40';
-                    }
-                    return (
-                        <button key={tab} onClick={() => setActiveSubTab(tab)} className={`flex-1 py-2.5 rounded font-black uppercase tracking-widest text-[10px] transition-all border ${styles}`}>
-                            {tab === 'acts' && '🎤 Performing Acts'}
-                            {tab === 'constant' && '🛰️ Constant TX'}
-                            {tab === 'house' && '📡 House Systems'}
-                        </button>
-                    );
-                })}
             </div>
 
-            {/* TAB ACTIONS */}
+            {/* RESULTS & TABBED CONTENT */}
+            <div className="lg:col-span-12 space-y-6">
+                {showTabulation && (
+                    <Card className="!bg-black/40 border-cyan-500/30 shadow-[0_0_50px_rgba(34,211,238,0.1)] animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex justify-between items-center mb-4">
+                            <CardTitle className="!mb-0 text-sm uppercase tracking-[0.2em] text-cyan-400">Authoritative Site RF Ledger</CardTitle>
+                            <button onClick={() => setShowTabulation(false)} className="text-slate-500 hover:text-white transition-colors text-xs font-bold uppercase tracking-widest">&times; Close</button>
+                        </div>
+                        <div className="max-h-[600px] overflow-auto rounded-xl border border-white/5 shadow-inner custom-scrollbar">
+                            {/* Desktop Table View */}
+                            <table className="w-full text-left border-collapse text-[10px] hidden md:table">
+                                <thead className="bg-slate-900 sticky top-0 z-10 shadow-sm">
+                                    <tr className="uppercase font-black text-slate-500 border-b border-white/10">
+                                        <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('frequency')}>Freq <SortIcon field="frequency" /></th>
+                                        <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('label')}>Label <SortIcon field="label" /></th>
+                                        <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('type')}>Type <SortIcon field="type" /></th>
+                                        <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('stage')}>Stage <SortIcon field="stage" /></th>
+                                        <th className="p-3 cursor-pointer" onClick={() => handleSortToggle('times')}>Times <SortIcon field="times" /></th>
+                                        <th className="p-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {processedTabulatedPlan.map((row, i) => (
+                                        <tr key={i} id={`ledger-row-${row.id}`} className="hover:bg-white/5 transition-all duration-300 group">
+                                            <td className="p-3 font-mono text-cyan-400 font-black">{row.frequency.toFixed(3)}</td>
+                                            <td className="p-3 text-white font-bold">{row.label}</td>
+                                            <td className="p-3"><span className={`px-1.5 py-0.5 rounded-[4px] uppercase text-[8px] font-black border ${row.type === 'iem' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>{row.type}</span></td>
+                                            <td className="p-3 text-indigo-300 font-bold uppercase tracking-tighter">{row.stage}</td>
+                                            <td className="p-3 font-mono text-slate-400">{row.times}</td>
+                                            <td className="p-3 text-center text-sm">{row.status}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            {/* Mobile Card View */}
+                            <div className="md:hidden divide-y divide-white/5">
+                                {processedTabulatedPlan.map((row, i) => (
+                                    <div key={i} id={`ledger-card-${row.id}`} className="p-4 space-y-3 hover:bg-white/5 transition-all duration-300">
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-mono text-cyan-400 font-black text-sm">{row.frequency.toFixed(3)} MHz</span>
+                                            <span className={`px-1.5 py-0.5 rounded-[4px] uppercase text-[8px] font-black border ${row.type === 'iem' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>{row.type}</span>
+                                        </div>
+                                        <div>
+                                            <div className="text-white font-bold text-[11px] uppercase tracking-wide">{row.label}</div>
+                                            <div className="flex justify-between items-center mt-1">
+                                                <span className="text-indigo-300 font-black text-[9px] uppercase tracking-tighter">{row.stage}</span>
+                                                <span className="text-slate-500 font-mono text-[9px]">{row.times}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-1 border-t border-white/5">
+                                            <span className="text-[9px] text-slate-500 uppercase font-bold">Status</span>
+                                            <span className="text-sm">{row.status}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {processedTabulatedPlan.length === 0 && (
+                                <div className="p-12 text-center text-slate-600 uppercase font-black tracking-widest italic opacity-50">No frequencies allocated.</div>
+                            )}
+                        </div>
+                    </Card>
+                )}
+
+                <div className="bg-slate-800/50 p-2 rounded-2xl flex flex-wrap gap-2">
+                    {(['acts', 'constant', 'house'] as const).map(tab => {
+                        let styles = "";
+                        if (tab === 'acts') {
+                            styles = activeSubTab === tab 
+                                ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg' 
+                                : 'bg-indigo-900/20 border-indigo-500/20 text-indigo-400 hover:bg-indigo-900/40';
+                        } else if (tab === 'constant') {
+                            styles = activeSubTab === tab 
+                                ? 'bg-green-500 border-green-400 text-slate-950 shadow-lg' 
+                                : 'bg-green-900/20 border-green-500/20 text-green-400 hover:bg-green-900/40';
+                        } else if (tab === 'house') {
+                            styles = activeSubTab === tab 
+                                ? 'bg-blue-800 border-blue-600 text-white shadow-lg' 
+                                : 'bg-blue-900/20 border-blue-500/20 text-blue-400 hover:bg-blue-900/40';
+                        }
+                        return (
+                            <button key={tab} onClick={() => setActiveSubTab(tab)} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border ${styles}`}>
+                                {tab === 'acts' && '🎤 Performing Acts'}
+                                {tab === 'constant' && '🛰️ Constant TX'}
+                                {tab === 'house' && '📡 House Systems'}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* TAB ACTIONS & CONTENT LISTS */}
+            <div className="lg:col-span-12 space-y-6">
             {activeSubTab === 'acts' && (
                 <div className="space-y-4 mt-4">
                     <div className="flex gap-2">
@@ -1873,8 +1974,19 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 </div>
             )}
 
-            <div className="pt-6 relative z-0">
-                <SpectrumVisualizer frequencies={patchedAnalyzerFrequencies} scanData={scanData} title="Unified Site Spectral View" wmasState={wmasState} selectedWmasIds={selectedWmasIds} />
+            </div>
+
+            <div className="lg:col-span-12 pt-6 relative z-0">
+                <SpectrumVisualizer 
+                    frequencies={patchedAnalyzerFrequencies} 
+                    scanData={scanData} 
+                    title="Unified Site Spectral View" 
+                    wmasState={wmasState} 
+                    selectedWmasIds={selectedWmasIds}
+                    onFrequencyClick={handleFrequencyClick}
+                    onExclusionZoneAdd={handleExclusionZoneAdd}
+                    exclusionZones={parsedExclusions}
+                />
                 
                 <div className="mt-4 bg-slate-900 border border-indigo-500/20 p-4 rounded-xl shadow-lg">
                     <div className="flex flex-col gap-6">

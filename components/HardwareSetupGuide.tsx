@@ -9,21 +9,31 @@ export const HardwareSetupGuide: React.FC = () => {
                 <section>
                     <h3 className="text-sm font-bold text-indigo-400 uppercase mb-2">1. Prerequisites</h3>
                     <ul className="list-disc list-inside text-xs space-y-1 text-slate-400">
-                        <li>A TinySA or TinySA Ultra.</li>
-                        <li>A high-quality USB-C data cable (charging-only cables will not work).</li>
+                        <li>A TinySA, TinySA Ultra, or RF Explorer.</li>
+                        <li>A high-quality USB data cable (charging-only cables will not work).</li>
                         <li>A Chromium-based browser (Google Chrome, Microsoft Edge, Brave, or Opera).</li>
+                        <li>For RF Explorer: Ensure you have the Silicon Labs CP210x USB to UART Bridge drivers installed.</li>
                     </ul>
                 </section>
 
                 <section className="bg-rose-900/10 border border-rose-500/20 p-4 rounded-lg">
-                    <h3 className="text-sm font-bold text-rose-400 uppercase mb-2">⚠️ Mandatory TinySA Configuration</h3>
-                    <p className="text-xs text-slate-300 mb-2">For the app to communicate with your TinySA, it must be in <strong>USB mode</strong>.</p>
-                    <ol className="list-decimal list-inside text-xs space-y-1 text-slate-400">
-                        <li>On your TinySA screen, tap <strong>CONFIG</strong>.</li>
-                        <li>Tap <strong>SERIAL</strong>.</li>
-                        <li>Ensure it is set to <strong>USB</strong>.</li>
-                        <li>If it was set to "SERIAL", change it to "USB" and reboot the device if prompted.</li>
-                    </ol>
+                    <h3 className="text-sm font-bold text-rose-400 uppercase mb-2">⚠️ Mandatory Device Configuration</h3>
+                    <div className="space-y-4">
+                        <div>
+                            <p className="text-xs font-bold text-slate-200 mb-1">TinySA:</p>
+                            <p className="text-xs text-slate-300 mb-2">For the app to communicate with your TinySA, it must be in <strong>USB mode</strong>.</p>
+                            <ol className="list-decimal list-inside text-xs space-y-1 text-slate-400">
+                                <li>On your TinySA screen, tap <strong>CONFIG</strong>.</li>
+                                <li>Tap <strong>SERIAL</strong>.</li>
+                                <li>Ensure it is set to <strong>USB</strong>.</li>
+                                <li>If it was set to "SERIAL", change it to "USB" and reboot the device if prompted.</li>
+                            </ol>
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-slate-200 mb-1">RF Explorer:</p>
+                            <p className="text-xs text-slate-300 mb-2">Ensure your RF Explorer is powered on and connected via USB. The app uses a <strong>500,000 baud rate</strong> for communication.</p>
+                        </div>
+                    </div>
                 </section>
 
                 <section>

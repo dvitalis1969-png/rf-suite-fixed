@@ -40,6 +40,7 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
     { id: 'iemStudy', label: 'Proximity Simulator', category: 'toolkit' },
     { id: 'interference', label: 'Co-Channel Lab', category: 'toolkit' },
     { id: 'imdDemo', label: 'IMD Physics', category: 'toolkit' },
+    { id: 'frequencyForensics', label: 'Frequency Forensics', category: 'toolkit' },
     { id: 'diversityPlacement', label: 'Diversity', category: 'toolkit' },
     { id: 'linkBudget', label: 'Link Budget', category: 'toolkit' },
     { id: 'antennaDownTilt', label: 'Tilt Angle', category: 'toolkit' },

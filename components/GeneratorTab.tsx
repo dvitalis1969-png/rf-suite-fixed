@@ -87,6 +87,7 @@ interface GeneratorTabProps {
     tvRegion?: 'uk' | 'us';
     setTvRegion?: (region: 'uk' | 'us') => void;
     wmasState?: WMASState;
+    setIsCalculating?: (is: boolean) => void;
 }
 
 const buttonBase = "px-6 py-2.5 rounded-lg font-semibold uppercase tracking-wide transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed";
@@ -126,7 +127,8 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
     setTvChannelStates: setInitialTvStates,
     tvRegion: initialRegion = 'uk',
     setTvRegion: setInitialRegion,
-    wmasState
+    wmasState,
+    setIsCalculating
 }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -308,6 +310,7 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
 
     const handleGenerate = async () => {
         setIsLoading(true);
+        if (setIsCalculating) setIsCalculating(true);
         setDiagnostic(null);
         setProgress(0);
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -383,6 +386,7 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
             alert("An error occurred during site calculation.");
         } finally {
             setIsLoading(false);
+            if (setIsCalculating) setIsCalculating(false);
         }
     };
     
@@ -472,99 +476,115 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-12">
+            {/* LEFT COLUMN: INPUTS & CONFIGURATION */}
             <div className="lg:col-span-8 space-y-6">
-                <Card className="!hover:translate-y-0 !hover:shadow-xl border-2 border-indigo-500/20">
-                    <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <CardTitle className="!mb-0">✍️ Existing Site Frequencies</CardTitle>
-                            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Manual Constraints & Protected Channels</p>
-                        </div>
-                        <label className="flex items-center gap-3 cursor-pointer p-2 bg-green-500/10 rounded-lg border border-green-500/20">
-                            <input 
-                                type="checkbox" 
-                                checked={ignoreManualIMD} 
-                                onChange={e => setIgnoreManualIMD(e.target.checked)} 
-                                className="w-4 h-4 rounded accent-green-500" 
-                            />
-                            <div className="flex flex-col">
-                                <span className="text-white text-[10px] font-black uppercase tracking-tighter leading-none">Parameters Unknown</span>
-                                <span className="text-[8px] text-white/70 font-bold uppercase mt-0.5">Use Fundamental Spacing Only</span>
+                {/* BENTO SECTION: SITE ENVIRONMENT */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="!hover:translate-y-0 !hover:shadow-xl border-2 border-indigo-500/20 md:col-span-2">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                            <div>
+                                <CardTitle className="!mb-0">✍️ Existing Site Frequencies</CardTitle>
+                                <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Manual Constraints & Protected Channels</p>
                             </div>
-                        </label>
-                    </div>
-
-                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 mb-6 custom-scrollbar">
-                        {manualConstraints.map((freq, i) => (
-                            <div key={freq.id || i} className="grid grid-cols-[auto,1fr,2fr,auto,auto] gap-3 items-center bg-slate-900/50 p-2.5 rounded-xl border border-white/5 group hover:border-indigo-500/30 transition-all">
-                                <label className="text-[9px] text-slate-600 font-mono w-6 text-center font-bold">{i + 1}</label>
-                                <ManualFreqInput 
-                                    value={freq.value} 
-                                    onChange={val => updateManualConstraint(i, 'value', val)}
-                                    className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-indigo-300 text-xs font-black font-mono focus:ring-1 focus:ring-indigo-500 outline-none shadow-inner"
-                                />
+                            <label className="flex items-center gap-3 cursor-pointer p-2 bg-green-500/10 rounded-lg border border-green-500/20 self-end sm:self-auto">
                                 <input 
-                                    type="text" 
-                                    placeholder="Label (e.g. Site Mic 1)" 
-                                    value={freq.label || ''} 
-                                    onChange={e => updateManualConstraint(i, 'label', e.target.value)}
-                                    className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-300 text-xs font-bold w-full"
+                                    type="checkbox" 
+                                    checked={ignoreManualIMD} 
+                                    onChange={e => setIgnoreManualIMD(e.target.checked)} 
+                                    className="w-4 h-4 rounded accent-green-500" 
                                 />
-                                <select 
-                                    value={freq.type || 'mic'} 
-                                    onChange={e => updateManualConstraint(i, 'type', e.target.value)}
-                                    className="bg-slate-800 border border-slate-700 rounded p-2 text-slate-400 text-[9px] font-black uppercase tracking-tighter"
-                                >
-                                    <option value="mic">Mic</option><option value="iem">IEM</option><option value="generic">Gen</option>
-                                </select>
-                                <button onClick={() => removeManualConstraint(i)} className="text-red-400/50 hover:text-red-400 transition-colors p-1 text-2xl leading-none">&times;</button>
-                            </div>
-                        ))}
-                        {manualConstraints.length === 0 && (
-                            <div className="py-10 text-center border-2 border-dashed border-white/5 rounded-2xl bg-black/20">
-                                <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No Existing Site Frequencies Entered</p>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="p-4 bg-slate-950/50 border border-white/5 rounded-2xl mb-4">
-                        <div className="flex justify-between items-center mb-3">
-                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Site Protection Parameters</span>
-                            {ignoreManualIMD && <span className="text-[8px] text-green-400 font-black uppercase">IMD Disabled</span>}
+                                <div className="flex flex-col">
+                                    <span className="text-white text-[10px] font-black uppercase tracking-tighter leading-none">Parameters Unknown</span>
+                                    <span className="text-[8px] text-white/70 font-bold uppercase mt-0.5">Use Fundamental Spacing Only</span>
+                                </div>
+                            </label>
                         </div>
-                        <div className={`grid grid-cols-3 gap-4 transition-opacity ${ignoreManualIMD ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
-                            <div className="flex flex-col">
-                                <label className="text-[8px] text-slate-500 font-black uppercase tracking-tighter text-center mb-1">Fundamental</label>
-                                <input type="number" step="0.001" value={siteThresholds.fundamental} onChange={e => updateSiteThresholds('fundamental', e.target.value)} className="bg-slate-900 border border-indigo-500/30 rounded text-xs text-amber-300 text-center font-mono py-2" />
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-[8px] text-slate-500 font-black uppercase tracking-tighter text-center mb-1">2-Tone IMD</label>
-                                <input type="number" step="0.001" value={siteThresholds.twoTone} onChange={e => updateSiteThresholds('twoTone', e.target.value)} className="bg-slate-900 border border-indigo-500/30 rounded text-xs text-amber-300 text-center font-mono py-2" />
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-[8px] text-slate-500 font-black uppercase tracking-tighter text-center mb-1">3-Tone IMD</label>
-                                <input type="number" step="0.001" value={siteThresholds.threeTone} onChange={e => updateSiteThresholds('threeTone', e.target.value)} className="bg-slate-900 border border-indigo-500/30 rounded text-xs text-amber-300 text-center font-mono py-2" />
-                            </div>
-                        </div>
-                    </div>
 
-                    <button onClick={addManualConstraint} className={`w-full py-3 text-[10px] font-black uppercase tracking-[0.2em] ${greenButton}`}>+ ADD SITE FREQUENCY FOR PROTECTION</button>
-                </Card>
+                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 mb-6 custom-scrollbar">
+                            {manualConstraints.map((freq, i) => (
+                                <div key={freq.id || i} className="flex flex-col sm:grid sm:grid-cols-[auto,1fr,2fr,auto,auto] gap-3 items-start sm:items-center bg-slate-900/50 p-3 sm:p-2.5 rounded-xl border border-white/5 group hover:border-indigo-500/30 transition-all relative">
+                                    <div className="flex items-center justify-between w-full sm:w-auto">
+                                        <label className="text-[9px] text-slate-600 font-mono w-6 text-center font-bold">{i + 1}</label>
+                                        <button onClick={() => removeManualConstraint(i)} className="sm:hidden text-red-400/50 hover:text-red-400 transition-colors p-1 text-2xl leading-none">&times;</button>
+                                    </div>
+                                    <div className="w-full sm:w-auto">
+                                        <label className="sm:hidden text-[8px] text-slate-500 uppercase font-black mb-1 block">Frequency</label>
+                                        <ManualFreqInput 
+                                            value={freq.value} 
+                                            onChange={val => updateManualConstraint(i, 'value', val)}
+                                            className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-indigo-300 text-xs font-black font-mono focus:ring-1 focus:ring-indigo-500 outline-none shadow-inner w-full sm:w-28"
+                                        />
+                                    </div>
+                                    <div className="w-full">
+                                        <label className="sm:hidden text-[8px] text-slate-500 uppercase font-black mb-1 block">Label</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Label (e.g. Site Mic 1)" 
+                                            value={freq.label || ''} 
+                                            onChange={e => updateManualConstraint(i, 'label', e.target.value)}
+                                            className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-300 text-xs font-bold w-full"
+                                        />
+                                    </div>
+                                    <div className="w-full sm:w-auto">
+                                        <label className="sm:hidden text-[8px] text-slate-500 uppercase font-black mb-1 block">Type</label>
+                                        <select 
+                                            value={freq.type || 'mic'} 
+                                            onChange={e => updateManualConstraint(i, 'type', e.target.value)}
+                                            className="bg-slate-800 border border-slate-700 rounded p-2 text-slate-400 text-[9px] font-black uppercase tracking-tighter w-full sm:w-auto"
+                                        >
+                                            <option value="mic">Mic</option><option value="iem">IEM</option><option value="generic">Gen</option>
+                                        </select>
+                                    </div>
+                                    <button onClick={() => removeManualConstraint(i)} className="hidden sm:block text-red-400/50 hover:text-red-400 transition-colors p-1 text-2xl leading-none">&times;</button>
+                                </div>
+                            ))}
+                            {manualConstraints.length === 0 && (
+                                <div className="py-10 text-center border-2 border-dashed border-white/5 rounded-2xl bg-black/20">
+                                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No Existing Site Frequencies Entered</p>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-4 bg-slate-950/50 border border-white/5 rounded-2xl mb-4">
+                            <div className="flex justify-between items-center mb-3">
+                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Site Protection Parameters</span>
+                                {ignoreManualIMD && <span className="text-[8px] text-green-400 font-black uppercase">IMD Disabled</span>}
+                            </div>
+                            <div className={`grid grid-cols-3 gap-4 transition-opacity ${ignoreManualIMD ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+                                <div className="flex flex-col">
+                                    <label className="text-[8px] text-slate-500 font-black uppercase tracking-tighter text-center mb-1">Fundamental</label>
+                                    <input type="number" step="0.001" value={siteThresholds.fundamental} onChange={e => updateSiteThresholds('fundamental', e.target.value)} className="bg-slate-900 border border-indigo-500/30 rounded text-xs text-amber-300 text-center font-mono py-2" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <label className="text-[8px] text-slate-500 font-black uppercase tracking-tighter text-center mb-1">2-Tone IMD</label>
+                                    <input type="number" step="0.001" value={siteThresholds.twoTone} onChange={e => updateSiteThresholds('twoTone', e.target.value)} className="bg-slate-900 border border-indigo-500/30 rounded text-xs text-amber-300 text-center font-mono py-2" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <label className="text-[8px] text-slate-500 font-black uppercase tracking-tighter text-center mb-1">3-Tone IMD</label>
+                                    <input type="number" step="0.001" value={siteThresholds.threeTone} onChange={e => updateSiteThresholds('threeTone', e.target.value)} className="bg-slate-900 border border-indigo-500/30 rounded text-xs text-amber-300 text-center font-mono py-2" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onClick={addManualConstraint} className={`w-full py-3 text-[10px] font-black uppercase tracking-[0.2em] ${greenButton}`}>+ ADD SITE FREQUENCY FOR PROTECTION</button>
+                    </Card>
+                </div>
 
                 <Card className="!hover:translate-y-0 !hover:shadow-xl">
                     <CardTitle>📡 Batch Allocations</CardTitle>
                     <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-3 custom-scrollbar">
                         {requests.map((req, idx) => (
                             <div key={req.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-700 relative group transition-all hover:border-blue-500/30">
-                                <div className="flex justify-between items-center mb-4">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                                      <input
                                         type="text"
                                         value={req.label || ''}
                                         onChange={e => handleUpdateRequest(Number(req.id), 'label', e.target.value)}
                                         placeholder={`Batch Group #${idx + 1}`}
-                                        className="font-black text-lg text-blue-300 bg-transparent outline-none focus:border-b border-blue-400 flex-grow mr-4 uppercase tracking-tight"
+                                        className="font-black text-lg text-blue-300 bg-transparent outline-none focus:border-b border-blue-400 flex-grow mr-4 uppercase tracking-tight w-full sm:w-auto"
                                     />
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center justify-between w-full sm:w-auto gap-3">
                                         {fullEquipmentDatabase[req.key]?.recommendedThresholds?.threeTone === 0 && (
                                             <label className="flex items-center gap-2 cursor-pointer bg-cyan-600/10 border border-cyan-500/30 px-3 py-1.5 rounded-lg">
                                                 <span className="text-cyan-300 text-[10px] font-black uppercase tracking-widest">HD Mode</span>
@@ -575,8 +595,8 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                                    <div className="md:col-span-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                                    <div className="sm:col-span-2">
                                         <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Hardware Profile</label>
                                         <select value={req.key} onChange={e => handleUpdateRequest(Number(req.id), 'key', e.target.value)} className="w-full bg-slate-800 border border-blue-500/30 rounded-lg p-2.5 text-slate-200 text-sm">
                                             <optgroup label="General"><option value="custom">Custom Range / Generic</option></optgroup>
@@ -620,7 +640,7 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                                 )}
 
                                 <div className="border-t border-white/5 pt-4">
-                                    <div className="flex items-center justify-between mb-3">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-3">
                                         <label className="flex items-center gap-2 cursor-pointer group">
                                             <input type="checkbox" checked={req.useManualParams} onChange={e => handleUpdateRequest(Number(req.id), 'useManualParams', e.target.checked)} className="w-4 h-4 rounded accent-amber-500" />
                                             <span className={`text-[10px] font-black uppercase tracking-widest ${req.useManualParams ? 'text-amber-400' : 'text-slate-500 group-hover:text-slate-400'}`}>Bespoke IMD Spacing For This Group</span>
@@ -675,67 +695,14 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                     <button onClick={handleAddRequest} className={`w-full mt-6 py-4 rounded-xl font-black ${primaryButton} transition-all uppercase tracking-widest`}>+ ADD NEW HARDWARE GROUP</button>
                 </Card>
             </div>
+
+            {/* RIGHT COLUMN: RESULTS & SITE PARAMS */}
             <div className="lg:col-span-4 flex flex-col gap-6">
-                <Card>
-                    <CardTitle>⚙️ Site Parameters</CardTitle>
-                    <div className="space-y-6">
-                        <div>
-                            <label className="text-xs text-slate-500 uppercase font-black mb-2 block">Custom Exclusions (MHz)</label>
-                            <textarea value={exclusions} onChange={e => setExclusions(e.target.value)} rows={3} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-200 text-sm font-mono" placeholder="e.g. 482.000-485.500" />
-                        </div>
-                        
-                        <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-700">
-                            <div className="flex flex-col gap-3 mb-4">
-                                <label className="text-xs text-slate-300 font-bold uppercase block">Quad-State TV Grid</label>
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div className="flex gap-3 text-[8px] font-black uppercase">
-                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span className="text-slate-400">Avail</span></div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-sky-400 border border-sky-300" /> <span className="text-sky-400">Mic</span></div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-amber-500 border border-amber-400" /> <span className="text-amber-500">IEM</span></div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-rose-600 border border-rose-500" /> <span className="text-rose-500">Off</span></div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={handleBlockAllTvChannels} className="text-[9px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
-                                        <button onClick={clearTv} className="text-[9px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded hover:bg-slate-700 hover:text-white transition-all">Clear All</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-4 gap-2">
-                                {Object.entries(currentTvChannels).map(([chStr, range]) => {
-                                    const ch = Number(chStr);
-                                    const state = tvStates[ch] || 'available';
-                                    
-                                    let channelClasses = 'p-1.5 text-center rounded-lg border-2 transition-all cursor-pointer select-none ';
-                                    if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
-                                    else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
-                                    else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
-                                    else channelClasses += 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50';
-
-                                    return (
-                                        <button key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses} title={`${range[0]}-${range[1]} MHz`}>
-                                            <div className={`text-[10px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>{ch}</div>
-                                            <div className="mt-0.5 text-[7px] font-black uppercase text-white/40">
-                                                {state === 'mic-only' && 'MIC'}
-                                                {state === 'iem-only' && 'IEM'}
-                                                {state === 'blocked' && 'OFF'}
-                                                {state === 'available' && '—'}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                     <button onClick={handleGenerate} disabled={isLoading} className={`w-full mt-8 ${generateButton} !py-4 text-lg font-black tracking-[0.2em]`}>
-                        {isLoading ? `SEEKING COEXISTENCE...` : 'CALCULATE UNIFIED PLAN'}
-                     </button>
-                </Card>
-
-                <Card className="flex-grow !hover:translate-y-0 !hover:shadow-xl overflow-visible">
-                    <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
+                <Card className="flex-grow !hover:translate-y-0 !hover:shadow-xl overflow-visible order-1 lg:order-none">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-white/5 pb-3">
                         <CardTitle className="!mb-0 text-lg font-black flex items-center gap-2"><span>📊</span> Plan Yield</CardTitle>
                         {generatedFrequencies && (
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <button onClick={handleLockAll} className="text-[9px] font-black tracking-widest px-3 py-1.5 rounded-lg border-2 border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-600 hover:text-white transition-all">LOCK ALL</button>
                                 <button onClick={handleUnlockAll} className="text-[9px] font-black tracking-widest px-3 py-1.5 rounded-lg border-2 border-slate-500/50 bg-slate-500/10 text-slate-400 hover:bg-slate-600 hover:text-white transition-all">UNLOCK ALL</button>
                                 <div className="relative">
@@ -798,6 +765,61 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                     ) : (
                         <Placeholder title="Engine Ready" message="Configure site constraints and batch groups then click 'CALCULATE UNIFIED PLAN'." />
                     )}
+                </Card>
+
+                <Card className="order-2 lg:order-none">
+                    <CardTitle>⚙️ Site Parameters</CardTitle>
+                    <div className="space-y-6">
+                        <div>
+                            <label className="text-xs text-slate-500 uppercase font-black mb-2 block">Custom Exclusions (MHz)</label>
+                            <textarea value={exclusions} onChange={e => setExclusions(e.target.value)} rows={3} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-200 text-sm font-mono" placeholder="e.g. 482.000-485.500" />
+                        </div>
+                        
+                        <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-700">
+                            <div className="flex flex-col gap-3 mb-4">
+                                <label className="text-xs text-slate-300 font-bold uppercase block">Quad-State TV Grid</label>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex gap-3 text-[8px] font-black uppercase">
+                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span className="text-slate-400">Avail</span></div>
+                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-sky-400 border border-sky-300" /> <span className="text-sky-400">Mic</span></div>
+                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-amber-500 border border-amber-400" /> <span className="text-amber-500">IEM</span></div>
+                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-rose-600 border border-rose-500" /> <span className="text-rose-500">Off</span></div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={handleBlockAllTvChannels} className="text-[9px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
+                                        <button onClick={clearTv} className="text-[9px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded hover:bg-slate-700 hover:text-white transition-all">Clear All</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-4 gap-2">
+                                {Object.entries(currentTvChannels).map(([chStr, range]) => {
+                                    const ch = Number(chStr);
+                                    const state = tvStates[ch] || 'available';
+                                    
+                                    let channelClasses = 'p-1.5 text-center rounded-lg border-2 transition-all cursor-pointer select-none ';
+                                    if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
+                                    else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
+                                    else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
+                                    else channelClasses += 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50';
+
+                                    return (
+                                        <button key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses} title={`${range[0]}-${range[1]} MHz`}>
+                                            <div className={`text-[10px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>{ch}</div>
+                                            <div className="mt-0.5 text-[7px] font-black uppercase text-white/40">
+                                                {state === 'mic-only' && 'MIC'}
+                                                {state === 'iem-only' && 'IEM'}
+                                                {state === 'blocked' && 'OFF'}
+                                                {state === 'available' && '—'}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                     <button onClick={handleGenerate} disabled={isLoading} className={`w-full mt-8 ${generateButton} !py-4 text-lg font-black tracking-[0.2em]`}>
+                        {isLoading ? `SEEKING COEXISTENCE...` : 'CALCULATE UNIFIED PLAN'}
+                     </button>
                 </Card>
             </div>
         </div>

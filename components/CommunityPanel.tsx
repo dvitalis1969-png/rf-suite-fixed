@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Minus, Maximize2, GripVertical, MessageCircle } from 'lucide-react';
 import ChatWidget from './ChatWidget';
 import PresenceIndicator from './PresenceIndicator';
-import UserPresenceList from './UserPresenceList';
 import { collection, query, onSnapshot, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
@@ -10,10 +9,12 @@ import { handleFirestoreError, OperationType } from '../src/utils/firestoreError
 import { User } from '../types';
 
 const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }> = ({ projectId, user }) => {
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true);
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [size, setSize] = useState({ width: 384, height: 600 });
   const [unreadDMs, setUnreadDMs] = useState<Record<string, boolean>>({});
+  const [status, setStatus] = useState('');
+  const [isEditingStatus, setIsEditingStatus] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const isResizing = useRef(false);
@@ -97,7 +98,8 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
         await setDoc(globalRef, { 
           name,
           lastSeen: serverTimestamp(),
-          status: 'online'
+          status: 'online',
+          statusMessage: status
         }, { merge: true });
 
         // Project presence
@@ -107,7 +109,8 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
           userName: name,
           lastSeen: serverTimestamp(),
           projectId: String(projectId),
-          status: 'online'
+          status: 'online',
+          statusMessage: status
         }, { merge: true });
       } catch (err) {
         console.error("Error updating presence:", err);
@@ -126,7 +129,7 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
       setDoc(globalRef, { status: 'offline', lastSeen: serverTimestamp() }, { merge: true }).catch(console.error);
       setDoc(projectRef, { status: 'offline', lastSeen: serverTimestamp() }, { merge: true }).catch(console.error);
     };
-  }, [projectId, auth.currentUser?.uid]);
+  }, [projectId, auth.currentUser?.uid, status]);
 
   const totalUnread = Object.keys(unreadDMs).length;
 
@@ -141,19 +144,23 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
         height: isMinimized ? '48px' : `${size.height}px`,
         zIndex: 100
       }}
-      className={`bg-slate-950 border border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col ${isMinimized ? 'transition-all duration-300' : ''}`}
+      className={`rounded-xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${
+        isMinimized 
+          ? 'bg-indigo-950/90 border-2 border-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.4)] scale-105' 
+          : 'bg-slate-800 border border-slate-500 shadow-[0_0_40px_rgba(0,0,0,0.6)]'
+      }`}
     >
       {isMinimized ? (
         <button 
           onClick={() => setIsMinimized(false)}
           onMouseDown={handleMouseDown}
-          className="w-full h-full flex flex-col items-center justify-center relative group hover:bg-slate-900 transition-colors"
+          className="w-full h-full flex flex-col items-center justify-center relative group hover:bg-indigo-900/50 transition-colors"
           title="Open The Intercom"
         >
-          <span className="text-[10px] font-black text-indigo-400 group-hover:text-indigo-300 transition-colors tracking-tighter">INT</span>
+          <span className="text-[11px] font-black text-white group-hover:text-indigo-200 transition-colors tracking-tighter drop-shadow-md">INT</span>
           {totalUnread > 0 && (
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border-2 border-slate-950 animate-pulse">
-              <span className="text-[8px] font-bold text-white">{totalUnread}</span>
+            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center border-2 border-indigo-950 animate-pulse shadow-lg">
+              <span className="text-[9px] font-black text-white">{totalUnread}</span>
             </div>
           )}
           <div className="absolute bottom-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -166,10 +173,10 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
             className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize z-50"
             onMouseDown={handleResizeMouseDown}
           />
-          <div className="flex justify-between items-center mb-2 cursor-grab shrink-0" onMouseDown={handleMouseDown}>
+          <div className="flex justify-between items-center mb-3 cursor-grab shrink-0 bg-slate-700/30 -mx-4 -mt-4 p-3 border-b border-white/5" onMouseDown={handleMouseDown}>
             <div className="flex items-center gap-2">
-              <GripVertical className="w-4 h-4 text-slate-600" />
-              <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+              <GripVertical className="w-4 h-4 text-slate-400" />
+              <h3 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest flex items-center gap-2">
                 The Intercom
                 {totalUnread > 0 && (
                   <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse flex items-center gap-1">
@@ -181,16 +188,39 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
             </div>
             <div className="flex items-center gap-2">
               <PresenceIndicator projectId={projectId} />
-              <button onClick={() => setIsMinimized(true)} className="text-slate-500 hover:text-white">
+              <button onClick={() => setIsMinimized(true)} className="text-slate-400 hover:text-white">
                 <Minus className="w-4 h-4" />
               </button>
             </div>
           </div>
-          <div className="flex-1 min-h-0 flex flex-col border-b border-slate-800">
-            <ChatWidget projectId={projectId} unreadDMs={unreadDMs} user={user} />
+
+          {/* Status Bar */}
+          <div className="mb-3 px-1">
+            {isEditingStatus ? (
+              <div className="flex gap-1">
+                <input 
+                  autoFocus
+                  type="text"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && setIsEditingStatus(false)}
+                  onBlur={() => setIsEditingStatus(false)}
+                  placeholder="What are you working on?"
+                  className="flex-1 bg-slate-900 border border-indigo-500/50 rounded px-2 py-1 text-[10px] text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsEditingStatus(true)}
+                className="w-full text-left text-[10px] text-slate-400 hover:text-slate-200 transition-colors italic truncate px-1"
+              >
+                {status || "Set your status..."}
+              </button>
+            )}
           </div>
-          <div className="h-32 shrink-0 overflow-hidden bg-slate-900/20">
-            <UserPresenceList />
+
+          <div className="flex-1 min-h-0 flex flex-col">
+            <ChatWidget projectId={projectId} unreadDMs={unreadDMs} user={user} />
           </div>
         </div>
       )}

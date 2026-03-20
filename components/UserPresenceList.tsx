@@ -9,6 +9,7 @@ interface UserStatus {
   lastSeen: any; // Firestore Timestamp
   isOnline: boolean;
   isPro?: boolean;
+  statusMessage?: string;
 }
 
 const UserPresenceList: React.FC = React.memo(() => {
@@ -36,7 +37,8 @@ const UserPresenceList: React.FC = React.memo(() => {
           name: data.name || 'Anonymous',
           lastSeen: lastSeenMillis,
           isOnline,
-          isPro: data.isPro || false
+          isPro: data.isPro || false,
+          statusMessage: data.statusMessage
         } as UserStatus;
       });
       setUsers(fetchedUsers);
@@ -55,7 +57,7 @@ const UserPresenceList: React.FC = React.memo(() => {
   const renderedOnline = useMemo(() => (
     onlineUsers.length > 0 ? (
       <div>
-        <div className="text-[8px] font-bold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5">
+        <div className="text-[8px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1.5">
           <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
           Active ({onlineUsers.length})
         </div>
@@ -71,32 +73,39 @@ const UserPresenceList: React.FC = React.memo(() => {
                 </div>
                 <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full border border-slate-950" />
               </div>
-              <span className="text-[10px] font-medium text-slate-300 group-hover:text-white transition-colors truncate">
-                {user.name}
-              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-medium text-slate-200 group-hover:text-white transition-colors truncate">
+                  {user.name}
+                </span>
+                {user.statusMessage && (
+                  <span className="text-[8px] text-slate-400 truncate italic">
+                    {user.statusMessage}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
       </div>
     ) : (
-      <div className="text-[9px] text-slate-600 italic px-1">No users online</div>
+      <div className="text-[9px] text-slate-500 italic px-1">No users online</div>
     )
   ), [onlineUsers]);
 
   const renderedRecent = useMemo(() => (
     recentUsers.length > 0 && (
       <div className="pb-1">
-        <div className="text-[8px] font-bold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5">
+        <div className="text-[8px] font-bold text-slate-400 uppercase mb-1.5 flex items-center gap-1.5">
           <Clock className="w-2 h-2" />
           Recent ({recentUsers.length})
         </div>
         <div className="flex flex-wrap gap-x-2 gap-y-1 px-1">
           {recentUsers.map(user => (
             <div key={user.id} className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
-              <span className="text-[9px] text-slate-400 font-medium">
+              <span className="text-[9px] text-slate-300 font-medium">
                 {user.name}
               </span>
-              <span className="text-[7px] text-slate-600 italic">
+              <span className="text-[7px] text-slate-500 italic">
                 {user.lastSeen ? `${Math.floor((Date.now() - user.lastSeen) / 60000)}m` : 'now'}
               </span>
             </div>
@@ -118,16 +127,18 @@ const UserPresenceList: React.FC = React.memo(() => {
     );
   }
 
+  if (onlineUsers.length === 0 && recentUsers.length === 0) return null;
+
   return (
-    <div className="h-full flex flex-col p-2">
-      <div className="flex items-center gap-2 mb-2 px-1 shrink-0">
+    <div className="p-2">
+      <div className="flex items-center gap-2 mb-2 px-1">
         <Users className="w-3 h-3 text-indigo-400" />
-        <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+        <h4 className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
           Network
         </h4>
       </div>
 
-      <div className="flex-1 min-h-0 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
+      <div className="space-y-3">
         {renderedOnline}
         {renderedRecent}
       </div>

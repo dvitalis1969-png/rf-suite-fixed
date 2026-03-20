@@ -35,6 +35,7 @@ import { ActivityFeed } from './components/ActivityFeed';
 import IEMStudyTab from './components/IEMStudyTab';
 import InterferenceDemoTab from './components/InterferenceDemoTab';
 import IMDDemoTab from './components/IMDDemoTab';
+import FrequencyForensicsTab from './components/FrequencyForensicsTab';
 import DiversityPlacementTab from './components/DiversityPlacementTab';
 import LinkBudgetTab from './components/LinkBudgetTab';
 import AntennaDownTiltTab from './components/AntennaDownTiltTab';
@@ -136,6 +137,8 @@ const App: React.FC = () => {
     const [isAuthLoading, setIsAuthLoading] = useState(true);
     const [currentProject, setCurrentProject] = useState<Project | null>(null);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'no-project'>('idle');
+    const [isEngineCalculating, setIsEngineCalculating] = useState(false);
+    const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const isProjectLoading = useRef(false);
     const isLibraryLoaded = useRef(false);
 
@@ -532,6 +535,7 @@ const App: React.FC = () => {
     });
 
     const handleSaveAsNewProject = async (name: string) => {
+        setIsSaveModalOpen(false);
         setSaveStatus('saving');
         const stateToSave = getCurrentAppState();
         const newProject: Omit<Project, 'id'> = {
@@ -551,8 +555,9 @@ const App: React.FC = () => {
             if (!finalProject.id) finalProject.id = localId as any;
             
             setCurrentProject(finalProject);
-            dbService.setLastProjectId(finalProject.id!);
+            await dbService.setLastProjectId(finalProject.id!);
             setSaveStatus('saved');
+            setLastSaved(new Date());
         } catch (error) {
             console.error("Save failed", error);
             setSaveStatus('idle');
@@ -583,8 +588,10 @@ const App: React.FC = () => {
                 updatedProject.id = cloudId as any; 
             }
             await dbService.saveProject(updatedProject);
+            await dbService.setLastProjectId(updatedProject.id);
             setCurrentProject(updatedProject);
             setSaveStatus('saved');
+            setLastSaved(new Date());
         } catch (error) {
             console.error("Save failed", error);
             setSaveStatus('idle');
@@ -744,7 +751,13 @@ const App: React.FC = () => {
                         projectName={currentProject?.name} 
                         onManageProjects={() => setProjectDashboardOpen(true)} 
                         onSaveProject={saveCurrentProject} 
-                        onExportProject={() => currentProject && exportToJson(currentProject, `${currentProject.name}.rfproject`)} 
+                        onExportProject={() => {
+                            const state = getCurrentAppState();
+                            const projectToExport: Project = currentProject 
+                                ? { ...currentProject, data: state, lastModified: new Date() }
+                                : { id: Date.now() as any, name: 'Untitled Project', data: state, lastModified: new Date() };
+                            exportToJson(projectToExport, `${projectToExport.name}.rfproject`);
+                        }} 
                         activeApp={activeApp} 
                         onGoHome={() => setActiveApp(null)} 
                         isSunlightMode={isSunlightMode} 
@@ -779,7 +792,7 @@ const App: React.FC = () => {
                                     
                                     {/* Core Coordination Modules */}
                                     {activeTab === 'analyzer' && <AnalyzerTab frequencies={frequencies} setFrequencies={setFrequencies} thresholds={thresholds} setThresholds={setThresholds} scenes={scenes} snapshots={snapshots} setSnapshots={setSnapshots} scanData={scanData} generatorFrequencies={generatorFrequencies} multiBandResults={mbResults} tvChannelStates={genTvStates} setTvChannelStates={setGenTvStates} wmasState={wmasState} />}
-                                    {activeTab === 'generator' && <GeneratorTab initialThresholds={initialThresholds} generatedFrequencies={generatorFrequencies} setGeneratorFrequencies={setGeneratorFrequencies} setFrequencies={setFrequencies} customEquipment={customEquipment} onManageCustomEquipment={() => setCustomEquipmentManagerOpen(true)} inclusionRanges={inclusionRanges} setInclusionRanges={setInclusionRanges} frequencies={frequencies} scenes={scenes} requests={genRequests} setRequests={setGenRequests} exclusions={genExclusions} setExclusions={setGenExclusions} useGlobalThresholds={genUseGlobalThresholds} setUseGlobalThresholds={setGenUseGlobalThresholds} globalThresholds={genGlobalThresholds} setGlobalThresholds={setGenGlobalThresholds} manualConstraints={genManualConstraints} setManualConstraints={setGenManualConstraints} ignoreManualIMD={genIgnoreManualIMD} setIgnoreManualIMD={setGenIgnoreManualIMD} siteThresholds={genSiteThresholds} setSiteThresholds={setGenSiteThresholds} equipmentOverrides={equipmentOverrides} tvChannelStates={genTvStates} setTvChannelStates={setGenTvStates} tvRegion={genTvRegion} setTvRegion={setGenTvRegion} wmasState={wmasState} />}
+                                    {activeTab === 'generator' && <GeneratorTab initialThresholds={initialThresholds} generatedFrequencies={generatorFrequencies} setGeneratorFrequencies={setGeneratorFrequencies} setFrequencies={setFrequencies} customEquipment={customEquipment} onManageCustomEquipment={() => setCustomEquipmentManagerOpen(true)} inclusionRanges={inclusionRanges} setInclusionRanges={setInclusionRanges} frequencies={frequencies} scenes={scenes} requests={genRequests} setRequests={setGenRequests} exclusions={genExclusions} setExclusions={setGenExclusions} useGlobalThresholds={genUseGlobalThresholds} setUseGlobalThresholds={setGenUseGlobalThresholds} globalThresholds={genGlobalThresholds} setGlobalThresholds={setGenGlobalThresholds} manualConstraints={genManualConstraints} setManualConstraints={setGenManualConstraints} ignoreManualIMD={genIgnoreManualIMD} setIgnoreManualIMD={setGenIgnoreManualIMD} siteThresholds={genSiteThresholds} setSiteThresholds={setGenSiteThresholds} equipmentOverrides={equipmentOverrides} tvChannelStates={genTvStates} setTvChannelStates={setGenTvStates} tvRegion={genTvRegion} setTvRegion={setGenTvRegion} wmasState={wmasState} setIsCalculating={setIsEngineCalculating} />}
                                     {activeTab === 'multiband' && <MultiBandTab customEquipment={customEquipment} bands={mbBands} setBands={setMbBands} results={mbResults} setResults={setMbResults} equipmentOverrides={equipmentOverrides} wmasState={wmasState} />}
                                     {activeTab === 'whitespace' && <WhiteSpaceTab />}
                                     
@@ -796,7 +809,7 @@ const App: React.FC = () => {
                                     {activeTab === 'multizoneSiteMap' && <SiteMapTab activeApp={activeApp} festivalState={{ zones: festivalZoneConfigs, map: festivalSiteMap, setMap: setFestivalSiteMap, setDist: setFestivalDistances }} multizoneState={{ zones: multizoneZoneConfigs, map: multizoneSiteMap, setMap: setMultizoneSiteMap, setDist: setMultizoneDistances }} />}
                                     
                                     {/* Festival & Event Coordination */}
-                                    {activeTab === 'festival' && <FestivalCoordinationTab festivalActs={festivalActs} setFestivalActs={setFestivalActs} constantSystems={festivalConstantSystems} setConstantSystems={setFestivalConstantSystems} houseSystems={festivalHouseSystems} setHouseSystems={setFestivalHouseSystems} zoneConfigs={festivalZoneConfigs} setZoneConfigs={setFestivalZoneConfigs} numZones={festivalNumZones} setNumZones={setFestivalNumZones} distances={festivalDistances} setDistances={setFestivalDistances} initialThresholds={initialThresholds} customEquipment={customEquipment} compatibilityMatrix={festivalMatrix} setCompatibilityMatrix={setFestivalMatrix} scanData={scanData} setScanData={setScanData} siteMapState={festivalSiteMap} equipmentOverrides={equipmentOverrides} tvChannelStates={festivalTvStates} setTvChannelStates={setFestivalTvStates} onSimulateScan={handleSimulateScan} wmasState={wmasState} />}
+                                    {activeTab === 'festival' && <FestivalCoordinationTab festivalActs={festivalActs} setFestivalActs={setFestivalActs} constantSystems={festivalConstantSystems} setConstantSystems={setFestivalConstantSystems} houseSystems={festivalHouseSystems} setHouseSystems={setFestivalHouseSystems} zoneConfigs={festivalZoneConfigs} setZoneConfigs={setFestivalZoneConfigs} numZones={festivalNumZones} setNumZones={setFestivalNumZones} distances={festivalDistances} setDistances={setFestivalDistances} initialThresholds={initialThresholds} customEquipment={customEquipment} compatibilityMatrix={festivalMatrix} setCompatibilityMatrix={setFestivalMatrix} scanData={scanData} setScanData={setScanData} siteMapState={festivalSiteMap} equipmentOverrides={equipmentOverrides} tvChannelStates={festivalTvStates} setTvChannelStates={setFestivalTvStates} onSimulateScan={handleSimulateScan} wmasState={wmasState} setIsCalculating={setIsEngineCalculating} />}
                                     {activeTab === 'timeline' && <TimelineTab frequencies={frequencies} scenes={scenes} setScenes={setScenes} />}
                                     {activeTab === 'festivalSiteMap' && <SiteMapTab activeApp={activeApp} festivalState={{ zones: festivalZoneConfigs, map: festivalSiteMap, setMap: setFestivalSiteMap, setDist: setFestivalDistances }} multizoneState={{ zones: multizoneZoneConfigs, map: multizoneSiteMap, setMap: setMultizoneSiteMap, setDist: setMultizoneDistances }} />}
                                     
@@ -818,6 +831,7 @@ const App: React.FC = () => {
                                     {activeTab === 'iemStudy' && <IEMStudyTab />}
                                     {activeTab === 'interference' && <InterferenceDemoTab />}
                                     {activeTab === 'imdDemo' && <IMDDemoTab />}
+                                    {activeTab === 'frequencyForensics' && <FrequencyForensicsTab />}
                                     {activeTab === 'diversityPlacement' && <DiversityPlacementTab />}
                                     {activeTab === 'linkBudget' && <LinkBudgetTab />}
                                     {activeTab === 'antennaDownTilt' && <AntennaDownTiltTab />}
@@ -840,20 +854,20 @@ const App: React.FC = () => {
                 {/* Persistent Community Sidebar */}
                 {isCommunityOpen && (
                     <aside className="lg:w-96 w-full animate-in slide-in-from-right duration-500 sticky top-6 self-start h-[calc(100vh-8rem)] overflow-hidden">
-                        <div className={`h-full border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-colors duration-300 ${communityTheme === 'dark' ? 'bg-slate-950/40 backdrop-blur-3xl' : 'bg-slate-50'}`}>
-                            <div className={`p-4 border-b border-white/10 flex items-center justify-between ${communityTheme === 'dark' ? 'bg-slate-900/50' : 'bg-white'}`}>
+                        <div className={`h-full border border-white/20 rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-colors duration-300 ${communityTheme === 'dark' ? 'bg-slate-800/95 backdrop-blur-3xl shadow-indigo-500/10' : 'bg-slate-50'}`}>
+                            <div className={`p-4 border-b border-white/10 flex items-center justify-between ${communityTheme === 'dark' ? 'bg-slate-700/80' : 'bg-white'}`}>
                                 <div className="flex items-center gap-3">
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${communityTheme === 'dark' ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-100 text-indigo-600 border-indigo-200'}`}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                         </svg>
                                     </div>
-                                    <h2 className={`text-xs font-black uppercase tracking-[0.2em] ${communityTheme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Community Network</h2>
+                                    <h2 className={`text-xs font-black uppercase tracking-[0.2em] ${communityTheme === 'dark' ? 'text-white' : 'text-slate-950'}`}>Community Network</h2>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button 
                                         onClick={() => setCommunityTheme(communityTheme === 'dark' ? 'light' : 'dark')}
-                                        className={`p-2 rounded-lg transition-colors ${communityTheme === 'dark' ? 'hover:bg-white/5 text-slate-500 hover:text-white' : 'hover:bg-slate-200 text-slate-400 hover:text-slate-900'}`}
+                                        className={`p-2 rounded-lg transition-colors ${communityTheme === 'dark' ? 'hover:bg-white/5 text-slate-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-950'}`}
                                         title={`Switch to ${communityTheme === 'dark' ? 'Light' : 'Dark'} Theme`}
                                     >
                                         {communityTheme === 'dark' ? (
@@ -868,7 +882,7 @@ const App: React.FC = () => {
                                     </button>
                                     <button 
                                         onClick={() => setIsCommunityOpen(false)}
-                                        className={`p-2 rounded-lg transition-colors ${communityTheme === 'dark' ? 'hover:bg-white/5 text-slate-500 hover:text-white' : 'hover:bg-slate-200 text-slate-400 hover:text-slate-900'}`}
+                                        className={`p-2 rounded-lg transition-colors ${communityTheme === 'dark' ? 'hover:bg-white/5 text-slate-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-950'}`}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -909,8 +923,31 @@ const App: React.FC = () => {
                 onRefreshUser={refreshUser}
             />}
             
-            <div className="fixed bottom-1 right-1 text-[10px] text-slate-600 opacity-50 pointer-events-none z-50">
-                v2.5.1-STABLE-MARCH-17-13:12
+            <div className="fixed bottom-0 left-0 right-0 h-8 bg-slate-900/95 backdrop-blur-md border-t border-white/5 z-50 flex items-center justify-between px-4 text-[10px] font-medium tracking-wider uppercase">
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${isEngineCalculating ? 'bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-emerald-500'}`} />
+                        <span className={isEngineCalculating ? 'text-amber-500' : 'text-slate-400'}>
+                            Engine State: {isEngineCalculating ? 'Calculating...' : 'Idle'}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${saveStatus === 'saving' ? 'bg-blue-500 animate-pulse' : 'bg-emerald-500'}`} />
+                        <span className="text-slate-400">
+                            Sync Status: {saveStatus === 'saving' ? 'Saving...' : (lastSaved ? `All changes saved to cloud (${lastSaved.toLocaleTimeString()})` : 'Ready')}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="text-slate-500 flex items-center gap-1">
+                        <span className="opacity-50">Project:</span> {currentProject?.name || 'Untitled'} 
+                        <span className="mx-1 opacity-30">/</span> 
+                        <span className="opacity-50">Tab:</span> {activeTab}
+                    </div>
+                    <div className="text-slate-600 opacity-50">
+                        v2.5.1-STABLE
+                    </div>
+                </div>
             </div>
         </div>
     );

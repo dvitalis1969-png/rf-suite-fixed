@@ -13,6 +13,9 @@ interface SpectrumVisualizerProps {
     canImportMultiBand?: boolean;
     wmasState?: WMASState;
     selectedWmasIds?: Set<string>;
+    onFrequencyClick?: (freq: Frequency) => void;
+    onExclusionZoneAdd?: (min: number, max: number) => void;
+    exclusionZones?: { min: number, max: number }[];
 }
 
 const buttonBase = "px-3 py-2 rounded-md font-semibold uppercase tracking-wide transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 transform active:translate-y-0.5 text-xs";
@@ -49,7 +52,11 @@ interface Tooltip {
     y: number;
 }
 
-const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ frequencies, scanData, title = "Spectrum Analyzer", onImportGenerator, canImportGenerator, onImportMultiBand, canImportMultiBand, wmasState, selectedWmasIds }) => {
+const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ 
+    frequencies, scanData, title = "Spectrum Analyzer", 
+    onImportGenerator, canImportGenerator, onImportMultiBand, canImportMultiBand, 
+    wmasState, selectedWmasIds, onFrequencyClick, onExclusionZoneAdd, exclusionZones = [] 
+}) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isRunning, setIsRunning] = useState(false);
     const [range, setRange] = useState({ min: 470, max: 700 });
@@ -60,9 +67,16 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ frequencies, sc
     const [region, setRegion] = useState('uk');
     const [tooltip, setTooltip] = useState<Tooltip | null>(null);
     
-    // Drag State
+    // Interaction State
     const [isDragging, setIsDragging] = useState(false);
-    const [dragState, setDragState] = useState<{ startX: number, startMin: number, startMax: number } | null>(null);
+    const [dragMode, setDragMode] = useState<'pan' | 'exclude'>('pan');
+    const [dragState, setDragState] = useState<{ 
+        startX: number, 
+        startMin: number, 
+        startMax: number,
+        startFreq: number 
+    } | null>(null);
+    const [currentExclusion, setCurrentExclusion] = useState<{ min: number, max: number } | null>(null);
 
     // Focus Guard to prevent state updates from overwriting user typing
     const isCenterFreqFocused = useRef(false);
@@ -175,11 +189,33 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ frequencies, sc
 
     const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
         if (e.button !== 0) return;
+        
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const padding = { left: 45, right: 15 };
+        const chartWidth = canvas.width - padding.left - padding.right;
+        const x = e.clientX - rect.left;
+        const mouseFreq = range.min + ((x - padding.left) / chartWidth) * (range.max - range.min);
+
+        // Check for click on signal
+        if (!e.shiftKey) {
+            const threshold = (10 / chartWidth) * (range.max - range.min);
+            const visibleSignals = calculatedSignals.current.filter(s => s.type === 'Fundamental');
+            const closest = visibleSignals.find(s => Math.abs(s.freq - mouseFreq) < threshold);
+            if (closest && onFrequencyClick) {
+                onFrequencyClick(closest.data);
+            }
+        }
+
         setIsDragging(true);
+        const mode = e.shiftKey ? 'exclude' : 'pan';
+        setDragMode(mode);
         setDragState({
             startX: e.clientX,
             startMin: range.min,
-            startMax: range.max
+            startMax: range.max,
+            startFreq: mouseFreq
         });
         (e.target as Element).setPointerCapture(e.pointerId);
     };
@@ -189,20 +225,38 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ frequencies, sc
             handleHoverTooltip(e);
             return;
         }
-        const deltaX = e.clientX - dragState.startX;
-        const canvasWidth = canvasRef.current.clientWidth;
-        const span = dragState.startMax - dragState.startMin;
-        const freqShift = (deltaX / canvasWidth) * span;
-        setRange({
-            min: parseFloat((dragState.startMin - freqShift).toFixed(5)),
-            max: parseFloat((dragState.startMax - freqShift).toFixed(5))
-        });
+
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const padding = { left: 45, right: 15 };
+        const chartWidth = canvas.width - padding.left - padding.right;
+        const x = e.clientX - rect.left;
+        const currentFreq = range.min + ((x - padding.left) / chartWidth) * (range.max - range.min);
+
+        if (dragMode === 'pan') {
+            const deltaX = e.clientX - dragState.startX;
+            const span = dragState.startMax - dragState.startMin;
+            const freqShift = (deltaX / chartWidth) * span;
+            setRange({
+                min: parseFloat((dragState.startMin - freqShift).toFixed(5)),
+                max: parseFloat((dragState.startMax - freqShift).toFixed(5))
+            });
+        } else if (dragMode === 'exclude') {
+            setCurrentExclusion({
+                min: Math.min(dragState.startFreq, currentFreq),
+                max: Math.max(dragState.startFreq, currentFreq)
+            });
+        }
         setTooltip(null);
     };
 
     const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        if (dragMode === 'exclude' && currentExclusion && onExclusionZoneAdd) {
+            onExclusionZoneAdd(currentExclusion.min, currentExclusion.max);
+        }
         setIsDragging(false);
         setDragState(null);
+        setCurrentExclusion(null);
         (e.target as Element).releasePointerCapture(e.pointerId);
     };
 
@@ -286,6 +340,34 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ frequencies, sc
                 const tvChannels = region === 'uk' ? UK_TV_CHANNELS : US_TV_CHANNELS; ctx.textAlign = 'left';
                 Object.entries(tvChannels).forEach(([ch, [start, end]]) => { if (end >= range.min && start <= range.max) { const xStart = Math.max(padding.left, freqToX(start)); const xEnd = Math.min(width - padding.right, freqToX(end)); if (xEnd > xStart) { ctx.fillStyle = 'rgba(59, 130, 246, 0.08)'; ctx.fillRect(xStart, padding.top, xEnd - xStart, chartHeight); ctx.fillStyle = 'rgba(96, 165, 250, 0.5)'; ctx.fillText(`CH ${ch}`, xStart + 4, padding.top + 12); } } });
             }
+
+            // Draw Exclusion Zones
+            exclusionZones.forEach(zone => {
+                if (zone.max >= range.min && zone.min <= range.max) {
+                    const xS = Math.max(padding.left, freqToX(zone.min));
+                    const xE = Math.min(width - padding.right, freqToX(zone.max));
+                    if (xE > xS) {
+                        ctx.fillStyle = 'rgba(244, 63, 94, 0.15)';
+                        ctx.fillRect(xS, padding.top, xE - xS, chartHeight);
+                        ctx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(xS, padding.top, xE - xS, chartHeight);
+                    }
+                }
+            });
+
+            // Draw Current Drag Exclusion
+            if (currentExclusion) {
+                const xS = Math.max(padding.left, freqToX(currentExclusion.min));
+                const xE = Math.min(width - padding.right, freqToX(currentExclusion.max));
+                if (xE > xS) {
+                    ctx.fillStyle = 'rgba(244, 63, 94, 0.3)';
+                    ctx.fillRect(xS, padding.top, xE - xS, chartHeight);
+                    ctx.strokeStyle = '#f43f5e';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(xS, padding.top, xE - xS, chartHeight);
+                }
+            }
             if (wmasState && wmasState.nodes) {
                 ctx.textAlign = 'left';
                 wmasState.nodes.forEach(node => {
@@ -359,7 +441,7 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({ frequencies, sc
         const rafCallback = () => { render(); if (isRunning) animationFrameId = requestAnimationFrame(rafCallback); };
         if (isRunning) animationFrameId = requestAnimationFrame(rafCallback); else render();
         return () => cancelAnimationFrame(animationFrameId);
-    }, [isRunning, range, overlayChannels, region, binnedScanData, showTwoTone, showThreeTone, showLabels, wmasState, selectedWmasIds, dimensions]);
+    }, [isRunning, range, overlayChannels, region, binnedScanData, showTwoTone, showThreeTone, showLabels, wmasState, selectedWmasIds, dimensions, exclusionZones, currentExclusion]);
 
     useEffect(() => {
         const canvas = canvasRef.current;

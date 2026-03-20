@@ -18,7 +18,7 @@ interface LiveScanAnalyzerProps {
     onScanDataUpdate?: (data: ScanDataPoint[]) => void;
 }
 
-import { requestSerialPort, connectToTinySA, readTinySAScan, SerialDevice, getTinySAVersion } from '../services/serialService';
+import { requestSerialPort, connectToTinySA, readTinySAScan, SerialDevice, getDeviceVersion } from '../services/serialService';
 
 const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
     scanData,
@@ -67,7 +67,7 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
     const [showTerminal, setShowTerminal] = useState<boolean>(false);
     const [showSetup, setShowSetup] = useState<boolean>(false);
     const [showTinySAScreen, setShowTinySAScreen] = useState<boolean>(false);
-    const [deviceType, setDeviceType] = useState<'tinysa' | 'rfexplorer'>('tinysa');
+    const [deviceType, setDeviceType] = useState<'tinysa'>('tinysa');
     const [showShareModal, setShowShareModal] = useState<boolean>(false);
     const [shareMeta, setShareMeta] = useState({ location: '', festival: '', stage: '', notes: '' });
 
@@ -128,12 +128,13 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
         setIsConnecting(true);
         setHardwareVersion(null);
         console.log(`Attempting to connect to ${deviceType}...`);
+        let port: any = null;
         try {
             if (!('serial' in navigator)) {
                 throw new Error('Web Serial API is not supported in this browser. Please use Chrome or Edge.');
             }
             
-            const port = await requestSerialPort();
+            port = await requestSerialPort();
             console.log(`Port selected, opening connection at ${baudRate} baud...`);
             
             const { connectToDevice } = await import('../services/serialService');
@@ -142,12 +143,17 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
             console.log(`${deviceType} serial port opened`);
             addLog('Serial Port Opened. Waking up...');
             
+            // Wake up device
+            const { forceWakeUp } = await import('../services/serialService');
+            await forceWakeUp(dev);
+            addLog('Wake up command sent.');
+            
             // Set device immediately so UI shows we are connected
             setDevice(dev);
 
             // Try to get version
             try {
-                const version = await getTinySAVersion(dev, (raw) => addRawLog(raw));
+                const version = await getDeviceVersion(dev, (raw) => addRawLog(raw));
                 if (version) {
                     setHardwareVersion(version);
                     addLog(`Device Identified: ${version}`);
@@ -160,6 +166,9 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
             }
         } catch (err: any) {
             console.error('Failed to connect:', err);
+            if (port) {
+                try { await port.close(); } catch (e) {}
+            }
             if (err.name === 'SecurityError' || err.message.includes('permissions policy')) {
                 alert(`Permission Error: The browser is blocking access to the USB port. \n\nEnsure you are using the app in a full browser tab (not the AI Studio preview) and using a desktop browser like Chrome.`);
             } else if (err.name === 'NotFoundError') {
@@ -209,12 +218,7 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                     // 1. Read Scan Data
                     if (onScanDataUpdate) {
                         let data: ScanDataPoint[] = [];
-                        if (deviceType === 'rfexplorer') {
-                            const { readRFExplorerScan } = await import('../services/rfExplorerService');
-                            data = await readRFExplorerScan(device, displayMinFreq, displayMaxFreq, (status) => {
-                                setScanStatus(status);
-                            }, (raw) => addRawLog(raw));
-                        } else {
+                        if (deviceType === 'tinysa') {
                             data = await readTinySAScan(device, displayMinFreq, displayMaxFreq, 290, (status) => {
                                 setScanStatus(status);
                             }, (raw) => addRawLog(raw));
@@ -698,6 +702,7 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                                             <option value={9600}>9600</option>
                                             <option value={57600}>57600</option>
                                             <option value={115200}>115200</option>
+                                            <option value={500000}>500000</option>
                                             <option value={921600}>921600</option>
                                         </select>
                                     </div>
@@ -715,8 +720,9 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                                                 for (const speed of speeds) {
                                                     addLog(`Testing ${speed} baud...`);
                                                     setBaudRate(speed);
+                                                    let dev: any = null;
                                                     try {
-                                                        const dev = await connectToTinySA(port, speed);
+                                                        dev = await connectToTinySA(port, speed);
                                                         const { forceWakeUp } = await import('../services/serialService');
                                                         await forceWakeUp(dev);
                                                         
@@ -731,7 +737,11 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                                                         await disconnectTinySA(dev);
                                                     } catch (e: any) {
                                                         addLog(`${speed} failed: ${e.message}`);
-                                                        try { await port.close(); } catch (err) {}
+                                                        if (dev) {
+                                                            await disconnectTinySA(dev);
+                                                        } else {
+                                                            try { await port.close(); } catch (err) {}
+                                                        }
                                                     }
                                                 }
                                                 addLog('Speed Scan Finished. No device found.');
@@ -748,11 +758,14 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                                     </button>
                                     <select 
                                         value={deviceType}
-                                        onChange={(e) => setDeviceType(e.target.value as 'tinysa' | 'rfexplorer')}
+                                        onChange={(e) => {
+                                            const newType = e.target.value as 'tinysa';
+                                            setDeviceType(newType);
+                                            setBaudRate(115200);
+                                        }}
                                         className="bg-slate-800 border border-indigo-500/30 text-white rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500"
                                     >
                                         <option value="tinysa">TinySA</option>
-                                        <option value="rfexplorer">RF Explorer</option>
                                     </select>
                                     <button 
                                         onClick={handleConnect}
@@ -761,14 +774,6 @@ const LiveScanAnalyzer: React.FC<LiveScanAnalyzerProps> = ({
                                     >
                                         {isConnecting ? 'Connecting...' : 'Connect'}
                                     </button>
-                                    <select 
-                                        value={deviceType}
-                                        onChange={(e) => setDeviceType(e.target.value as 'tinysa' | 'rfexplorer')}
-                                        className="bg-slate-800 border border-indigo-500/30 text-white rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="tinysa">TinySA</option>
-                                        <option value="rfexplorer">RF Explorer</option>
-                                    </select>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2">
