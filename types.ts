@@ -378,6 +378,18 @@ export interface User {
     stripeCustomerId?: string | null;
 }
 
+export interface PublicProfile {
+    id: string;
+    name: string;
+    title?: string;
+    location?: string;
+    currentTour?: string;
+    specialties?: string[];
+    gearInventory?: string;
+    availableForWork?: boolean;
+    lastSeen?: any;
+}
+
 export interface AppState {
     activeTab: TabID;
     activeApp?: AppCategory | null;

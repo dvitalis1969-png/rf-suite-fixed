@@ -118,6 +118,12 @@ service cloud.firestore {
       }
     }
 
+    // Public Profiles rules
+    match /public_profiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
     // Feed Posts rules
     match /feed_posts/{postId} {
       allow read: if isAuthenticated();

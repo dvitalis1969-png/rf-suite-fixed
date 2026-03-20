@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import UserPresenceList from './UserPresenceList';
+import ProfilePopover from './ProfilePopover';
 
 interface Message {
   id: string;
@@ -48,6 +49,8 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const [searchQuery, setSearchQuery] = useState('');
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
+  const [selectedPublicProfile, setSelectedPublicProfile] = useState<any | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -497,6 +500,23 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     }
   };
 
+  const handleSelectProfile = async (user: any) => {
+    setSelectedProfile(user);
+    setIsLoadingProfile(true);
+    setSelectedPublicProfile(null);
+    try {
+      const { getDoc } = await import('firebase/firestore');
+      const profileDoc = await getDoc(doc(db, 'public_profiles', user.id));
+      if (profileDoc.exists()) {
+        setSelectedPublicProfile(profileDoc.data());
+      }
+    } catch (err) {
+      console.error("Error fetching public profile:", err);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
   const startDM = (user: { id: string; name: string }) => {
     setSelectedDmUser(user);
     setChatMode('dm');
@@ -547,7 +567,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
                 <div className={`flex flex-col ${msg.userId === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
                   <div className={`flex items-center gap-1.5 mb-1 ${msg.userId === auth.currentUser?.uid ? 'flex-row-reverse' : 'flex-row'}`}>
                     <button 
-                      onClick={() => setSelectedProfile({ id: msg.userId, name: msg.userName, isPro: msg.isPro })}
+                      onClick={() => handleSelectProfile({ id: msg.userId, name: msg.userName, isPro: msg.isPro })}
                       className="text-[10px] font-black text-slate-300 hover:text-indigo-300 transition-colors uppercase tracking-tighter"
                     >
                       {msg.userName}
@@ -672,7 +692,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         Online: {onlineUsers.length > 0 ? onlineUsers.map((u, i) => (
           <span key={u.id} className="relative inline-block">
             <button 
-              onClick={() => setSelectedProfile(u)}
+              onClick={() => handleSelectProfile(u)}
               className="hover:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
               title={`View ${u.name}'s profile`}
             >
@@ -756,47 +776,16 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
       {/* Profile Popover */}
       <AnimatePresence>
         {selectedProfile && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
-          >
-            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-[240px] shadow-2xl relative">
-              <button 
-                onClick={() => setSelectedProfile(null)}
-                className="absolute top-2 right-2 text-slate-500 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-2xl font-bold text-white mb-3 shadow-xl border-4 border-slate-800">
-                  {selectedProfile.name[0]}
-                </div>
-                <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
-                  {selectedProfile.name}
-                  {selectedProfile.isPro && (
-                    <span className="text-[8px] bg-amber-500/20 text-amber-500 px-1 rounded border border-amber-500/30 uppercase font-black">PRO</span>
-                  )}
-                </h3>
-                <p className="text-[10px] text-slate-400 italic mb-4">
-                  {selectedProfile.statusMessage || "No status set"}
-                </p>
-                
-                <button
-                  onClick={() => {
-                    startDM(selectedProfile);
-                    setSelectedProfile(null);
-                  }}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <SmilePlus className="w-3 h-3" />
-                  Send Message
-                </button>
-              </div>
-            </div>
-          </motion.div>
+          <ProfilePopover 
+            selectedProfile={selectedProfile}
+            selectedPublicProfile={selectedPublicProfile}
+            isLoadingProfile={isLoadingProfile}
+            onClose={() => setSelectedProfile(null)}
+            onSendMessage={(user) => {
+              startDM(user);
+              setSelectedProfile(null);
+            }}
+          />
         )}
       </AnimatePresence>
       
@@ -809,7 +798,7 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
       )}
 
       <div className="max-h-32 overflow-y-auto border-t border-white/5 bg-slate-900/10">
-        <UserPresenceList />
+        <UserPresenceList onUserClick={handleSelectProfile} />
       </div>
 
       {uploadError && (

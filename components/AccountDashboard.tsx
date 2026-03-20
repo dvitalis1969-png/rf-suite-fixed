@@ -21,9 +21,15 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
     const [isFetchingProjects, setIsFetchingProjects] = useState(false);
     const [currentUser, setCurrentUser] = useState(user);
     const [displayName, setDisplayName] = useState(currentUser?.name || '');
+    const [title, setTitle] = useState(currentUser?.title || '');
+    const [location, setLocation] = useState(currentUser?.location || '');
+    const [currentTour, setCurrentTour] = useState(currentUser?.currentTour || '');
+    const [specialties, setSpecialties] = useState(currentUser?.specialties?.join(', ') || '');
+    const [gearInventory, setGearInventory] = useState(currentUser?.gearInventory || '');
+    const [availableForWork, setAvailableForWork] = useState(currentUser?.availableForWork || false);
     const [isUpdatingName, setIsUpdatingName] = useState(false);
 
-    const handleUpdateName = async () => {
+    const handleUpdateProfile = async () => {
         if (!displayName.trim() || !auth.currentUser) return;
         try {
             setIsUpdatingName(true);
@@ -34,15 +40,29 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
             // Update user document in Firestore too
             const { doc, setDoc } = await import('firebase/firestore');
             const { db } = await import('../src/lib/firebase');
-            await setDoc(doc(db, 'users', auth.currentUser.uid), {
-                name: displayName
+            
+            const profileData = {
+                name: displayName,
+                title: title.trim(),
+                location: location.trim(),
+                currentTour: currentTour.trim(),
+                specialties: specialties.split(',').map(s => s.trim()).filter(s => s),
+                gearInventory: gearInventory.trim(),
+                availableForWork
+            };
+
+            await setDoc(doc(db, 'users', auth.currentUser.uid), profileData, { merge: true });
+            await setDoc(doc(db, 'public_profiles', auth.currentUser.uid), {
+                id: auth.currentUser.uid,
+                ...profileData,
+                lastSeen: new Date()
             }, { merge: true });
             
-            setCurrentUser({ ...currentUser, name: displayName });
-            alert('Display name updated successfully!');
+            setCurrentUser({ ...currentUser, ...profileData });
+            alert('Profile updated successfully!');
         } catch (error: any) {
-            console.error("Error updating display name:", error);
-            alert(`Failed to update display name: ${error.message}`);
+            console.error("Error updating profile:", error);
+            alert(`Failed to update profile: ${error.message}`);
         } finally {
             setIsUpdatingName(false);
         }
@@ -339,17 +359,57 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                                                 className="bg-slate-950 border border-white/5 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all"
                                                 placeholder="Enter display name"
                                             />
-                                            <button 
-                                                onClick={handleUpdateName}
-                                                disabled={isUpdatingName}
-                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-[9px] rounded-xl transition-all"
-                                            >
-                                                {isUpdatingName ? 'Updating...' : 'Update Name'}
-                                            </button>
                                         </div>
                                         <div className="mt-2 inline-block px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-[9px] font-black text-indigo-400 uppercase tracking-widest">
                                             {currentUser?.subscriptionStatus === 'none' ? 'Free Tier' : `${currentUser?.subscription} Member`}
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-6 bg-slate-950 border border-white/5 rounded-3xl space-y-4">
+                                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Professional Details</h4>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] text-slate-400 uppercase tracking-wider mb-1">Job Title</label>
+                                            <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. RF Coordinator, A1" className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-white focus:border-indigo-500 outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] text-slate-400 uppercase tracking-wider mb-1">Location</label>
+                                            <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. London, UK" className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-white focus:border-indigo-500 outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] text-slate-400 uppercase tracking-wider mb-1">Current Tour / Project</label>
+                                            <input type="text" value={currentTour} onChange={e => setCurrentTour(e.target.value)} placeholder="e.g. World Tour 2026" className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-white focus:border-indigo-500 outline-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] text-slate-400 uppercase tracking-wider mb-1">Specialties (comma separated)</label>
+                                            <input type="text" value={specialties} onChange={e => setSpecialties(e.target.value)} placeholder="e.g. IEMs, Broadcast, Comms" className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-white focus:border-indigo-500 outline-none" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] text-slate-400 uppercase tracking-wider mb-1">Gear Inventory / Notes</label>
+                                        <textarea value={gearInventory} onChange={e => setGearInventory(e.target.value)} placeholder="List your available gear or professional notes..." className="w-full h-20 bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-white focus:border-indigo-500 outline-none resize-none" />
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <div className="relative">
+                                                <input type="checkbox" className="sr-only" checked={availableForWork} onChange={e => setAvailableForWork(e.target.checked)} />
+                                                <div className={`block w-10 h-6 rounded-full transition-colors ${availableForWork ? 'bg-emerald-500' : 'bg-slate-700'}`}></div>
+                                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${availableForWork ? 'transform translate-x-4' : ''}`}></div>
+                                            </div>
+                                            <span className="text-sm font-medium text-slate-300">Available for Work / Networking</span>
+                                        </label>
+
+                                        <button 
+                                            onClick={handleUpdateProfile}
+                                            disabled={isUpdatingName}
+                                            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-[10px] rounded-xl transition-all"
+                                        >
+                                            {isUpdatingName ? 'Saving...' : 'Save Profile'}
+                                        </button>
                                     </div>
                                 </div>
 

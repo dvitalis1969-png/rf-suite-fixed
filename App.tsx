@@ -894,7 +894,7 @@ const App: React.FC = () => {
                                 </div>
                             </div>
                             <div className="flex-grow overflow-y-auto scrollbar-hide p-4 space-y-6">
-                                <UserPresenceList />
+                                <UserPresenceList onUserClick={(user) => alert(`Clicked on ${user.name}`)} />
                                 <div className="border-t border-white/5 pt-6">
                                     <ActivityFeed user={user} theme={communityTheme} />
                                 </div>

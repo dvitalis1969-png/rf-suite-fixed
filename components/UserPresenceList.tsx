@@ -12,7 +12,11 @@ interface UserStatus {
   statusMessage?: string;
 }
 
-const UserPresenceList: React.FC = React.memo(() => {
+interface UserPresenceListProps {
+  onUserClick?: (user: { id: string; name: string; isPro?: boolean; statusMessage?: string }) => void;
+}
+
+const UserPresenceList: React.FC<UserPresenceListProps> = React.memo(({ onUserClick }) => {
   const [users, setUsers] = useState<UserStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,7 +69,11 @@ const UserPresenceList: React.FC = React.memo(() => {
           {onlineUsers.map(user => (
             <div 
               key={user.id} 
-              className="flex items-center gap-1.5 bg-slate-900/50 border border-slate-800/50 rounded px-1.5 py-1 hover:bg-slate-800 transition-colors group cursor-default"
+              onClick={() => {
+                console.log("User clicked:", user);
+                onUserClick?.(user);
+              }}
+              className={`flex items-center gap-1.5 bg-slate-900/50 border border-slate-800/50 rounded px-1.5 py-1 transition-colors group ${onUserClick ? 'cursor-pointer hover:bg-slate-800 hover:border-indigo-500/30' : 'cursor-default'}`}
             >
               <div className="relative shrink-0">
                 <div className="w-5 h-5 rounded-full bg-indigo-900/30 flex items-center justify-center text-[9px] font-bold text-indigo-400 border border-indigo-500/20">
@@ -90,7 +98,7 @@ const UserPresenceList: React.FC = React.memo(() => {
     ) : (
       <div className="text-[9px] text-slate-500 italic px-1">No users online</div>
     )
-  ), [onlineUsers]);
+  ), [onlineUsers, onUserClick]);
 
   const renderedRecent = useMemo(() => (
     recentUsers.length > 0 && (
@@ -101,7 +109,14 @@ const UserPresenceList: React.FC = React.memo(() => {
         </div>
         <div className="flex flex-wrap gap-x-2 gap-y-1 px-1">
           {recentUsers.map(user => (
-            <div key={user.id} className="flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity">
+            <div 
+              key={user.id} 
+              onClick={() => {
+                console.log("Recent user clicked:", user);
+                onUserClick?.(user);
+              }}
+              className={`flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity ${onUserClick ? 'cursor-pointer' : 'cursor-default'}`}
+            >
               <span className="text-[9px] text-slate-300 font-medium">
                 {user.name}
               </span>
@@ -113,7 +128,7 @@ const UserPresenceList: React.FC = React.memo(() => {
         </div>
       </div>
     )
-  ), [recentUsers]);
+  ), [recentUsers, onUserClick]);
 
   if (loading && users.length === 0) {
     return (
