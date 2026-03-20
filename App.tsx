@@ -29,6 +29,7 @@ import AuthModal from './components/AuthModal';
 import AccountDashboard from './components/AccountDashboard';
 import CommunityPanel from './components/CommunityPanel';
 import UserPresenceList from './components/UserPresenceList';
+import ProfilePopover from './components/ProfilePopover';
 import { ActivityFeed } from './components/ActivityFeed';
 
 // RF Toolkit Component Imports
@@ -198,6 +199,28 @@ const App: React.FC = () => {
     const [genSiteThresholds, setGenSiteThresholds] = useState<Thresholds>({ fundamental: 0.350, twoTone: 0.050, threeTone: 0.050, fiveTone: 0, sevenTone: 0 });
     const [genTvStates, setGenTvStates] = useState<Record<number, TVChannelState>>(initialState.generatorState?.tvChannelStates || {});
     const [genTvRegion, setGenTvRegion] = useState<'uk' | 'us'>(initialState.generatorState?.tvRegion || 'uk');
+    
+    const [selectedProfile, setSelectedProfile] = useState<any>(null);
+    const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+    const [selectedPublicProfile, setSelectedPublicProfile] = useState<any>(null);
+
+    const handleSelectProfile = async (user: any) => {
+        setSelectedProfile(user);
+        setIsLoadingProfile(true);
+        setSelectedPublicProfile(null);
+        try {
+            const { getDoc, doc } = await import('firebase/firestore');
+            const { db } = await import('./src/lib/firebase');
+            const profileDoc = await getDoc(doc(db, 'public_profiles', user.id));
+            if (profileDoc.exists()) {
+                setSelectedPublicProfile(profileDoc.data());
+            }
+        } catch (err) {
+            console.error("Error fetching public profile:", err);
+        } finally {
+            setIsLoadingProfile(false);
+        }
+    };
 
     const [tourPlanningState, setTourPlanningState] = useState<TourPlanningState>(initialTourPlanningState);
     const [wmasState, setWmasState] = useState<WMASState>(initialWMASState);
@@ -894,7 +917,7 @@ const App: React.FC = () => {
                                 </div>
                             </div>
                             <div className="flex-grow overflow-y-auto scrollbar-hide p-4 space-y-6">
-                                <UserPresenceList onUserClick={(user) => alert(`Clicked on ${user.name}`)} />
+                                <UserPresenceList onUserClick={handleSelectProfile} />
                                 <div className="border-t border-white/5 pt-6">
                                     <ActivityFeed user={user} theme={communityTheme} />
                                 </div>
@@ -905,6 +928,17 @@ const App: React.FC = () => {
             </div>
                     {currentProject && <CommunityPanel projectId={currentProject.id} user={user} />}
                 </>
+            )}
+            {selectedProfile && (
+                <ProfilePopover 
+                    selectedProfile={selectedProfile}
+                    selectedPublicProfile={selectedPublicProfile}
+                    isLoadingProfile={isLoadingProfile}
+                    onClose={() => setSelectedProfile(null)}
+                    onSendMessage={(user) => {
+                        setSelectedProfile(null);
+                    }}
+                />
             )}
             <SaveProjectModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSaveAsNewProject} />
             <SavePopupModal isOpen={isSavePopupOpen} onClose={() => setIsSavePopupOpen(false)} />
