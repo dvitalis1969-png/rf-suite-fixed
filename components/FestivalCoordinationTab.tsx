@@ -1720,7 +1720,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                 : 'bg-blue-900/20 border-blue-500/20 text-blue-400 hover:bg-blue-900/40';
                         }
                         return (
-                            <button key={tab} onClick={() => setActiveSubTab(tab)} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border ${styles}`}>
+                            <button key={tab} onClick={() => setActiveSubTab(tab)} className={`flex-1 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 ${styles}`}>
                                 {tab === 'acts' && '🎤 Performing Acts'}
                                 {tab === 'constant' && '🛰️ Constant TX'}
                                 {tab === 'house' && '📡 House Systems'}
@@ -1732,10 +1732,10 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 {/* TAB ACTIONS & CONTENT LISTS */}
                 {activeSubTab === 'acts' && (
                     <div className="space-y-2">
-                        <div className="flex gap-2">
-                        <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className={`${vibrantButton} flex-1`}>+ Add Act</button>
-                        <button onClick={() => fileInputRef.current?.click()} className={`flex-1 px-4 py-2.5 bg-slate-800 text-slate-400 border-b-4 border-slate-950 hover:bg-slate-700 ${buttonBase}`}>Import CSV</button>
-                        <button onClick={() => setIsConverterOpen(true)} className={`${vibrantButton} flex-1`}>🧮 EXCEL CONVERTER</button>
+                        <div className="flex gap-2 px-2">
+                        <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-indigo-600 text-white border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20">+ Add Act</button>
+                        <button onClick={() => fileInputRef.current?.click()} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-slate-800 text-slate-400 border-slate-950 hover:bg-slate-700">Import CSV</button>
+                        <button onClick={() => setIsConverterOpen(true)} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-indigo-600 text-white border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20">🧮 EXCEL CONVERTER</button>
                         <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={e => {
                                 const file = e.target.files?.[0]; if (!file) return;
                                 const r = new FileReader(); r.onload = () => {
@@ -1769,11 +1769,11 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                             </div>
                         )}
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 px-1">
                             <button 
                                 onClick={handleGenerate} 
                                 disabled={isGenerating} 
-                                className={`${yellowButton} flex-1 min-w-[150px] !py-2.5 !text-[10px] !rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/10 ring-1 ring-yellow-400/30`}
+                                className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-yellow-500 text-slate-900 border-yellow-700 hover:bg-yellow-400 shadow-lg shadow-yellow-500/10 ring-1 ring-yellow-400/30 min-w-[150px]"
                             >
                                 {isGenerating ? (
                                     <><span className="w-3 h-3 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING...</>
@@ -1783,14 +1783,14 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                             </button>
                             <button 
                                 onClick={() => handleLockAllSite(!anyFrequenciesLocked)} 
-                                className={`${greenButton} flex-1 min-w-[120px] !py-2.5 !text-[10px] !rounded-lg flex items-center justify-center gap-2`}
+                                className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-emerald-900/40 text-emerald-200 border-emerald-950 hover:bg-emerald-900/60 min-w-[120px]"
                             >
                                 <span>{anyFrequenciesLocked ? '🔓' : '🔒'}</span>
                                 {anyFrequenciesLocked ? 'UNLOCK ALL' : 'LOCK ALL'}
                             </button>
                             <button 
                                 onClick={() => setShowTabulation(!showTabulation)} 
-                                className={`${greenButton} flex-1 min-w-[120px] !py-2.5 !text-[10px] !rounded-lg flex items-center justify-center gap-2`}
+                                className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-emerald-900/40 text-emerald-200 border-emerald-950 hover:bg-emerald-900/60 min-w-[120px]"
                             >
                                 <span>📋</span> TABULATE
                             </button>

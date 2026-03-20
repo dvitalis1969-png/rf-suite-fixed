@@ -205,6 +205,7 @@ const App: React.FC = () => {
 
     const [isProjectDashboardOpen, setProjectDashboardOpen] = useState(false);
     const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [isSavePopupOpen, setIsSavePopupOpen] = useState(false);
     const [isCustomEquipmentManagerOpen, setCustomEquipmentManagerOpen] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [isCommunityOpen, setIsCommunityOpen] = useState(false);
@@ -537,6 +538,7 @@ const App: React.FC = () => {
     const handleSaveAsNewProject = async (name: string) => {
         setIsSaveModalOpen(false);
         setSaveStatus('saving');
+        setIsSavePopupOpen(true);
         const stateToSave = getCurrentAppState();
         const newProject: Omit<Project, 'id'> = {
             name,
@@ -572,6 +574,7 @@ const App: React.FC = () => {
             return;
         }
         setSaveStatus('saving');
+        setIsSavePopupOpen(true);
         const stateToSave = getCurrentAppState();
         const updatedProject: Project = { 
             ...currentProject, 
@@ -904,6 +907,7 @@ const App: React.FC = () => {
                 </>
             )}
             <SaveProjectModal isOpen={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} onSave={handleSaveAsNewProject} />
+            <SavePopupModal isOpen={isSavePopupOpen} onClose={() => setIsSavePopupOpen(false)} />
             {isProjectDashboardOpen && <ProjectDashboard onLoadProject={p => { setCurrentProject(p); loadAppState(p.data); dbService.setLastProjectId(p.id); setProjectDashboardOpen(false); }} onCreateProject={async n => { const p = { name: n, lastModified: new Date(), data: initialState }; const id = await dbService.saveProject(p); setCurrentProject({...p, id}); loadAppState(p.data); dbService.setLastProjectId(id); setProjectDashboardOpen(false); }} onDeleteProject={async id => { await dbService.deleteProject(id); if(currentProject?.id === id){ setCurrentProject(null); dbService.clearLastProjectId(); } }} onClose={() => setProjectDashboardOpen(false)} />}
             {isCustomEquipmentManagerOpen && <div className="no-invert"><CustomEquipmentManager customProfiles={customEquipment} setCustomProfiles={setCustomEquipment} onClose={() => setCustomEquipmentManagerOpen(false)} /></div>}
             {isAuthModalOpen && <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onSuccess={handleLogin} />}
@@ -979,6 +983,27 @@ const SaveProjectModal = ({ isOpen, onClose, onSave }: { isOpen: boolean, onClos
                         Save
                     </button>
                 </div>
+            </div>
+        </div>
+    );
+};
+
+const SavePopupModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <div className="bg-slate-800 border border-indigo-500/30 rounded-xl shadow-2xl w-full max-w-md p-6 text-center text-white">
+                <div className="text-4xl mb-4">☁️</div>
+                <h3 className="text-xl font-bold mb-2">Saving project to Cloud</h3>
+                <p className="text-slate-400 text-sm mb-6">
+                    Click on 'Download' to Save Project to Your Hard Drive
+                </p>
+                <button 
+                    onClick={onClose} 
+                    className="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold tracking-wider uppercase text-xs"
+                >
+                    Got it
+                </button>
             </div>
         </div>
     );
