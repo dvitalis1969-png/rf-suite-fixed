@@ -29,10 +29,10 @@ const ProfilePopover: React.FC<ProfilePopoverProps> = ({ selectedProfile, select
         
         <div className="flex flex-col items-center text-center">
           <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-2xl font-bold text-white mb-3 shadow-xl border-4 border-slate-800">
-            {selectedProfile.name[0]}
+            {selectedProfile.name ? selectedProfile.name[0] : '?'}
           </div>
           <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
-            {selectedProfile.name}
+            {selectedProfile.name || 'Anonymous'}
             {selectedProfile.isPro && (
               <span className="text-[8px] bg-amber-500/20 text-amber-500 px-1 rounded border border-amber-500/30 uppercase font-black">PRO</span>
             )}
@@ -70,7 +70,10 @@ const ProfilePopover: React.FC<ProfilePopoverProps> = ({ selectedProfile, select
                 <div>
                   <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Specialties</span>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {selectedPublicProfile.specialties.split(',').map((s: string, i: number) => (
+                    {(Array.isArray(selectedPublicProfile.specialties) 
+                        ? selectedPublicProfile.specialties 
+                        : selectedPublicProfile.specialties.split(',')
+                    ).map((s: string, i: number) => (
                         <span key={i} className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">{s.trim()}</span>
                     ))}
                   </div>

@@ -74,6 +74,13 @@ const AccountDashboard: React.FC<AccountDashboardProps> = ({ user, onClose, onLo
                 ...profileData,
                 lastSeen: new Date()
             }, { merge: true });
+            
+            // Sync with presence
+            const globalRef = doc(db, 'presence', 'global', 'users', auth.currentUser.uid);
+            await setDoc(globalRef, { 
+                statusMessage: profileData.title || profileData.currentTour || ''
+            }, { merge: true });
+
             console.log("Firestore save successful");
             
             setCurrentUser({ ...currentUser, ...profileData });

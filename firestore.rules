@@ -112,9 +112,13 @@ service cloud.firestore {
       allow read, write: if isOwner(userId) || isAdmin();
       
       // Unread DMs subcollection
-      match /unread_dms/{senderId} {
-        allow read: if isOwner(userId);
-        allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == senderId);
+      match /unread_dms {
+        allow list: if isOwner(userId);
+        
+        match /{senderId} {
+          allow read: if isOwner(userId);
+          allow write: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == senderId);
+        }
       }
     }
 
