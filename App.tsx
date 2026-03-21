@@ -928,7 +928,7 @@ const App: React.FC = () => {
                     </aside>
                 )}
             </div>
-                    {currentProject && <CommunityPanel projectId={currentProject.id} user={user} isOpen={isIntercomOpen} selectedDmUser={selectedDmUser} />}
+                    {currentProject && <CommunityPanel projectId={currentProject.id} user={user} isOpen={isIntercomOpen} selectedDmUser={selectedDmUser} onSelectDmUser={setSelectedDmUser} />}
                 </>
             )}
             {selectedProfile && (

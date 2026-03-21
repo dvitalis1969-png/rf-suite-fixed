@@ -8,7 +8,7 @@ import { handleFirestoreError, OperationType } from '../src/utils/firestoreError
 
 import { User } from '../types';
 
-const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; isOpen?: boolean; selectedDmUser?: any }> = ({ projectId, user, isOpen, selectedDmUser }) => {
+const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; isOpen?: boolean; selectedDmUser?: any; onSelectDmUser?: (user: any) => void }> = ({ projectId, user, isOpen, selectedDmUser, onSelectDmUser }) => {
   const [isMinimized, setIsMinimized] = useState(isOpen !== undefined ? !isOpen : true);
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [size, setSize] = useState({ width: 384, height: 600 });
@@ -23,6 +23,17 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; 
   useEffect(() => {
     if (isOpen !== undefined) setIsMinimized(!isOpen);
   }, [isOpen]);
+
+  const handleNotificationClick = () => {
+    if (totalUnread > 0) {
+      const firstUnreadId = Object.keys(unreadDMs)[0];
+      // We need the user name. For now, let's just pass the ID and see if ChatWidget can handle it.
+      // Actually, ChatWidget expects { id: string, name: string }.
+      // We might need to fetch the user name here.
+      onSelectDmUser?.({ id: firstUnreadId, name: 'Unknown User' });
+    }
+    setIsMinimized(false);
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
@@ -156,7 +167,7 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; 
     >
       {isMinimized ? (
         <button 
-          onClick={() => setIsMinimized(false)}
+          onClick={handleNotificationClick}
           onMouseDown={handleMouseDown}
           className="w-full h-full flex flex-col items-center justify-center relative group hover:bg-indigo-900/50 transition-colors"
           title="Open The Intercom"
