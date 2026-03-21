@@ -2,13 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Minus, Maximize2, GripVertical, MessageCircle } from 'lucide-react';
 import ChatWidget from './ChatWidget';
 import PresenceIndicator from './PresenceIndicator';
-import { collection, query, onSnapshot, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, setDoc, serverTimestamp, deleteDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../src/lib/firebase';
 import { handleFirestoreError, OperationType } from '../src/utils/firestoreErrorHandler';
 
 import { User } from '../types';
 
-const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; isOpen?: boolean; selectedDmUser?: any; onSelectDmUser?: (user: any) => void }> = ({ projectId, user, isOpen, selectedDmUser, onSelectDmUser }) => {
+const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; isOpen?: boolean; selectedDmUser?: any; onSelectDmUser?: (user: any) => void; onClose?: () => void }> = ({ projectId, user, isOpen, selectedDmUser, onSelectDmUser, onClose }) => {
   const [isMinimized, setIsMinimized] = useState(isOpen !== undefined ? !isOpen : true);
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [size, setSize] = useState({ width: 384, height: 600 });
@@ -24,13 +24,17 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; 
     if (isOpen !== undefined) setIsMinimized(!isOpen);
   }, [isOpen]);
 
-  const handleNotificationClick = () => {
+  const handleNotificationClick = async () => {
     if (totalUnread > 0) {
       const firstUnreadId = Object.keys(unreadDMs)[0];
-      // We need the user name. For now, let's just pass the ID and see if ChatWidget can handle it.
-      // Actually, ChatWidget expects { id: string, name: string }.
-      // We might need to fetch the user name here.
-      onSelectDmUser?.({ id: firstUnreadId, name: 'Unknown User' });
+      try {
+        const userDoc = await getDoc(doc(db, 'users', firstUnreadId));
+        const userName = userDoc.exists() ? userDoc.data().name || 'Unknown User' : 'Unknown User';
+        onSelectDmUser?.({ id: firstUnreadId, name: userName });
+      } catch (err) {
+        console.error("Error fetching user name:", err);
+        onSelectDmUser?.({ id: firstUnreadId, name: 'Unknown User' });
+      }
     }
     setIsMinimized(false);
   };
@@ -203,7 +207,7 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; 
             </div>
             <div className="flex items-center gap-2">
               <PresenceIndicator projectId={projectId} />
-              <button onClick={() => setIsMinimized(true)} className="text-slate-400 hover:text-white">
+              <button onClick={() => { setIsMinimized(true); onClose?.(); }} className="text-slate-400 hover:text-white">
                 <Minus className="w-4 h-4" />
               </button>
             </div>
