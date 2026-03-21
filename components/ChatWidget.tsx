@@ -119,6 +119,16 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
       setMessages(msgs);
+      
+      // Check for new messages and clear unread status if needed
+      if (chatMode === 'dm' && selectedDmUser && auth.currentUser) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.userId !== auth.currentUser.uid) {
+          const unreadRef = doc(db, 'users', auth.currentUser.uid, 'unread_dms', selectedDmUser.id);
+          console.log("ChatWidget: Clearing unread status on new message from:", selectedDmUser.id);
+          deleteDoc(unreadRef).catch(console.error);
+        }
+      }
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, `messages/${activeProjectId}/chat`);
     });
