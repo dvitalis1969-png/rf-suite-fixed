@@ -27,7 +27,7 @@ interface Message {
   audioUrl?: string;
 }
 
-const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean>; user?: any }> = React.memo(({ projectId, unreadDMs = {}, user }) => {
+const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean>; user?: any; initialDmUser?: any }> = React.memo(({ projectId, unreadDMs = {}, user, initialDmUser }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -48,6 +48,13 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
   const [canRecord, setCanRecord] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  useEffect(() => {
+    if (initialDmUser) {
+      setChatMode('dm');
+      setSelectedDmUser(initialDmUser);
+    }
+  }, [initialDmUser]);
   const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
   const [selectedPublicProfile, setSelectedPublicProfile] = useState<any | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
@@ -362,18 +369,22 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     }
 
     try {
+      console.log("Sending message to:", activeProjectId, "Data:", messageData);
       await addDoc(collection(db, 'messages', activeProjectId, 'chat'), messageData);
+      console.log("Message sent successfully");
     } catch (err) {
+      console.error("Error sending message:", err);
       handleFirestoreError(err, OperationType.CREATE, `messages/${activeProjectId}/chat`);
     }
 
     // Set unread status for the recipient
     if (chatMode === 'dm' && selectedDmUser) {
+      console.log("Setting unread status for:", selectedDmUser.id, "from:", auth.currentUser.uid);
       const unreadRef = doc(db, 'users', selectedDmUser.id, 'unread_dms', auth.currentUser.uid);
       await setDoc(unreadRef, { 
         hasUnread: true, 
         timestamp: serverTimestamp() 
-      }, { merge: true }).catch(console.error);
+      }, { merge: true }).catch(err => console.error("Error setting unread status:", err));
     }
 
     setNewMessage('');

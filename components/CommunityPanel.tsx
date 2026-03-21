@@ -8,7 +8,7 @@ import { handleFirestoreError, OperationType } from '../src/utils/firestoreError
 
 import { User } from '../types';
 
-const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; isOpen?: boolean }> = ({ projectId, user, isOpen }) => {
+const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; isOpen?: boolean; selectedDmUser?: any }> = ({ projectId, user, isOpen, selectedDmUser }) => {
   const [isMinimized, setIsMinimized] = useState(isOpen !== undefined ? !isOpen : true);
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [size, setSize] = useState({ width: 384, height: 600 });
@@ -224,7 +224,7 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; 
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col">
-            <ChatWidget projectId={projectId} unreadDMs={unreadDMs} user={user} />
+            <ChatWidget projectId={projectId} unreadDMs={unreadDMs} user={user} initialDmUser={selectedDmUser} />
           </div>
         </div>
       )}
