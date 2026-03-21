@@ -447,9 +447,12 @@ const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
         const canvas = canvasRef.current;
         if(canvas) {
             const resizeObserver = new ResizeObserver(() => { 
-                canvas.width = canvas.offsetWidth; 
-                canvas.height = canvas.offsetHeight; 
-                setDimensions({ width: canvas.offsetWidth, height: canvas.offsetHeight });
+                requestAnimationFrame(() => {
+                    if (!canvas) return;
+                    canvas.width = canvas.offsetWidth; 
+                    canvas.height = canvas.offsetHeight; 
+                    setDimensions({ width: canvas.offsetWidth, height: canvas.offsetHeight });
+                });
             });
             resizeObserver.observe(canvas); return () => resizeObserver.disconnect();
         }

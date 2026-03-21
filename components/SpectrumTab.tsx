@@ -492,9 +492,12 @@ const SpectrumTab: React.FC<SpectrumTabProps> = ({ projectId, analyzerFrequencie
         const canvas = canvasRef.current;
         if(canvas) {
             const observer = new ResizeObserver(() => { 
-                canvas.width = canvas.offsetWidth; 
-                canvas.height = canvas.offsetHeight; 
-                setDimensions({ width: canvas.offsetWidth, height: canvas.offsetHeight });
+                requestAnimationFrame(() => {
+                    if (!canvas) return;
+                    canvas.width = canvas.offsetWidth; 
+                    canvas.height = canvas.offsetHeight; 
+                    setDimensions({ width: canvas.offsetWidth, height: canvas.offsetHeight });
+                });
             });
             observer.observe(canvas); return () => observer.disconnect();
         }

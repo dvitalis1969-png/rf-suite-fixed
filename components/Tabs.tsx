@@ -37,7 +37,7 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
     { id: 'zonalTalkback', label: 'Zonal Talkback', category: 'comms' },
 
     // Toolkit App
-    { id: 'iemStudy', label: 'Proximity Simulator', category: 'toolkit' },
+    { id: 'proximitySimulator', label: 'Proximity Simulator', category: 'toolkit' },
     { id: 'interference', label: 'Co-Channel Lab', category: 'toolkit' },
     { id: 'imdDemo', label: 'IMD Physics', category: 'toolkit' },
     { id: 'frequencyForensics', label: 'Frequency Forensics', category: 'toolkit' },
@@ -45,8 +45,6 @@ export const tabConfig: { id: TabID; label: string; category: AppCategory }[] = 
     { id: 'linkBudget', label: 'Link Budget', category: 'toolkit' },
     { id: 'antennaDownTilt', label: 'Tilt Angle', category: 'toolkit' },
     { id: 'cableLoss', label: 'Cable Loss', category: 'toolkit' },
-    { id: 'lineOfSight', label: 'LOS Calc', category: 'toolkit' },
-    { id: 'vswr', label: 'VSWR', category: 'toolkit' },
 
     // Tour Planning App
     { id: 'tourPlanning', label: 'Tour Planning', category: 'tour' },

@@ -219,16 +219,18 @@ const WaterfallTab: React.FC<WaterfallTabProps> = ({ analyzerFrequencies, genera
         let observer: ResizeObserver;
         if(canvases[0] && canvases[1]) {
             observer = new ResizeObserver(() => {
-                canvases.forEach(canvas => {
-                    if (canvas) {
-                        canvas.width = canvas.offsetWidth;
-                        canvas.height = canvas.offsetHeight;
+                requestAnimationFrame(() => {
+                    canvases.forEach(canvas => {
+                        if (canvas) {
+                            canvas.width = canvas.offsetWidth;
+                            canvas.height = canvas.offsetHeight;
+                        }
+                    });
+                    if (canvases[0]) {
+                        setDimensions({ width: canvases[0].offsetWidth, height: canvases[0].offsetHeight });
                     }
+                    clearWaterfall();
                 });
-                if (canvases[0]) {
-                    setDimensions({ width: canvases[0].offsetWidth, height: canvases[0].offsetHeight });
-                }
-                clearWaterfall();
             });
             observer.observe(canvases[0]);
             return () => observer.disconnect();

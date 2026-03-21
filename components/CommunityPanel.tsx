@@ -96,7 +96,6 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; 
       snap.forEach(doc => {
         if (doc.data().hasUnread) unread[doc.id] = true;
       });
-      console.log("CommunityPanel: unreadDMs updated:", unread);
       setUnreadDMs(unread);
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, `users/${auth.currentUser?.uid}/unread_dms`);

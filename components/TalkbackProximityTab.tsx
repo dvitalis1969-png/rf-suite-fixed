@@ -120,9 +120,12 @@ const TalkbackProximityTab: React.FC = () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const observer = new ResizeObserver(() => {
-            canvas.width = canvas.offsetWidth * 2;
-            canvas.height = canvas.offsetHeight * 2;
-            setDimensions({ width: canvas.offsetWidth, height: canvas.offsetHeight });
+            requestAnimationFrame(() => {
+                if (!canvas) return;
+                canvas.width = canvas.offsetWidth * 2;
+                canvas.height = canvas.offsetHeight * 2;
+                setDimensions({ width: canvas.offsetWidth, height: canvas.offsetHeight });
+            });
         });
         observer.observe(canvas);
         return () => observer.disconnect();

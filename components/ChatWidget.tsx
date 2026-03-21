@@ -125,7 +125,6 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
         const lastMsg = msgs[msgs.length - 1];
         if (lastMsg && lastMsg.userId !== auth.currentUser.uid) {
           const unreadRef = doc(db, 'users', auth.currentUser.uid, 'unread_dms', selectedDmUser.id);
-          console.log("ChatWidget: Clearing unread status on new message from:", selectedDmUser.id);
           deleteDoc(unreadRef).catch(console.error);
         }
       }

@@ -497,9 +497,12 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
     useEffect(() => {
         const canvas = canvasRef.current; if (!canvas) return;
         const observer = new ResizeObserver(() => {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            setDimensions({ width: canvas.offsetWidth, height: canvas.offsetHeight });
+            requestAnimationFrame(() => {
+                if (!canvas) return;
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                setDimensions({ width: canvas.offsetWidth, height: canvas.offsetHeight });
+            });
         });
         observer.observe(canvas);
         return () => observer.disconnect();

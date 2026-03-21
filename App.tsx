@@ -33,7 +33,7 @@ import ProfilePopover from './components/ProfilePopover';
 import { ActivityFeed } from './components/ActivityFeed';
 
 // RF Toolkit Component Imports
-import IEMStudyTab from './components/IEMStudyTab';
+import ProximitySimulatorTab from './components/ProximitySimulatorTab';
 import InterferenceDemoTab from './components/InterferenceDemoTab';
 import IMDDemoTab from './components/IMDDemoTab';
 import FrequencyForensicsTab from './components/FrequencyForensicsTab';
@@ -41,8 +41,6 @@ import DiversityPlacementTab from './components/DiversityPlacementTab';
 import LinkBudgetTab from './components/LinkBudgetTab';
 import AntennaDownTiltTab from './components/AntennaDownTiltTab';
 import CableLossTab from './components/CableLossTab';
-import LineOfSightTab from './components/LineOfSightTab';
-import VSWRTab from './components/VSWRTab';
 import FSPLTab from './components/FSPLTab';
 import PowerConverterTab from './components/PowerConverterTab';
 import FresnelZoneTab from './components/FresnelZoneTab';
@@ -856,7 +854,7 @@ const App: React.FC = () => {
                                             }} 
                                         />
                                     )}
-                                    {activeTab === 'iemStudy' && <IEMStudyTab />}
+                                    {activeTab === 'proximitySimulator' && <ProximitySimulatorTab />}
                                     {activeTab === 'interference' && <InterferenceDemoTab />}
                                     {activeTab === 'imdDemo' && <IMDDemoTab />}
                                     {activeTab === 'frequencyForensics' && <FrequencyForensicsTab />}
@@ -864,8 +862,6 @@ const App: React.FC = () => {
                                     {activeTab === 'linkBudget' && <LinkBudgetTab />}
                                     {activeTab === 'antennaDownTilt' && <AntennaDownTiltTab />}
                                     {activeTab === 'cableLoss' && <CableLossTab />}
-                                    {activeTab === 'lineOfSight' && <LineOfSightTab />}
-                                    {activeTab === 'vswr' && <VSWRTab />}
                                     {activeTab === 'fspl' && <FSPLTab />}
                                     {activeTab === 'powerConverter' && <PowerConverterTab />}
                                     {activeTab === 'fresnelZone' && <FresnelZoneTab />}
