@@ -232,6 +232,7 @@ const App: React.FC = () => {
     const [isCustomEquipmentManagerOpen, setCustomEquipmentManagerOpen] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [isCommunityOpen, setIsCommunityOpen] = useState(false);
+    const [isIntercomOpen, setIsIntercomOpen] = useState(false);
     const [communityTheme, setCommunityTheme] = useState<'light' | 'dark'>('dark');
     const [isAccountDashboardOpen, setIsAccountDashboardOpen] = useState(false);
     const [user, setUser] = useState<any>(null);
@@ -926,7 +927,7 @@ const App: React.FC = () => {
                     </aside>
                 )}
             </div>
-                    {currentProject && <CommunityPanel projectId={currentProject.id} user={user} />}
+                    {currentProject && <CommunityPanel projectId={currentProject.id} user={user} isOpen={isIntercomOpen} />}
                 </>
             )}
             {selectedProfile && (
@@ -937,7 +938,7 @@ const App: React.FC = () => {
                     onClose={() => setSelectedProfile(null)}
                     onSendMessage={(user) => {
                         setSelectedProfile(null);
-                        setIsCommunityOpen(true);
+                        setIsIntercomOpen(true);
                     }}
                 />
             )}

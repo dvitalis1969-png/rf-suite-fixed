@@ -8,8 +8,8 @@ import { handleFirestoreError, OperationType } from '../src/utils/firestoreError
 
 import { User } from '../types';
 
-const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }> = ({ projectId, user }) => {
-  const [isMinimized, setIsMinimized] = useState(true);
+const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; isOpen?: boolean }> = ({ projectId, user, isOpen }) => {
+  const [isMinimized, setIsMinimized] = useState(isOpen !== undefined ? !isOpen : true);
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [size, setSize] = useState({ width: 384, height: 600 });
   const [unreadDMs, setUnreadDMs] = useState<Record<string, boolean>>({});
@@ -19,6 +19,10 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null }
   const isDragging = useRef(false);
   const isResizing = useRef(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (isOpen !== undefined) setIsMinimized(!isOpen);
+  }, [isOpen]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
