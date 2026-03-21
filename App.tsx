@@ -937,6 +937,7 @@ const App: React.FC = () => {
                     onClose={() => setSelectedProfile(null)}
                     onSendMessage={(user) => {
                         setSelectedProfile(null);
+                        setIsCommunityOpen(true);
                     }}
                 />
             )}

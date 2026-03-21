@@ -17,7 +17,7 @@ const ProfilePopover: React.FC<ProfilePopoverProps> = ({ selectedProfile, select
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="absolute inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+      className="absolute top-20 right-20 z-[1000] p-4"
     >
       <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-[240px] shadow-2xl relative">
         <button 
