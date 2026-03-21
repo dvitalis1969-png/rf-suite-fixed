@@ -107,7 +107,8 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     // Clear unread status if we are in a DM with this user
     if (chatMode === 'dm' && selectedDmUser && auth.currentUser) {
       const unreadRef = doc(db, 'users', auth.currentUser.uid, 'unread_dms', selectedDmUser.id);
-      deleteDoc(unreadRef).catch(console.error);
+      console.log("ChatWidget: Deleting unread status for:", selectedDmUser.id);
+      deleteDoc(unreadRef).catch(err => console.error("ChatWidget: Error deleting unread status:", err));
     }
 
     const q = query(
