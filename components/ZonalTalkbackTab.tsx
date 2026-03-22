@@ -120,12 +120,13 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-    const [sortField, setSortField] = useState<string>('value');
+    const [sortField, setSortField] = useState<string>('tx');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const [bulkAddCount, setBulkAddCount] = useState(4);
     const [bulkAddZone, setBulkAddZone] = useState(-1);
     const [numZonesInput, setNumZonesInput] = useState(numZones.toString());
     const [globalDistInput, setGlobalDistInput] = useState<string>("50");
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const baseBands = mode === 'europe' ? EUROPE_BASE_BANDS : STANDARD_BASE_BANDS;
     const portBands = mode === 'europe' ? EUROPE_PORT_BANDS : STANDARD_PORT_BANDS;
@@ -295,6 +296,12 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
     };
 
     const handleCalculate = async () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+
         setIsLoading(true); setProgress(0); await new Promise(resolve => setTimeout(resolve, 50));
         const serviceConfigs = talkbackZoneConfigs.map(c => ({ 
             name: c.name, 
@@ -331,10 +338,22 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                 (p) => setProgress(p), 
                 mode, 
                 selectedCountry,
-                customBaseRange
+                customBaseRange,
+                abortController.signal
             );
             setResults(zonalResults);
-        } catch (error) { console.error(error); alert("Error in zonal calculation."); } finally { setIsLoading(false); setProgress(1); }
+        } catch (error: any) { 
+            if (error.message === 'Calculation aborted by user') {
+                console.log('Calculation aborted');
+            } else {
+                console.error(error); 
+                alert("Error in zonal calculation."); 
+            }
+        } finally { 
+            setIsLoading(false); 
+            setProgress(1); 
+            abortControllerRef.current = null;
+        }
     };
 
     const handleLockToggle = (zoneIdx: number, pairId: string) => {
@@ -399,8 +418,8 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                         rxIsBase = p.rx >= customBaseRange.min && p.rx <= customBaseRange.max;
                     }
 
-                    carriers.push({ value: p.tx, label: `Z${zIdx + 1}P${pIdx + 1}T`, type: 'tx', zoneName: z.zoneName, bw: p.txBw || 0.0125, zoneIndex: zIdx, isTx: txIsBase });
-                    carriers.push({ value: p.rx, label: `Z${zIdx + 1}P${pIdx + 1}R`, type: 'rx', zoneName: z.zoneName, bw: p.rxBw || 0.0125, zoneIndex: zIdx, isTx: rxIsBase });
+                    if (p.tx > 0) carriers.push({ value: p.tx, label: `Z${zIdx + 1}P${pIdx + 1}T`, type: 'tx', zoneName: z.zoneName, bw: p.txBw || 0.0125, zoneIndex: zIdx, isTx: txIsBase });
+                    if (p.rx > 0) carriers.push({ value: p.rx, label: `Z${zIdx + 1}P${pIdx + 1}R`, type: 'rx', zoneName: z.zoneName, bw: p.rxBw || 0.0125, zoneIndex: zIdx, isTx: rxIsBase });
                 });
             });
         }
@@ -515,7 +534,44 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
     }, [mouseCoord, range, allActiveCarriers, intermods, showTwoTone, showThreeTone, isDragging, mode]);
 
     const tabulatedData = useMemo(() => {
-        return [...allActiveCarriers].sort((a: any, b: any) => {
+        const pairs: { tx: number; rx: number; label: string; zoneName: string; bw: number; type: string }[] = [];
+        
+        manualPairs.forEach((p, idx) => {
+            if (p.active === false) return;
+            const zoneName = p.zoneIndex !== undefined && p.zoneIndex !== -1 && talkbackZoneConfigs[p.zoneIndex] ? talkbackZoneConfigs[p.zoneIndex].name.toUpperCase() : 'SITE-WIDE';
+            let type = 'Duplex';
+            if (p.tx > 0 && p.rx === 0) type = 'Simplex Base Tx';
+            else if (p.tx === 0 && p.rx > 0) type = 'Simplex Walkie';
+            pairs.push({
+                tx: p.tx,
+                rx: p.rx,
+                label: `M${idx + 1}`,
+                zoneName,
+                bw: Math.max(p.txBw || 0, p.rxBw || 0) || 0.0125,
+                type
+            });
+        });
+
+        if (results) {
+            results.forEach((z, zIdx) => {
+                z.pairs.forEach((p, pIdx) => {
+                    if (p.active === false) return;
+                    let type = 'Duplex';
+                    if (p.tx > 0 && p.rx === 0) type = 'Simplex Base Tx';
+                    else if (p.tx === 0 && p.rx > 0) type = 'Simplex Walkie';
+                    pairs.push({
+                        tx: p.tx,
+                        rx: p.rx,
+                        label: `Z${zIdx + 1}P${pIdx + 1}`,
+                        zoneName: z.zoneName,
+                        bw: 0.0125,
+                        type
+                    });
+                });
+            });
+        }
+
+        return pairs.sort((a: any, b: any) => {
             let valA = a[sortField]; let valB = b[sortField];
             if (typeof valA === 'string') valA = valA.toLowerCase();
             if (typeof valB === 'string') valB = valB.toLowerCase();
@@ -523,22 +579,22 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
             if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [allActiveCarriers, sortField, sortDirection]);
+    }, [manualPairs, results, talkbackZoneConfigs, sortField, sortDirection]);
 
     const handleExport = (format: 'pdf' | 'csv' | 'xls' | 'doc' | 'txt') => {
         setIsExportMenuOpen(false); const data = tabulatedData; const filename = `zonal_talkback_rf_plan_${new Date().toISOString().slice(0, 10)}`;
         if (format === 'csv' || format === 'xls') {
-            let content = "Frequency (MHz),Designation,Type,Assigned Zone,Bandwidth (kHz)\n";
-            data.forEach(c => content += `${c.value.toFixed(5)},"${c.label}",${c.type.toUpperCase()},"${c.zoneName}",${(c.bw * 1000).toFixed(1)}\n`);
+            let content = "Base Tx (MHz),Portable Rx (MHz),Type,Assigned Zone,Bandwidth (kHz)\n";
+            data.forEach(c => content += `${c.tx > 0 ? c.tx.toFixed(5) : '—'},${c.rx > 0 ? c.rx.toFixed(5) : '—'},${c.type},"${c.zoneName}",${(c.bw * 1000).toFixed(1)}\n`);
             const blob = new Blob([content], { type: format === 'xls' ? 'application/vnd.ms-excel' : 'text/csv' });
             const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${filename}.${format}`; a.click();
         } else if (format === 'pdf') {
             // @ts-ignore
             const { jsPDF } = window.jspdf; const doc = new jsPDF();
             doc.setFontSize(18); doc.text("Zonal Talkback RF Plan", 14, 20); doc.setFontSize(10); doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
-            const tableData = data.map(c => [c.value.toFixed(5), c.label, c.type.toUpperCase(), c.zoneName, (c.bw * 1000).toFixed(1) + 'k']);
+            const tableData = data.map(c => [c.tx > 0 ? c.tx.toFixed(5) : '—', c.rx > 0 ? c.rx.toFixed(5) : '—', c.type, c.zoneName, (c.bw * 1000).toFixed(1) + 'k']);
             // @ts-ignore
-            doc.autoTable({ startY: 35, head: [['Frequency', 'Label', 'Type', 'Zone', 'BW']], body: tableData, theme: 'striped', headStyles: { fillColor: [79, 70, 229] } });
+            doc.autoTable({ startY: 35, head: [['Base Tx', 'Port Rx', 'Type', 'Zone', 'BW']], body: tableData, theme: 'striped', headStyles: { fillColor: [79, 70, 229] } });
             doc.save(`${filename}.pdf`);
         }
     };
@@ -987,7 +1043,7 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                 <div className="mt-4 flex flex-wrap gap-2 items-center border-t border-white/5 pt-4"><button onClick={addManualPair} className={`${greenButton} flex-grow border-dashed`}>+ Add Single Manual Pair</button><div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg p-1"><span className="text-[10px] text-slate-500 font-black uppercase px-2">Batch:</span><input type="number" min="1" max="50" value={bulkAddCount} onChange={e => setBulkAddCount(parseInt(e.target.value) || 1)} className="bg-slate-800 border border-slate-700 rounded w-12 p-1 text-center font-mono text-xs text-white" /><select value={bulkAddZone} onChange={e => setBulkAddZone(parseInt(e.target.value))} className="bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-indigo-300 font-bold"><option value={-1}>Site-Wide</option>{talkbackZoneConfigs.map((z, i) => <option key={i} value={i}>{z.name}</option>)}</select><button onClick={handleBulkAddManualPairs} className={`${primaryButton} !px-4 !py-1.5 !text-[10px]`}>Add Batch</button></div></div>
             </Card>
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6"><Card><div className="flex justify-between items-center mb-4"><CardTitle className="!mb-0 text-sm font-black uppercase tracking-widest">📍 Distance Matrix (m)</CardTitle><div className="flex bg-slate-950 border border-indigo-500/30 rounded-lg p-1 items-center gap-2"><span className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-2">Global Separation:</span><input type="number" value={globalDistInput} onChange={e => setGlobalDistInput(e.target.value)} className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-xs font-mono text-cyan-400 text-center outline-none" /><button onClick={handleApplyGlobalDistance} className="bg-indigo-600 hover:bg-indigo-500 text-white text-[8px] font-black uppercase px-2 py-1 rounded transition-colors">Apply All</button></div></div><div className="overflow-x-auto rounded-lg border border-slate-700 shadow-inner bg-black/20"><table className="w-full text-[10px] border-collapse text-center"><thead><tr className="bg-slate-950"><th className="p-2 border border-slate-800"></th>{talkbackZoneConfigs.map((z, i) => <th key={i} className="p-2 border border-slate-800 text-slate-500 font-black">{i+1}</th>)}</tr></thead><tbody>{distances.map((row, rIdx) => (<tr key={rIdx}><th className="p-2 border border-slate-800 bg-slate-950 text-slate-500 font-black">{rIdx+1}</th>{row.map((val, cIdx) => (<td key={cIdx} className="p-0 border border-slate-800">{rIdx === cIdx ? <div className="h-10 bg-slate-900/50" /> : <input type="number" value={val} onChange={e => handleDistanceMatrixChange(rIdx, cIdx, e.target.value)} className="w-full h-10 bg-transparent text-center font-mono text-cyan-400 outline-none focus:bg-indigo-600/10" />}</td>))}</tr>))}</tbody></table></div></Card><Card><CardTitle className="text-sm font-black uppercase tracking-widest">⛓️ Manual IMD Links</CardTitle><div className="overflow-x-auto rounded-lg border border-slate-700 shadow-inner bg-black/20"><table className="w-full text-[10px] border-collapse text-center"><thead><tr className="bg-slate-950"><th className="p-2 border border-slate-800"></th>{talkbackZoneConfigs.map((z, i) => <th key={i} className="p-2 border border-slate-800 text-slate-500 font-black">{i+1}</th>)}</tr></thead><tbody>{compatibilityMatrix.map((row, rIdx) => (<tr key={rIdx}><th className="p-2 border border-slate-800 bg-slate-950 text-slate-500 font-black">{rIdx+1}</th>{row.map((val, cIdx) => (<td key={cIdx} className="p-1 border border-slate-800 text-center">{rIdx === cIdx ? '—' : <input type="checkbox" checked={val} onChange={() => handleMatrixChange(rIdx, cIdx)} className="w-3 h-3 accent-indigo-500" />}</td>))}</tr>))}</tbody></table></div></Card></div>
-             <div className="space-y-4"><div className="flex gap-4"><button onClick={handleCalculate} disabled={isLoading} className={`${primaryButton} w-full py-4 text-lg uppercase tracking-widest`}>{isLoading ? `COORDINATING ZONES...` : 'CALCULATE SITE PLAN'}</button><button onClick={() => setShowTable(!showTable)} className={`${secondaryButton} !w-auto flex items-center gap-2 px-6`}><span>📊</span> {showTable ? 'HIDE LEDGER' : 'TABULATE DATA'}</button><div className="relative"><button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className={`${actionButton} h-full px-6 flex items-center gap-2`}><span>📥</span> EXPORT</button>{isExportMenuOpen && (<div className="absolute bottom-full right-0 mb-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-[110] overflow-hidden min-w-[220px] animate-in fade-in slide-in-from-bottom-2 duration-200"><button onClick={() => handleExport('pdf')} className="w-full text-left px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-700 border-b border-white/5 transition-colors">PDF Report</button><button onClick={() => handleExport('xls')} className="w-full text-left px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-700 border-b border-white/5 transition-colors">Excel (.XLS)</button></div>)}</div></div>            {(isLoading || results) && (
+             <div className="space-y-4"><div className="flex gap-4"><button onClick={handleCalculate} disabled={isLoading} className={`${primaryButton} w-full py-4 text-lg uppercase tracking-widest`}>{isLoading ? `COORDINATING ZONES...` : 'CALCULATE SITE PLAN'}</button>{isLoading && (<button onClick={() => abortControllerRef.current?.abort()} className={`${secondaryButton} !bg-red-600 hover:!bg-red-500 border-red-800 text-white px-8 py-4 text-lg uppercase tracking-widest`}>ABORT</button>)}<button onClick={() => setShowTable(!showTable)} className={`${secondaryButton} !w-auto flex items-center gap-2 px-6`}><span>📊</span> {showTable ? 'HIDE LEDGER' : 'TABULATE DATA'}</button><div className="relative"><button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className={`${actionButton} h-full px-6 flex items-center gap-2`}><span>📥</span> EXPORT</button>{isExportMenuOpen && (<div className="absolute bottom-full right-0 mb-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-[110] overflow-hidden min-w-[220px] animate-in fade-in slide-in-from-bottom-2 duration-200"><button onClick={() => handleExport('pdf')} className="w-full text-left px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-700 border-b border-white/5 transition-colors">PDF Report</button><button onClick={() => handleExport('xls')} className="w-full text-left px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-700 border-b border-white/5 transition-colors">Excel (.XLS)</button></div>)}</div></div>            {(isLoading || results) && (
                 <div className="bg-slate-800/80 border border-blue-500/20 rounded-lg p-3">
                     <div className="flex justify-between items-center mb-1.5">
                         <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
@@ -1017,7 +1073,7 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                 </div>
             )}
 </div>
-             {showTable && tabulatedData.length > 0 && (<Card className="!bg-slate-950 border-cyan-500/30 animate-in fade-in slide-in-from-top-2 duration-300"><CardTitle className="!text-sm uppercase tracking-[0.2em] text-cyan-400">Numerical Spectral Allocation Ledger</CardTitle><div className="overflow-y-auto max-h-[400px] rounded-xl border border-white/10 custom-scrollbar shadow-inner"><table className="w-full text-left border-collapse text-[11px]"><thead className="bg-slate-900 sticky top-0 z-10"><tr className="uppercase font-black text-slate-500 border-b border-white/10"><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('value')}>Frequency (MHz) <SortArrow field="value" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('label')}>Designation <SortArrow field="label" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('type')}>Type <SortArrow field="type" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('zoneName')}>Zone <SortArrow field="zoneName" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('bw')}>Bandwidth <SortArrow field="bw" /></th></tr></thead><tbody className="divide-y divide-white/5">{tabulatedData.map((row, i) => (<tr key={i} className="hover:bg-cyan-500/5 transition-colors group"><td className="p-3 font-mono text-cyan-400 font-black text-sm">{row.value.toFixed(5)}</td><td className="p-3"><span className="text-white font-bold tracking-tight">{row.label}</span></td><td className="p-3"><span className={`px-2 py-0.5 rounded uppercase text-[8px] font-black border ${row.type === 'tx' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-blue-500/10 border-blue-500/30 text-blue-400'}`}>{row.type === 'tx' ? 'Tx' : 'Rx'}</span></td><td className="p-3"><span className="text-indigo-300 font-black uppercase tracking-tighter">{row.zoneName}</span></td><td className="p-3 font-mono text-slate-500">{(row.bw * 1000).toFixed(1)} kHz</td></tr>))}</tbody></table></div></Card>)}
+             {showTable && tabulatedData.length > 0 && (<Card className="!bg-slate-950 border-cyan-500/30 animate-in fade-in slide-in-from-top-2 duration-300"><CardTitle className="!text-sm uppercase tracking-[0.2em] text-cyan-400">Numerical Spectral Allocation Ledger</CardTitle><div className="overflow-y-auto max-h-[400px] rounded-xl border border-white/10 custom-scrollbar shadow-inner"><table className="w-full text-left border-collapse text-[11px]"><thead className="bg-slate-900 sticky top-0 z-10"><tr className="uppercase font-black text-slate-500 border-b border-white/10"><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('tx')}>Base Tx (MHz) <SortArrow field="tx" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('rx')}>Portable Rx (MHz) <SortArrow field="rx" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('type')}>Type <SortArrow field="type" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('zoneName')}>Zone <SortArrow field="zoneName" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('bw')}>Bandwidth <SortArrow field="bw" /></th></tr></thead><tbody className="divide-y divide-white/5">{tabulatedData.map((row, i) => (<tr key={i} className="hover:bg-cyan-500/5 transition-colors group"><td className="p-3 font-mono text-cyan-400 font-black text-sm">{row.tx > 0 ? row.tx.toFixed(5) : '—'}</td><td className="p-3 font-mono text-blue-400 font-black text-sm">{row.rx > 0 ? row.rx.toFixed(5) : '—'}</td><td className="p-3"><span className="px-2 py-0.5 rounded uppercase text-[8px] font-black border bg-slate-800 border-slate-700 text-slate-300">{row.type}</span></td><td className="p-3"><span className="text-indigo-300 font-black uppercase tracking-tighter">{row.zoneName}</span></td><td className="p-3 font-mono text-slate-500">{(row.bw * 1000).toFixed(1)} kHz</td></tr>))}</tbody></table></div></Card>)}
              <Card><div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">                    <div className="flex items-center gap-3">
                         <CardTitle className="!mb-0">3. Intermod Physics Auditor</CardTitle>
                         <button onClick={handleRunAudit} className={primaryButton}>RUN SPECTRAL AUDIT</button>

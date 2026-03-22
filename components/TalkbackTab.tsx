@@ -97,9 +97,10 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
     const [genProgress, setGenProgress] = useState(0);
     const [showTable, setShowTable] = useState(false);
     const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-    const [sortField, setSortField] = useState<string>('value');
+    const [sortField, setSortField] = useState<string>('tx');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const [bulkAddCount, setBulkAddCount] = useState(4);
+    const abortControllerRef = useRef<AbortController | null>(null);
     
     // Custom Range State
     const [customTxMin, setCustomTxMin] = useState<number>(414);
@@ -254,6 +255,13 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
     };
 
     const handleGenerate = async () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
+        const signal = abortController.signal;
+
         setIsCalculating(true);
         setGenProgress(0);
         await new Promise(r => setTimeout(r, 50));
@@ -438,6 +446,13 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
         const targetSimplexWalkie = Math.max(0, simplexWalkieCount - lockedSimplexWalkie.length);
 
         for (let i = 0; i < 5000; i++) {
+            if (signal.aborted) {
+                setIsCalculating(false);
+                setGenProgress(0);
+                abortControllerRef.current = null;
+                console.log('Calculation aborted');
+                return;
+            }
             const current: DuplexPair[] = [];
             
             // Try to add duplex pairs
@@ -477,11 +492,15 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                     break;
                 }
             }
-            if (i % 500 === 0) setGenProgress(i / 5000);
+            if (i % 500 === 0) {
+                setGenProgress(i / 5000);
+                await new Promise(r => setTimeout(r, 0));
+            }
         }
         setResults([...lockedResults, ...bestSolution]);
         setGenProgress(1);
         setIsCalculating(false);
+        abortControllerRef.current = null;
     };
 
     const allActiveCarriers = useMemo(() => {
@@ -555,7 +574,41 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
     };
 
     const tabulatedData = useMemo(() => {
-        return [...allActiveCarriers].sort((a: any, b: any) => {
+        const pairs: { tx: number; rx: number; label: string; groupName: string; bw: number; type: string }[] = [];
+        
+        manualPairs.forEach(p => {
+            if (p.active === false) return;
+            let type = 'Duplex';
+            if (p.tx > 0 && p.rx === 0) type = 'Simplex Base Tx';
+            else if (p.tx === 0 && p.rx > 0) type = 'Simplex Walkie';
+            pairs.push({
+                tx: p.tx,
+                rx: p.rx,
+                label: p.label,
+                groupName: p.groupName || 'Manual',
+                bw: Math.max(p.txBw || 0, p.rxBw || 0) || 0.0125,
+                type
+            });
+        });
+
+        if (results) {
+            results.forEach(p => {
+                if (p.active === false) return;
+                let type = 'Duplex';
+                if (p.tx > 0 && p.rx === 0) type = 'Simplex Base Tx';
+                else if (p.tx === 0 && p.rx > 0) type = 'Simplex Walkie';
+                pairs.push({
+                    tx: p.tx,
+                    rx: p.rx,
+                    label: p.label,
+                    groupName: p.groupName,
+                    bw: 0.0125,
+                    type
+                });
+            });
+        }
+
+        return pairs.sort((a: any, b: any) => {
             let valA = a[sortField]; let valB = b[sortField];
             if (typeof valA === 'string') valA = valA.toLowerCase();
             if (typeof valB === 'string') valB = valB.toLowerCase();
@@ -563,26 +616,26 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
             if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [allActiveCarriers, sortField, sortDirection]);
+    }, [manualPairs, results, sortField, sortDirection]);
 
     const handleExport = (format: 'pdf' | 'csv' | 'xls' | 'doc' | 'txt') => {
         setIsExportMenuOpen(false);
         const data = tabulatedData;
         const filename = `talkback_rf_plan_${new Date().toISOString().slice(0, 10)}`;
         if (format === 'csv' || format === 'xls') {
-            let content = "Frequency (MHz),Label,Type,Group,Bandwidth (kHz)\n";
-            data.forEach(c => content += `${c.value.toFixed(5)},"${c.label}",${c.type.toUpperCase()},"${c.groupName}",${(c.bw * 1000).toFixed(1)}\n`);
+            let content = "Base Tx (MHz),Portable Rx (MHz),Type,Group,Bandwidth (kHz)\n";
+            data.forEach(c => content += `${c.tx > 0 ? c.tx.toFixed(5) : '—'},${c.rx > 0 ? c.rx.toFixed(5) : '—'},${c.type},"${c.groupName}",${(c.bw * 1000).toFixed(1)}\n`);
             const blob = new Blob([content], { type: format === 'xls' ? 'application/vnd.ms-excel' : 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = `${filename}.${format}`; a.click();
         } else if (format === 'txt') {
             let content = "TALKBACK RF COORDINATION PLAN\n============================\n\n";
-            data.forEach(c => content += `${c.value.toFixed(5)} MHz | ${c.label} | ${c.type.toUpperCase()} | ${c.groupName}\n`);
+            data.forEach(c => content += `Tx: ${c.tx > 0 ? c.tx.toFixed(5) : '—'} MHz | Rx: ${c.rx > 0 ? c.rx.toFixed(5) : '—'} MHz | ${c.type} | ${c.groupName}\n`);
             const blob = new Blob([content], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = `${filename}.txt`; a.click();
         } else if (format === 'doc') {
-            let html = `<html><body><h1>Talkback RF Coordination Plan</h1><table border="1"><tr><th>Frequency (MHz)</th><th>Label</th><th>Type</th><th>Group</th></tr>${data.map(c => `<tr><td>${c.value.toFixed(5)}</td><td>${c.label}</td><td>${c.type.toUpperCase()}</td><td>${c.groupName}</td></tr>`).join('')}</table></body></html>`;
+            let html = `<html><body><h1>Talkback RF Coordination Plan</h1><table border="1"><tr><th>Base Tx (MHz)</th><th>Portable Rx (MHz)</th><th>Type</th><th>Group</th></tr>${data.map(c => `<tr><td>${c.tx > 0 ? c.tx.toFixed(5) : '—'}</td><td>${c.rx > 0 ? c.rx.toFixed(5) : '—'}</td><td>${c.type}</td><td>${c.groupName}</td></tr>`).join('')}</table></body></html>`;
             const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = `${filename}.doc`; a.click();
@@ -590,9 +643,9 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
             // @ts-ignore
             const { jsPDF } = window.jspdf; const doc = new jsPDF();
             doc.setFontSize(18); doc.text("Talkback RF Coordination Plan", 14, 20); doc.setFontSize(10); doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
-            const tableData = data.map(c => [c.value.toFixed(5), c.label, c.type.toUpperCase(), c.groupName, (c.bw * 1000).toFixed(1) + 'k']);
+            const tableData = data.map(c => [c.tx > 0 ? c.tx.toFixed(5) : '—', c.rx > 0 ? c.rx.toFixed(5) : '—', c.type, c.groupName, (c.bw * 1000).toFixed(1) + 'k']);
             // @ts-ignore
-            doc.autoTable({ startY: 35, head: [['Frequency', 'Label', 'Type', 'Group', 'BW']], body: tableData, theme: 'striped', headStyles: { fillColor: [30, 41, 59] } });
+            doc.autoTable({ startY: 35, head: [['Base Tx', 'Port Rx', 'Type', 'Group', 'BW']], body: tableData, theme: 'striped', headStyles: { fillColor: [30, 41, 59] } });
             doc.save(`${filename}.pdf`);
         }
     };
@@ -1138,6 +1191,9 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
             <div className="space-y-4">
                 <div className="flex gap-4">
                     <button onClick={handleGenerate} disabled={isCalculating} className={`${primaryButton} w-full py-4 text-lg shadow-2xl uppercase tracking-widest`}>{isCalculating ? `COORDINATING SITE...` : 'CALCULATE SITE PLAN'}</button>
+                    {isCalculating && (
+                        <button onClick={() => abortControllerRef.current?.abort()} className={`${secondaryButton} !bg-red-600 hover:!bg-red-500 border-red-800 text-white px-8 py-4 text-lg uppercase tracking-widest`}>ABORT</button>
+                    )}
                     <button onClick={() => setShowTable(!showTable)} className={`${secondaryButton} !w-auto flex items-center gap-2 px-6`}><span>📊</span> {showTable ? 'HIDE LEDGER' : 'TABULATE PLAN'}</button>
                     <div className="relative">
                         <button onClick={() => setIsExportMenuOpen(!isExportMenuOpen)} className={`${actionButton} h-full px-6 flex items-center gap-2`}><span>📥</span> EXPORT</button>
@@ -1188,8 +1244,8 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                     <CardTitle className="!text-sm uppercase tracking-[0.2em] text-cyan-400">Numerical Spectral Allocation Ledger</CardTitle>
                     <div className="overflow-y-auto max-h-[400px] rounded-xl border border-white/10 custom-scrollbar shadow-inner">
                         <table className="w-full text-left border-collapse text-[11px]">
-                            <thead className="bg-slate-900 sticky top-0 z-10"><tr className="uppercase font-black text-slate-500 border-b border-white/10"><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('value')}>Frequency (MHz) <SortArrow field="value" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('label')}>Designation <SortArrow field="label" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('type')}>Type <SortArrow field="type" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('groupName')}>Source Group <SortArrow field="groupName" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('bw')}>Bandwidth <SortArrow field="bw" /></th></tr></thead>
-                            <tbody className="divide-y divide-white/5">{tabulatedData.map((row, i) => (<tr key={i} className="hover:bg-cyan-500/5 transition-colors group"><td className="p-3 font-mono text-cyan-400 font-black text-sm">{row.value.toFixed(5)}</td><td className="p-3"><span className="text-white font-bold tracking-tight">{row.label}</span></td><td className="p-3"><span className={`px-2 py-0.5 rounded uppercase text-[8px] font-black border ${row.type === 'tx' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-blue-500/10 border-blue-500/30 text-blue-400'}`}>{row.type === 'tx' ? 'Base Tx' : 'Port Rx'}</span></td><td className="p-3"><span className="text-indigo-300 font-black uppercase tracking-tighter">{row.groupName}</span></td><td className="p-3 font-mono text-slate-500">{(row.bw * 1000).toFixed(1)} kHz</td></tr>))}</tbody>
+                            <thead className="bg-slate-900 sticky top-0 z-10"><tr className="uppercase font-black text-slate-500 border-b border-white/10"><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('tx')}>Base Tx (MHz) <SortArrow field="tx" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('rx')}>Portable Rx (MHz) <SortArrow field="rx" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('type')}>Type <SortArrow field="type" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('groupName')}>Source Group <SortArrow field="groupName" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('bw')}>Bandwidth <SortArrow field="bw" /></th></tr></thead>
+                            <tbody className="divide-y divide-white/5">{tabulatedData.map((row, i) => (<tr key={i} className="hover:bg-cyan-500/5 transition-colors group"><td className="p-3 font-mono text-cyan-400 font-black text-sm">{row.tx > 0 ? row.tx.toFixed(5) : '—'}</td><td className="p-3 font-mono text-blue-400 font-black text-sm">{row.rx > 0 ? row.rx.toFixed(5) : '—'}</td><td className="p-3"><span className="px-2 py-0.5 rounded uppercase text-[8px] font-black border bg-slate-800 border-slate-700 text-slate-300">{row.type}</span></td><td className="p-3"><span className="text-indigo-300 font-black uppercase tracking-tighter">{row.groupName}</span></td><td className="p-3 font-mono text-slate-500">{(row.bw * 1000).toFixed(1)} kHz</td></tr>))}</tbody>
                         </table>
                     </div>
                 </Card>

@@ -1366,7 +1366,8 @@ export const generateZonalTalkbackPairs = async (
     }[],
     spacing: number, distances: number[][], matrix: boolean[][],
     previousResults: any, manualPairs: any[], onProgress: (p: number) => void, mode: TalkbackMode = 'standard',
-    country: string = 'UK', customBaseRange: { min: number, max: number } = { min: 450, max: 464 }
+    country: string = 'UK', customBaseRange: { min: number, max: number } = { min: 450, max: 464 },
+    abortSignal?: AbortSignal
 ): Promise<ZonalResult[]> => {
     const results: ZonalResult[] = [];
     const globalFreqPool: (Frequency & { isTx?: boolean, zoneIndex?: number })[] = [];
@@ -1620,6 +1621,9 @@ export const generateZonalTalkbackPairs = async (
         const iterations = 5000; 
         
         for (let iter = 0; iter < iterations; iter++) {
+            if (abortSignal?.aborted) {
+                throw new Error('Calculation aborted by user');
+            }
             const current: DuplexPair[] = [];
             const sTx = shuffleArray(txFreqPool); 
             const sRx = shuffleArray(rxFreqPool);
