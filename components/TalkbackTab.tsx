@@ -766,7 +766,7 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
         if (showTwoTone) { for (const im of intermods.twoTone) if (Math.abs(mouseFreq - im.value) < hitThreshold) return { text: `2-Tone IMD: ${im.value.toFixed(5)} MHz`, subtext: `Formula: 2*${im.sources[0].toFixed(3)} - ${im.sources[1].toFixed(3)}`, color: INTERMOD_CONFIG.twoTone.color }; }
         if (showThreeTone) { for (const im of intermods.threeTone) if (Math.abs(mouseFreq - im.value) < hitThreshold) return { text: `3-Tone IMD: ${im.value.toFixed(5)} MHz`, subtext: `Formula: ${im.sources[0].toFixed(3)} + ${im.sources[1].toFixed(3)} - ${im.sources[2].toFixed(3)}`, color: INTERMOD_CONFIG.threeTone.color }; }
         return null;
-    }, [mouseCoord, range, allActiveCarriers, intermods, showTwoTone, showThreeTone, isDragging, mode]);
+    }, [mouseCoord, range, allActiveCarriers, intermods, showTwoTone, showThreeTone, isDragging, mode, selectedCountry]);
 
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
@@ -830,7 +830,7 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
             ctx.font = 'bold 10px sans-serif'; ctx.fillText('FREQUENCY (MHz)', width/2, height - 5);
         };
         draw();
-    }, [range, allActiveCarriers, intermods, showTwoTone, showThreeTone, results, manualPairs, mode, dimensions]);
+    }, [range, allActiveCarriers, intermods, showTwoTone, showThreeTone, results, manualPairs, mode, dimensions, selectedCountry]);
 
     const SortArrow = ({ field }: { field: string }) => {
         if (sortField !== field) return <span className="ml-1 text-slate-500">↕</span>;
@@ -843,18 +843,6 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-4">
                         <CardTitle className="!mb-0">1. Setup Base & Portable Bands</CardTitle>
-                        <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl p-1 shadow-inner">
-                            <span className="text-[10px] text-slate-500 font-black uppercase px-2">Country:</span>
-                            <select 
-                                value={selectedCountry} 
-                                onChange={e => setSelectedCountry(e.target.value as any)}
-                                className="bg-slate-800 text-white text-[10px] font-black uppercase rounded-lg px-3 py-1.5 outline-none border border-slate-700"
-                            >
-                                <option value="UK">UK</option>
-                                <option value="USA">USA</option>
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
                         {mode === 'custom' && (
                             <SectionToggle mode={duplexCustomMode} onChange={setDuplexCustomMode} />
                         )}
@@ -1255,6 +1243,18 @@ const TalkbackTab: React.FC<TalkbackTabProps> = ({ manualPairs, setManualPairs, 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                     <div className="flex items-center gap-3">
                         <CardTitle className="!mb-0">3. Intermod Physics Auditor</CardTitle>
+                        <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl p-1 shadow-inner ml-2">
+                            <span className="text-[10px] text-slate-500 font-black uppercase px-2">Country:</span>
+                            <select 
+                                value={selectedCountry} 
+                                onChange={e => setSelectedCountry(e.target.value as any)}
+                                className="bg-slate-800 text-white text-[10px] font-black uppercase rounded-lg px-3 py-1.5 outline-none border border-slate-700"
+                            >
+                                <option value="UK">UK</option>
+                                <option value="USA">USA</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
                         {results && results.length > 0 && (
                             <button 
                                 onClick={handleLockAllResults} 

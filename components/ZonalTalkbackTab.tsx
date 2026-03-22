@@ -531,7 +531,7 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
         if (showTwoTone) { for (const im of intermods.twoTone) if (Math.abs(mouseFreq - im.value) < hitThreshold) return { text: `2-Tone IMD: ${im.value.toFixed(5)} MHz`, subtext: `Formula: 2*${im.sources[0].toFixed(3)} - ${im.sources[1].toFixed(3)}`, color: INTERMOD_CONFIG.twoTone.color }; }
         if (showThreeTone) { for (const im of intermods.threeTone) if (Math.abs(mouseFreq - im.value) < hitThreshold) return { text: `3-Tone IMD: ${im.value.toFixed(5)} MHz`, subtext: `Formula: ${im.sources[0].toFixed(3)} + ${im.sources[1].toFixed(3)} - ${im.sources[2].toFixed(3)}`, color: INTERMOD_CONFIG.threeTone.color }; }
         return null;
-    }, [mouseCoord, range, allActiveCarriers, intermods, showTwoTone, showThreeTone, isDragging, mode]);
+    }, [mouseCoord, range, allActiveCarriers, intermods, showTwoTone, showThreeTone, isDragging, mode, selectedCountry]);
 
     const tabulatedData = useMemo(() => {
         const pairs: { tx: number; rx: number; label: string; zoneName: string; bw: number; type: string }[] = [];
@@ -659,7 +659,7 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
             allActiveCarriers.forEach(c => drawSignal(c.value, INTERMOD_CONFIG.tx.amp, c.type === 'tx' ? INTERMOD_CONFIG.tx.color : INTERMOD_CONFIG.rx.color, c.bw, c.label));
         };
         draw();
-    }, [range, allActiveCarriers, intermods, showTwoTone, showThreeTone, mode, dimensions]);
+    }, [range, allActiveCarriers, intermods, showTwoTone, showThreeTone, mode, dimensions, selectedCountry]);
 
     const SectionToggle: React.FC<{
         label: string;
@@ -721,21 +721,6 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                             >
                                 Custom Range
                             </button>
-                        </div>
-                    </div>
-
-                    <div className="bg-slate-900/40 p-1.5 rounded-xl border border-white/5 flex items-center gap-3">
-                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest pl-2">Country</span>
-                        <div className="flex bg-slate-950/50 p-1 rounded-lg gap-1 border border-white/5">
-                            {['UK', 'USA', 'Other'].map((country) => (
-                                <button
-                                    key={country}
-                                    onClick={() => setSelectedCountry(country)}
-                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${selectedCountry === country ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-                                >
-                                    {country}
-                                </button>
-                            ))}
                         </div>
                     </div>
                 </div>
@@ -1076,6 +1061,20 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
              {showTable && tabulatedData.length > 0 && (<Card className="!bg-slate-950 border-cyan-500/30 animate-in fade-in slide-in-from-top-2 duration-300"><CardTitle className="!text-sm uppercase tracking-[0.2em] text-cyan-400">Numerical Spectral Allocation Ledger</CardTitle><div className="overflow-y-auto max-h-[400px] rounded-xl border border-white/10 custom-scrollbar shadow-inner"><table className="w-full text-left border-collapse text-[11px]"><thead className="bg-slate-900 sticky top-0 z-10"><tr className="uppercase font-black text-slate-500 border-b border-white/10"><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('tx')}>Base Tx (MHz) <SortArrow field="tx" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('rx')}>Portable Rx (MHz) <SortArrow field="rx" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('type')}>Type <SortArrow field="type" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('zoneName')}>Zone <SortArrow field="zoneName" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('bw')}>Bandwidth <SortArrow field="bw" /></th></tr></thead><tbody className="divide-y divide-white/5">{tabulatedData.map((row, i) => (<tr key={i} className="hover:bg-cyan-500/5 transition-colors group"><td className="p-3 font-mono text-cyan-400 font-black text-sm">{row.tx > 0 ? row.tx.toFixed(5) : '—'}</td><td className="p-3 font-mono text-blue-400 font-black text-sm">{row.rx > 0 ? row.rx.toFixed(5) : '—'}</td><td className="p-3"><span className="px-2 py-0.5 rounded uppercase text-[8px] font-black border bg-slate-800 border-slate-700 text-slate-300">{row.type}</span></td><td className="p-3"><span className="text-indigo-300 font-black uppercase tracking-tighter">{row.zoneName}</span></td><td className="p-3 font-mono text-slate-500">{(row.bw * 1000).toFixed(1)} kHz</td></tr>))}</tbody></table></div></Card>)}
              <Card><div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">                    <div className="flex items-center gap-3">
                         <CardTitle className="!mb-0">3. Intermod Physics Auditor</CardTitle>
+                        <div className="bg-slate-900/40 p-1.5 rounded-xl border border-white/5 flex items-center gap-3 ml-2">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest pl-2">Country</span>
+                            <div className="flex bg-slate-950/50 p-1 rounded-lg gap-1 border border-white/5">
+                                {['UK', 'USA', 'Other'].map((country) => (
+                                    <button
+                                        key={country}
+                                        onClick={() => setSelectedCountry(country)}
+                                        className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${selectedCountry === country ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                                    >
+                                        {country}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         <button onClick={handleRunAudit} className={primaryButton}>RUN SPECTRAL AUDIT</button>
                     </div>
 
