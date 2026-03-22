@@ -202,6 +202,8 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
     const [dragState, setDragState] = useState<{ startX: number, startMin: number, startMax: number } | null>(null);
     const [mouseCoord, setMouseCoord] = useState<{ clientX: number, clientY: number, internalX: number } | null>(null);
     const [showTable, setShowTable] = useState(false);
+    const [customBaseRange, setCustomBaseRange] = useState({ min: 450, max: 464 });
+    const [customSwRange, setCustomSwRange] = useState({ min: 464, max: 470 });
 
     // Auditor State Tracking
     const isCenterFreqFocused = useRef(false);
@@ -268,12 +270,16 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
     const updateManualPair = (id: string, field: string, value: any) => {
         setManualPairs(p => p.map(pair => {
             if (pair.id === id) {
-                const isNumeric = field === 'tx' || field === 'rx' || field === 'txBw' || field === 'rxBw' || field === 'zoneIndex';
+                const isNumeric = (field === 'tx' || field === 'rx' || field === 'txBw' || field === 'rxBw' || field === 'zoneIndex') && typeof value !== 'boolean';
                 const numVal = isNumeric ? (parseFloat(value) ?? (field === 'zoneIndex' ? -1 : 0)) : value;
                 return { ...pair, [field]: numVal };
             }
             return pair;
         }));
+    };
+
+    const handleToggleBase = (zoneIdx: number, pairId: string, field: 'txIsBase' | 'rxIsBase') => {
+        setResults(prev => prev ? prev.map((z, idx) => idx === zoneIdx ? { ...z, pairs: z.pairs.map(p => p.id === pairId ? { ...p, [field]: !p[field] } : p) } : z) : null);
     };
 
     const handleResultFrequencyChange = (zoneIdx: number, pairId: string, field: 'tx' | 'rx', value: string) => {
@@ -315,7 +321,18 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
             customBw: c.customBw 
         }));
         try {
-            const zonalResults = await generateZonalTalkbackPairs(serviceConfigs, 0.01875, distances, compatibilityMatrix, results, (p) => setProgress(p), mode, selectedCountry);
+            const zonalResults = await generateZonalTalkbackPairs(
+                serviceConfigs, 
+                0.01875, 
+                distances, 
+                compatibilityMatrix, 
+                results, 
+                manualPairs,
+                (p) => setProgress(p), 
+                mode, 
+                selectedCountry,
+                customBaseRange
+            );
             setResults(zonalResults);
         } catch (error) { console.error(error); alert("Error in zonal calculation."); } finally { setIsLoading(false); setProgress(1); }
     };
@@ -349,33 +366,67 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
     };
 
     const allActiveCarriers = useMemo(() => {
-        const carriers: { value: number; label: string; type: 'tx' | 'rx'; zoneName: string; bw: number; zoneIndex: number }[] = [];
+        const carriers: { value: number; label: string; type: 'tx' | 'rx'; zoneName: string; bw: number; zoneIndex: number; isTx?: boolean }[] = [];
         manualPairs.forEach((p, idx) => {
             if (p.active === false) return;
             const zoneName = p.zoneIndex !== undefined && p.zoneIndex !== -1 && talkbackZoneConfigs[p.zoneIndex] ? talkbackZoneConfigs[p.zoneIndex].name.toUpperCase() : 'SITE-WIDE';
-            if (p.tx > 0) carriers.push({ value: p.tx, label: `M${idx + 1}T`, type: 'tx', zoneName, bw: p.txBw || 0.0125, zoneIndex: p.zoneIndex ?? -1 });
-            if (p.rx > 0) carriers.push({ value: p.rx, label: `M${idx + 1}R`, type: 'rx', zoneName, bw: p.rxBw || 0.0125, zoneIndex: p.zoneIndex ?? -1 });
+            
+            let txIsBase = p.txIsBase;
+            let rxIsBase = p.rxIsBase;
+            
+            if (txIsBase === undefined && mode === 'custom') {
+                txIsBase = p.tx >= customBaseRange.min && p.tx <= customBaseRange.max;
+            }
+            if (rxIsBase === undefined && mode === 'custom') {
+                rxIsBase = p.rx >= customBaseRange.min && p.rx <= customBaseRange.max;
+            }
+
+            if (p.tx > 0) carriers.push({ value: p.tx, label: `M${idx + 1}T`, type: 'tx', zoneName, bw: p.txBw || 0.0125, zoneIndex: p.zoneIndex ?? -1, isTx: txIsBase });
+            if (p.rx > 0) carriers.push({ value: p.rx, label: `M${idx + 1}R`, type: 'rx', zoneName, bw: p.rxBw || 0.0125, zoneIndex: p.zoneIndex ?? -1, isTx: rxIsBase });
         });
         if (results) {
             results.forEach((z, zIdx) => {
                 z.pairs.forEach((p, pIdx) => {
                     if (p.active === false) return;
-                    carriers.push({ value: p.tx, label: `Z${zIdx + 1}P${pIdx + 1}T`, type: 'tx', zoneName: z.zoneName, bw: p.txBw || 0.0125, zoneIndex: zIdx });
-                    carriers.push({ value: p.rx, label: `Z${zIdx + 1}P${pIdx + 1}R`, type: 'rx', zoneName: z.zoneName, bw: p.rxBw || 0.0125, zoneIndex: zIdx });
+                    
+                    let txIsBase = p.txIsBase;
+                    let rxIsBase = p.rxIsBase;
+                    
+                    if (txIsBase === undefined && mode === 'custom') {
+                        txIsBase = p.tx >= customBaseRange.min && p.tx <= customBaseRange.max;
+                    }
+                    if (rxIsBase === undefined && mode === 'custom') {
+                        rxIsBase = p.rx >= customBaseRange.min && p.rx <= customBaseRange.max;
+                    }
+
+                    carriers.push({ value: p.tx, label: `Z${zIdx + 1}P${pIdx + 1}T`, type: 'tx', zoneName: z.zoneName, bw: p.txBw || 0.0125, zoneIndex: zIdx, isTx: txIsBase });
+                    carriers.push({ value: p.rx, label: `Z${zIdx + 1}P${pIdx + 1}R`, type: 'rx', zoneName: z.zoneName, bw: p.rxBw || 0.0125, zoneIndex: zIdx, isTx: rxIsBase });
                 });
             });
         }
         return carriers;
-    }, [results, manualPairs, talkbackZoneConfigs]);
+    }, [results, manualPairs, talkbackZoneConfigs, mode, customBaseRange]);
 
     const handleRunAudit = () => {
-        const freqList: Frequency[] = allActiveCarriers.map((c) => ({ id: c.label, value: c.value, type: 'comms' as TxType, zoneIndex: c.zoneIndex }));
-        const result = checkTalkbackCompatibility(freqList, distances, compatibilityMatrix, mode, selectedCountry);
+        const freqList: Frequency[] = allActiveCarriers.map((c) => ({ id: c.label, value: c.value, type: 'comms' as TxType, zoneIndex: c.zoneIndex, isTx: c.isTx }));
+        const result = checkTalkbackCompatibility(freqList, distances, compatibilityMatrix, mode, selectedCountry, customBaseRange);
         setDiagnosticConflicts(result.conflicts);
         setHasAnalyzed(true);
     };
 
-    const intermods = useMemo(() => calculateTalkbackIntermods(allActiveCarriers.filter(c => c.type === 'tx').map(c => ({ value: c.value }))), [allActiveCarriers]);
+    const intermods = useMemo(() => {
+        // Only include carriers that are explicitly tagged as Base (isTx: true) 
+        // OR those that fall into the heuristic range if no explicit tag is present.
+        const baseCarriers = allActiveCarriers.filter(c => {
+            if (c.isTx !== undefined) return c.isTx;
+            if (mode === 'custom') {
+                return c.value >= customBaseRange.min && c.value <= customBaseRange.max;
+            }
+            if (mode === 'europe') return c.value > 464;
+            return c.value < 464;
+        });
+        return calculateTalkbackIntermods(baseCarriers.map(c => ({ value: c.value })));
+    }, [allActiveCarriers, mode, customBaseRange]);
 
     const handleScroll = (direction: 'left' | 'right') => {
         const step = parseFloat(centerStepMhz) || 1.0;
@@ -839,9 +890,17 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                                         
                                         {/* Base Tx */}
                                         <div className="flex items-center gap-1.5 bg-slate-800 rounded px-2 h-8 w-[140px]">
-                                            <span className="text-[7px] text-yellow-500 font-black uppercase leading-none w-8">
-                                                {mode === 'europe' ? 'Base Tx' : 'Base Tx'}
-                                            </span>
+                                            <button 
+                                                onClick={() => updateManualPair(p.id, 'txIsBase', !(p.txIsBase ?? (mode === 'europe' ? p.tx > 464 : p.tx < 464)))}
+                                                className={`text-[7px] font-black uppercase leading-none w-8 px-1 py-0.5 rounded border transition-colors ${
+                                                    (p.txIsBase ?? (mode === 'europe' ? p.tx > 464 : p.tx < 464))
+                                                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                                                        : 'bg-blue-500/20 border-blue-500/40 text-blue-400'
+                                                }`}
+                                                title="Toggle Base (Constant TX) vs SW (Intermittent)"
+                                            >
+                                                {(p.txIsBase ?? (mode === 'europe' ? p.tx > 464 : p.tx < 464)) ? 'Base' : 'SW'}
+                                            </button>
                                             <ManualFreqInput value={p.tx} onChange={v => updateManualPair(p.id, 'tx', v)} className="w-full bg-transparent text-[11px] text-white font-mono outline-none font-bold" />
                                             <div className="flex flex-col -gap-1">
                                                 <button onClick={() => handleFrequencyStep(p.id, 'tx', 'up')} className="text-slate-500 hover:text-white text-[8px] leading-none">▲</button>
@@ -853,9 +912,17 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                                     <div className="flex flex-wrap items-center gap-3 flex-1">
                                         {/* Port Rx */}
                                         <div className="flex items-center gap-1.5 bg-slate-800 rounded px-2 h-8 w-[140px]">
-                                            <span className="text-[7px] text-cyan-500 font-black uppercase leading-none w-8">
-                                                {mode === 'europe' ? 'Port Rx' : 'Port Rx'}
-                                            </span>
+                                            <button 
+                                                onClick={() => updateManualPair(p.id, 'rxIsBase', !(p.rxIsBase ?? (mode === 'europe' ? p.rx > 464 : p.rx < 464)))}
+                                                className={`text-[7px] font-black uppercase leading-none w-8 px-1 py-0.5 rounded border transition-colors ${
+                                                    (p.rxIsBase ?? (mode === 'europe' ? p.rx > 464 : p.rx < 464))
+                                                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                                                        : 'bg-blue-500/20 border-blue-500/40 text-blue-400'
+                                                }`}
+                                                title="Toggle Base (Constant TX) vs SW (Intermittent)"
+                                            >
+                                                {(p.rxIsBase ?? (mode === 'europe' ? p.rx > 464 : p.rx < 464)) ? 'Base' : 'SW'}
+                                            </button>
                                             <ManualFreqInput value={p.rx} onChange={v => updateManualPair(p.id, 'rx', v)} className="w-full bg-transparent text-[11px] text-white font-mono outline-none font-bold" />
                                             <div className="flex flex-col -gap-1">
                                                 <button onClick={() => handleFrequencyStep(p.id, 'rx', 'up')} className="text-slate-500 hover:text-white text-[8px] leading-none">▲</button>
@@ -951,7 +1018,57 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
             )}
 </div>
              {showTable && tabulatedData.length > 0 && (<Card className="!bg-slate-950 border-cyan-500/30 animate-in fade-in slide-in-from-top-2 duration-300"><CardTitle className="!text-sm uppercase tracking-[0.2em] text-cyan-400">Numerical Spectral Allocation Ledger</CardTitle><div className="overflow-y-auto max-h-[400px] rounded-xl border border-white/10 custom-scrollbar shadow-inner"><table className="w-full text-left border-collapse text-[11px]"><thead className="bg-slate-900 sticky top-0 z-10"><tr className="uppercase font-black text-slate-500 border-b border-white/10"><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('value')}>Frequency (MHz) <SortArrow field="value" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('label')}>Designation <SortArrow field="label" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('type')}>Type <SortArrow field="type" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('zoneName')}>Zone <SortArrow field="zoneName" /></th><th className="p-3 cursor-pointer select-none" onClick={() => handleSort('bw')}>Bandwidth <SortArrow field="bw" /></th></tr></thead><tbody className="divide-y divide-white/5">{tabulatedData.map((row, i) => (<tr key={i} className="hover:bg-cyan-500/5 transition-colors group"><td className="p-3 font-mono text-cyan-400 font-black text-sm">{row.value.toFixed(5)}</td><td className="p-3"><span className="text-white font-bold tracking-tight">{row.label}</span></td><td className="p-3"><span className={`px-2 py-0.5 rounded uppercase text-[8px] font-black border ${row.type === 'tx' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-blue-500/10 border-blue-500/30 text-blue-400'}`}>{row.type === 'tx' ? 'Tx' : 'Rx'}</span></td><td className="p-3"><span className="text-indigo-300 font-black uppercase tracking-tighter">{row.zoneName}</span></td><td className="p-3 font-mono text-slate-500">{(row.bw * 1000).toFixed(1)} kHz</td></tr>))}</tbody></table></div></Card>)}
-             <Card><div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4"><div className="flex items-center gap-3"><CardTitle className="!mb-0">3. Intermod Physics Auditor</CardTitle><button onClick={handleRunAudit} className={primaryButton}>RUN SPECTRAL AUDIT</button></div><div className="flex flex-wrap items-center gap-4 bg-slate-900/80 p-2 rounded-xl border border-slate-700"><div className="flex gap-4 pr-4 border-r border-slate-700/50"><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" checked={showTwoTone} onChange={e => setShowTwoTone(e.target.checked)} className="w-4 h-4 rounded accent-red-500 bg-slate-700" /><span className="text-[10px] text-slate-400 font-bold uppercase">2T</span></label><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" checked={showThreeTone} onChange={e => setShowThreeTone(e.target.checked)} className="w-4 h-4 rounded accent-purple-500 bg-slate-700" /><span className="text-[10px] text-slate-400 font-bold uppercase">3T</span></label></div><div className="flex items-center gap-2 pr-4 border-r border-slate-700/50"><span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Center</span><div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 shadow-inner"><button onClick={() => handleScroll('left')} className="p-1.5 px-2.5 rounded bg-slate-700/50 text-slate-300 hover:bg-slate-600 transition-colors text-xs font-bold">&larr;</button><input type="text" value={centerFreqInput} onChange={e => setCenterFreqInput(e.target.value)} onFocus={() => { isCenterFreqFocused.current = true; }} onBlur={e => { isCenterFreqFocused.current = false; applyCenterFreq(e.target.value); }} onKeyDown={e => e.key === 'Enter' && applyCenterFreq(e.currentTarget.value)} className="w-20 bg-transparent text-white font-mono text-[10px] text-center font-bold outline-none focus:text-cyan-400" placeholder="0.0000" /><button onClick={() => handleScroll('right')} className="p-1.5 px-2.5 rounded bg-slate-700/50 text-slate-300 hover:bg-slate-600 transition-colors text-xs font-bold">&rarr;</button></div><div className="flex items-center gap-1.5 bg-slate-800/50 px-2 py-1.5 rounded-lg border border-slate-700/50"><span className="text-[8px] text-slate-500 font-black uppercase">Step</span><button onClick={() => handleCenterStepSizeChange('down')} className="text-slate-400 hover:text-white transition-colors">▼</button><span className="text-[10px] font-mono text-indigo-300 w-8 text-center font-bold">{centerStepMhz}</span><button onClick={() => handleCenterStepSizeChange('up')} className="text-slate-400 hover:text-white transition-colors">▲</button></div></div><div className="flex items-center gap-2"><span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Span</span><div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 shadow-inner"><button onClick={() => handleSpanChange('decrease')} className="px-2 py-1 text-white rounded text-[10px] font-black hover:bg-slate-600 transition-colors">-</button><span className="text-[10px] text-cyan-400 font-mono w-16 text-center font-black">{(range.max - range.min).toFixed(1)}M</span><button onClick={() => handleSpanChange('increase')} className="px-2 py-1 text-white rounded text-[10px] font-black hover:bg-slate-600 transition-colors">+</button></div><div className="flex items-center gap-1.5 bg-slate-800/50 px-2 py-1.5 rounded-lg border border-slate-700/50"><span className="text-[8px] text-slate-500 font-black uppercase">Step</span><button onClick={() => handleSpanStepSizeChange('down')} className="text-slate-400 hover:text-white transition-colors">▼</button><span className="text-[10px] font-mono text-indigo-300 w-8 text-center font-bold">{spanIncrementMhz}</span><button onClick={() => handleSpanStepSizeChange('up')} className="text-slate-400 hover:text-white transition-colors">▲</button></div></div></div></div>
+             <Card><div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">                    <div className="flex items-center gap-3">
+                        <CardTitle className="!mb-0">3. Intermod Physics Auditor</CardTitle>
+                        <button onClick={handleRunAudit} className={primaryButton}>RUN SPECTRAL AUDIT</button>
+                    </div>
+
+                    {mode === 'custom' && (
+                        <div className="flex items-center gap-4 bg-slate-900/60 p-2 px-4 rounded-xl border border-indigo-500/20">
+                            <div className="flex items-center gap-3">
+                                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Auditor Base TX Range:</span>
+                                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded border border-slate-700">
+                                    <input 
+                                        type="number" 
+                                        value={customBaseRange.min} 
+                                        onChange={e => setCustomBaseRange(prev => ({ ...prev, min: parseFloat(e.target.value) || 0 }))}
+                                        className="w-16 bg-transparent text-white font-mono text-[10px] text-center outline-none"
+                                        placeholder="Min"
+                                    />
+                                    <span className="text-slate-600 font-bold">-</span>
+                                    <input 
+                                        type="number" 
+                                        value={customBaseRange.max} 
+                                        onChange={e => setCustomBaseRange(prev => ({ ...prev, max: parseFloat(e.target.value) || 0 }))}
+                                        className="w-16 bg-transparent text-white font-mono text-[10px] text-center outline-none"
+                                        placeholder="Max"
+                                    />
+                                </div>
+                            </div>
+                            <div className="w-px h-4 bg-slate-700" />
+                            <div className="flex items-center gap-3">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Auditor SW Range:</span>
+                                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded border border-slate-700">
+                                    <input 
+                                        type="number" 
+                                        value={customSwRange.min} 
+                                        onChange={e => setCustomSwRange(prev => ({ ...prev, min: parseFloat(e.target.value) || 0 }))}
+                                        className="w-16 bg-transparent text-white font-mono text-[10px] text-center outline-none"
+                                        placeholder="Min"
+                                    />
+                                    <span className="text-slate-600 font-bold">-</span>
+                                    <input 
+                                        type="number" 
+                                        value={customSwRange.max} 
+                                        onChange={e => setCustomSwRange(prev => ({ ...prev, max: parseFloat(e.target.value) || 0 }))}
+                                        className="w-16 bg-transparent text-white font-mono text-[10px] text-center outline-none"
+                                        placeholder="Max"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+<div className="flex flex-wrap items-center gap-4 bg-slate-900/80 p-2 rounded-xl border border-slate-700"><div className="flex gap-4 pr-4 border-r border-slate-700/50"><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" checked={showTwoTone} onChange={e => setShowTwoTone(e.target.checked)} className="w-4 h-4 rounded accent-red-500 bg-slate-700" /><span className="text-[10px] text-slate-400 font-bold uppercase">2T</span></label><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" checked={showThreeTone} onChange={e => setShowThreeTone(e.target.checked)} className="w-4 h-4 rounded accent-purple-500 bg-slate-700" /><span className="text-[10px] text-slate-400 font-bold uppercase">3T</span></label></div><div className="flex items-center gap-2 pr-4 border-r border-slate-700/50"><span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Center</span><div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 shadow-inner"><button onClick={() => handleScroll('left')} className="p-1.5 px-2.5 rounded bg-slate-700/50 text-slate-300 hover:bg-slate-600 transition-colors text-xs font-bold">&larr;</button><input type="text" value={centerFreqInput} onChange={e => setCenterFreqInput(e.target.value)} onFocus={() => { isCenterFreqFocused.current = true; }} onBlur={e => { isCenterFreqFocused.current = false; applyCenterFreq(e.target.value); }} onKeyDown={e => e.key === 'Enter' && applyCenterFreq(e.currentTarget.value)} className="w-20 bg-transparent text-white font-mono text-[10px] text-center font-bold outline-none focus:text-cyan-400" placeholder="0.0000" /><button onClick={() => handleScroll('right')} className="p-1.5 px-2.5 rounded bg-slate-700/50 text-slate-300 hover:bg-slate-600 transition-colors text-xs font-bold">&rarr;</button></div><div className="flex items-center gap-1.5 bg-slate-800/50 px-2 py-1.5 rounded-lg border border-slate-700/50"><span className="text-[8px] text-slate-500 font-black uppercase">Step</span><button onClick={() => handleCenterStepSizeChange('down')} className="text-slate-400 hover:text-white transition-colors">▼</button><span className="text-[10px] font-mono text-indigo-300 w-8 text-center font-bold">{centerStepMhz}</span><button onClick={() => handleCenterStepSizeChange('up')} className="text-slate-400 hover:text-white transition-colors">▲</button></div></div><div className="flex items-center gap-2"><span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Span</span><div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 shadow-inner"><button onClick={() => handleSpanChange('decrease')} className="px-2 py-1 text-white rounded text-[10px] font-black hover:bg-slate-600 transition-colors">-</button><span className="text-[10px] text-cyan-400 font-mono w-16 text-center font-black">{(range.max - range.min).toFixed(1)}M</span><button onClick={() => handleSpanChange('increase')} className="px-2 py-1 text-white rounded text-[10px] font-black hover:bg-slate-600 transition-colors">+</button></div><div className="flex items-center gap-1.5 bg-slate-800/50 px-2 py-1.5 rounded-lg border border-slate-700/50"><span className="text-[8px] text-slate-500 font-black uppercase">Step</span><button onClick={() => handleSpanStepSizeChange('down')} className="text-slate-400 hover:text-white transition-colors">▼</button><span className="text-[10px] font-mono text-indigo-300 w-8 text-center font-bold">{spanIncrementMhz}</span><button onClick={() => handleSpanStepSizeChange('up')} className="text-slate-400 hover:text-white transition-colors">▲</button></div></div></div></div>
                 {hasAnalyzed && (<div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300"><div className={`p-4 rounded-xl border-2 ${diagnosticConflicts.length === 0 ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-red-500/10 border-red-500/40'}`}><div className="flex justify-between items-center mb-3"><h5 className={`text-xs font-black uppercase tracking-widest ${diagnosticConflicts.length === 0 ? 'text-emerald-400' : 'text-red-400'}`}>{diagnosticConflicts.length === 0 ? '✓ Multi-Zone Isolation Confirmed' : `⚠️ ${diagnosticConflicts.length} Zonal Interaction Clashes`}</h5><button onClick={() => setHasAnalyzed(false)} className="text-slate-500 hover:text-white text-xs font-bold uppercase tracking-widest">&times; Dismiss Audit</button></div>{diagnosticConflicts.length === 0 ? (<p className="text-[11px] text-emerald-200/70 italic">Spectral analysis confirms zero interaction between all active zones under standard 18.75kHz fundamental and 12.5kHz IMD guard parameters.</p>) : (<div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">{diagnosticConflicts.map((c, i) => (<div key={i} className="bg-black/30 p-2 rounded-lg border border-white/5 text-[10px] flex flex-col gap-1"><div className="flex justify-between font-black"><span className="text-red-400 uppercase">{c.type} Interaction</span><span className="text-slate-500 font-mono">Error: {(c.diff * 1000).toFixed(1)} kHz</span></div><p className="text-slate-300 leading-tight"><span className="text-indigo-400 font-bold">{c.targetFreq.id}</span> ({c.targetFreq.value.toFixed(5)}) {c.type.includes('Fundamental') ? ` too close to carrier ${c.sourceFreqs[0].id} (${c.sourceFreqs[0].value.toFixed(5)})` : ` hit by products of ${c.sourceFreqs.map(f => `${f.id}(${f.value.toFixed(5)})`).join(' and ')}`}</p></div>))}</div>)}</div></div>)}
                 <div className="relative group">
                     <canvas 
@@ -1004,9 +1121,17 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                                                 <div className="font-mono text-[10px] space-y-1.5 flex-1 min-w-0">
                                                     <div className="flex items-center justify-between gap-1.5 bg-black/20 rounded p-1">
                                                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                                            <span className="text-[9px] text-yellow-500 font-black flex-shrink-0">
-                                                                {mode === 'europe' ? 'HI' : 'LO'}
-                                                            </span>
+                                                            <button 
+                                                                onClick={() => handleToggleBase(zIdx, p.id, 'txIsBase')}
+                                                                className={`text-[8px] font-black flex-shrink-0 px-1 py-0.5 rounded border transition-colors ${
+                                                                    (p.txIsBase ?? (mode === 'europe' ? p.tx > 464 : p.tx < 464))
+                                                                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                                                                        : 'bg-blue-500/20 border-blue-500/40 text-blue-400'
+                                                                }`}
+                                                                title="Toggle Base (Constant TX) vs SW (Intermittent)"
+                                                            >
+                                                                {(p.txIsBase ?? (mode === 'europe' ? p.tx > 464 : p.tx < 464)) ? 'BASE' : 'SW'}
+                                                            </button>
                                                             <ManualFreqInput value={p.tx} onChange={(v) => handleResultFrequencyChange(zIdx, p.id, 'tx', v)} className="w-full bg-transparent p-0 text-white font-bold outline-none border-none text-[10px]" />
                                                         </div>
                                                         <div className="flex gap-0.5 transition-opacity flex-shrink-0">
@@ -1016,9 +1141,17 @@ const ZonalTalkbackTab: React.FC<ZonalTalkbackTabProps> = ({
                                                     </div>
                                                     <div className="flex items-center justify-between gap-1.5 bg-black/20 rounded p-1">
                                                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                                            <span className="text-[9px] text-blue-500 font-black flex-shrink-0">
-                                                                {mode === 'europe' ? 'LO' : 'HI'}
-                                                            </span>
+                                                            <button 
+                                                                onClick={() => handleToggleBase(zIdx, p.id, 'rxIsBase')}
+                                                                className={`text-[8px] font-black flex-shrink-0 px-1 py-0.5 rounded border transition-colors ${
+                                                                    (p.rxIsBase ?? (mode === 'europe' ? p.rx > 464 : p.rx < 464))
+                                                                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                                                                        : 'bg-blue-500/20 border-blue-500/40 text-blue-400'
+                                                                }`}
+                                                                title="Toggle Base (Constant TX) vs SW (Intermittent)"
+                                                            >
+                                                                {(p.rxIsBase ?? (mode === 'europe' ? p.rx > 464 : p.rx < 464)) ? 'BASE' : 'SW'}
+                                                            </button>
                                                             <ManualFreqInput value={p.rx} onChange={(v) => handleResultFrequencyChange(zIdx, p.id, 'rx', v)} className="w-full bg-transparent p-0 text-white font-bold outline-none border-none text-[10px]" />
                                                         </div>
                                                         <div className="flex gap-0.5 transition-opacity flex-shrink-0">

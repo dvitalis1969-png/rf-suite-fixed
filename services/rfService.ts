@@ -11,7 +11,7 @@ import { COMPATIBILITY_PROFILES, DISCRETE_TALKBACK_PAIRS, TALKBACK_DEFINITIONS, 
 /**
  * AUTHORITATIVE PRECISION UTILS
  */
-const toHz = (mhz: number) => Math.round(mhz * 1000000);
+export const toHz = (mhz: number) => Math.round(mhz * 1000000);
 
 const shuffleArray = <T>(array: T[]): T[] => {
     const arr = [...array];
@@ -104,7 +104,7 @@ const isTalkbackCompatibleMutual = (
 ): { conflicts: Conflict[] } => {
     const conflicts: Conflict[] = [];
     const candHz = toHz(candidateValue);
-    const targetFreq = { id: 'candidate', value: candidateValue, type: 'comms' as TxType, isTx: isCandidateTx };
+    const targetFreq = { id: 'candidate', value: candidateValue, type: 'comms' as TxType, isTx: isCandidateTx, zoneIndex: candidateZoneIdx };
     
     const FF_HZ = toHz(0.01875);
     const IMD_HZ = toHz(0.0125);
@@ -112,130 +112,98 @@ const isTalkbackCompatibleMutual = (
     const poolWithMeta = pool.map(f => ({
         ...f,
         hz: toHz(f.value),
-        zIdx: f.zoneIndex ?? 0
+        zIdx: f.zoneIndex ?? 0,
+        original: f
     }));
 
-    for (let i = 0; i < poolWithMeta.length; i++) {
-        const f1 = poolWithMeta[i];
-        
-        // 1. Fundamental Check
-        const diff = Math.abs(candHz - f1.hz);
+    const checkInteracts = (z1: number, z2: number) => {
+        if (z1 < 0 || z2 < 0) return true;
+        const d = distances[z1]?.[z2];
+        const m = matrix?.[z1]?.[z2];
+        if (d === undefined) return true;
+        return d < 25 || m === true;
+    };
+
+    // 1. Fundamental Clashes
+    for (const f of poolWithMeta) {
+        // Global fundamental check to ensure unique frequencies across all zones
+        const diff = Math.abs(candHz - f.hz);
         if (diff < FF_HZ) {
-            conflicts.push({ type: 'Talkback Fundamental Clash', product: f1.value, sourceFreqs: [f1], targetFreq, diff: diff / 1000000 });
+            conflicts.push({ type: 'Talkback Fundamental Clash', product: f.value, sourceFreqs: [f.original], targetFreq, diff: diff / 1000000 });
             return { conflicts };
         }
+    }
 
-        // 2. IMD Checks (Symmetrical)
-        // Defend against -1 indices which represent "Site Wide" or "Global"
-        const interactsC1 = (candidateZoneIdx < 0 || f1.zIdx < 0) 
-            ? true 
-            : (distances[candidateZoneIdx]?.[f1.zIdx] < 25 || matrix[candidateZoneIdx]?.[f1.zIdx]);
-        
-        // A. Candidate as Victim
-        if (interactsC1) {
-            for (let j = 0; j < poolWithMeta.length; j++) {
-                if (i === j) continue;
-                const f2 = poolWithMeta[j];
-                const interactsC2 = (candidateZoneIdx < 0 || f2.zIdx < 0)
-                    ? true
-                    : (distances[candidateZoneIdx]?.[f2.zIdx] < 25 || matrix[candidateZoneIdx]?.[f2.zIdx]);
-                const interacts12 = (f1.zIdx < 0 || f2.zIdx < 0)
-                    ? true
-                    : (distances[f1.zIdx]?.[f2.zIdx] < 25 || matrix[f1.zIdx]?.[f2.zIdx]);
+    // 2. IMD Checks (Exhaustive Logic adapted from TalkbackTab.tsx)
+    // Transmitters: pool transmitters + candidate (if it's a TX)
+    const txPool = poolWithMeta.filter(f => f.isTx);
+    const fullTxPool = isCandidateTx ? [...txPool, { hz: candHz, zIdx: candidateZoneIdx, original: targetFreq }] : txPool;
 
-                if (interactsC2 && interacts12) {
-                    // Only isTx carriers (Constant Transmits) generate intermods
-                    if (f1.isTx && f2.isTx) {
-                        // 2-Tone
-                        const p2 = 2 * f1.hz - f2.hz;
-                        if (Math.abs(candHz - p2) < IMD_HZ) {
-                            conflicts.push({ type: 'Talkback 2-Tone IMD (Victim)', product: p2 / 1000000, sourceFreqs: [f1, f2], targetFreq, diff: Math.abs(candHz - p2) / 1000000 });
+    // Victims: pool frequencies + candidate
+    const fullVictimPool = [...poolWithMeta, { hz: candHz, zIdx: candidateZoneIdx, original: targetFreq }];
+
+    for (let i = 0; i < fullTxPool.length; i++) {
+        const f1 = fullTxPool[i];
+        for (let j = 0; j < fullTxPool.length; j++) {
+            if (i === j) continue;
+            const f2 = fullTxPool[j];
+            
+            // 2-Tone IMD: 2*f1 - f2
+            const p2 = 2 * f1.hz - f2.hz;
+            
+            // Skip if product lands on one of the sources (self-hit)
+            if (Math.abs(p2 - f1.hz) < IMD_HZ || Math.abs(p2 - f2.hz) < IMD_HZ) {
+                // Skip
+            } else {
+                for (const v of fullVictimPool) {
+                    // Skip if this conflict doesn't involve the candidate
+                    const involvesCandidate = (f1.original.id === 'candidate' || f2.original.id === 'candidate' || v.original.id === 'candidate');
+                    if (!involvesCandidate) continue;
+
+                    // For an IMD to be generated at victim v, all involved transmitters must reach v
+                    if (checkInteracts(f1.zIdx, v.zIdx) && checkInteracts(f2.zIdx, v.zIdx)) {
+                        if (Math.abs(v.hz - p2) < IMD_HZ) {
+                            conflicts.push({ 
+                                type: 'Talkback 2-Tone IMD', 
+                                product: p2 / 1000000, 
+                                sourceFreqs: [f1.original, f2.original], 
+                                targetFreq: v.original, 
+                                diff: Math.abs(v.hz - p2) / 1000000 
+                            });
                             return { conflicts };
-                        }
-
-                        // 3-Tone
-                        for (let k = j + 1; k < poolWithMeta.length; k++) {
-                            if (k === i) continue;
-                            const f3 = poolWithMeta[k];
-                            if (!f3.isTx) continue;
-                            const interactsC3 = (candidateZoneIdx < 0 || f3.zIdx < 0)
-                                ? true
-                                : (distances[candidateZoneIdx]?.[f3.zIdx] < 25 || matrix[candidateZoneIdx]?.[f3.zIdx]);
-                            const interacts13 = (f1.zIdx < 0 || f3.zIdx < 0)
-                                ? true
-                                : (distances[f1.zIdx]?.[f3.zIdx] < 25 || matrix[f1.zIdx]?.[f3.zIdx]);
-                            const interacts23 = (f2.zIdx < 0 || f3.zIdx < 0)
-                                ? true
-                                : (distances[f2.zIdx]?.[f3.zIdx] < 25 || matrix[f2.zIdx]?.[f3.zIdx]);
-
-                            if (interactsC3 && interacts13 && interacts23) {
-                                const p3 = f1.hz + f2.hz - f3.hz;
-                                if (Math.abs(candHz - p3) < IMD_HZ) {
-                                    conflicts.push({ type: 'Talkback 3-Tone IMD (Victim)', product: p3 / 1000000, sourceFreqs: [f1, f2, f3], targetFreq, diff: Math.abs(candHz - p3) / 1000000 });
-                                    return { conflicts };
-                                }
-                            }
                         }
                     }
                 }
             }
-        }
 
-        // B. Candidate as Aggressor (If candidate isTx)
-        // Physics logic: Constant Tx (Base) hits intermittent Rx (Portable)
-        if (isCandidateTx && interactsC1 && f1.isTx) {
-            for (let j = 0; j < poolWithMeta.length; j++) {
-                if (i === j) continue;
-                const fVictim = poolWithMeta[j];
+            // 3-Tone IMD: f1 + f2 - f3
+            for (let k = j + 1; k < fullTxPool.length; k++) {
+                if (k === i) continue;
+                const f3 = fullTxPool[k];
                 
-                const interactsCVictim = (candidateZoneIdx < 0 || fVictim.zIdx < 0)
-                    ? true
-                    : (distances[candidateZoneIdx]?.[fVictim.zIdx] < 25 || matrix[candidateZoneIdx]?.[fVictim.zIdx]);
-                const interacts1Victim = (f1.zIdx < 0 || fVictim.zIdx < 0)
-                    ? true
-                    : (distances[f1.zIdx]?.[fVictim.zIdx] < 25 || matrix[f1.zIdx]?.[fVictim.zIdx]);
+                const p3s = [
+                    f1.hz + f2.hz - f3.hz,
+                    f1.hz + f3.hz - f2.hz,
+                    f2.hz + f3.hz - f1.hz
+                ];
                 
-                if (interactsCVictim && interacts1Victim) {
-                    // 2-Tone: 2*Cand - f1
-                    const p2A = 2 * candHz - f1.hz;
-                    if (Math.abs(fVictim.hz - p2A) < IMD_HZ) {
-                        conflicts.push({ type: 'Talkback 2-Tone IMD (Aggressor)', product: p2A / 1000000, sourceFreqs: [targetFreq, f1], targetFreq: fVictim, diff: Math.abs(fVictim.hz - p2A) / 1000000 });
-                        return { conflicts };
-                    }
-                    // 2-Tone: 2*f1 - Cand
-                    const p2B = 2 * f1.hz - candHz;
-                    if (Math.abs(fVictim.hz - p2B) < IMD_HZ) {
-                        conflicts.push({ type: 'Talkback 2-Tone IMD (Aggressor)', product: p2B / 1000000, sourceFreqs: [f1, targetFreq], targetFreq: fVictim, diff: Math.abs(fVictim.hz - p2B) / 1000000 });
-                        return { conflicts };
-                    }
+                for (const p3 of p3s) {
+                    // Skip if product lands on one of the sources (self-hit)
+                    if (Math.abs(p3 - f1.hz) < IMD_HZ || Math.abs(p3 - f2.hz) < IMD_HZ || Math.abs(p3 - f3.hz) < IMD_HZ) continue;
 
-                    // 3-Tone: Cand + f1 - f2 (where f2 is another Tx)
-                    for (let k = 0; k < poolWithMeta.length; k++) {
-                        if (k === i || k === j) continue;
-                        const f2 = poolWithMeta[k];
-                        if (!f2.isTx) continue;
-                        
-                        const interactsC2 = (candidateZoneIdx < 0 || f2.zIdx < 0)
-                            ? true
-                            : (distances[candidateZoneIdx]?.[f2.zIdx] < 25 || matrix[candidateZoneIdx]?.[f2.zIdx]);
-                        const interacts12 = (f1.zIdx < 0 || f2.zIdx < 0)
-                            ? true
-                            : (distances[f1.zIdx]?.[f2.zIdx] < 25 || matrix[f1.zIdx]?.[f2.zIdx]);
-                        const interacts2Victim = (f2.zIdx < 0 || fVictim.zIdx < 0)
-                            ? true
-                            : (distances[f2.zIdx]?.[fVictim.zIdx] < 25 || matrix[f2.zIdx]?.[fVictim.zIdx]);
+                    for (const v of fullVictimPool) {
+                        const involvesCandidate = (f1.original.id === 'candidate' || f2.original.id === 'candidate' || f3.original.id === 'candidate' || v.original.id === 'candidate');
+                        if (!involvesCandidate) continue;
 
-                        if (interactsC2 && interacts12 && interacts2Victim) {
-                            // Cand + f1 - f2
-                            const p3A = candHz + f1.hz - f2.hz;
-                            if (Math.abs(fVictim.hz - p3A) < IMD_HZ) {
-                                conflicts.push({ type: 'Talkback 3-Tone IMD (Aggressor)', product: p3A / 1000000, sourceFreqs: [targetFreq, f1, f2], targetFreq: fVictim, diff: Math.abs(fVictim.hz - p3A) / 1000000 });
-                                return { conflicts };
-                            }
-                            // f1 + f2 - Cand
-                            const p3B = f1.hz + f2.hz - candHz;
-                            if (Math.abs(fVictim.hz - p3B) < IMD_HZ) {
-                                conflicts.push({ type: 'Talkback 3-Tone IMD (Aggressor)', product: p3B / 1000000, sourceFreqs: [f1, f2, targetFreq], targetFreq: fVictim, diff: Math.abs(fVictim.hz - p3B) / 1000000 });
+                        if (checkInteracts(f1.zIdx, v.zIdx) && checkInteracts(f2.zIdx, v.zIdx) && checkInteracts(f3.zIdx, v.zIdx)) {
+                            if (Math.abs(v.hz - p3) < IMD_HZ) {
+                                conflicts.push({ 
+                                    type: 'Talkback 3-Tone IMD', 
+                                    product: p3 / 1000000, 
+                                    sourceFreqs: [f1.original, f2.original, f3.original], 
+                                    targetFreq: v.original, 
+                                    diff: Math.abs(v.hz - p3) / 1000000 
+                                });
                                 return { conflicts };
                             }
                         }
@@ -244,6 +212,7 @@ const isTalkbackCompatibleMutual = (
             }
         }
     }
+
     return { conflicts };
 };
 
@@ -483,19 +452,33 @@ export const checkCompatibility = (freqs: Frequency[], thresholds: Thresholds): 
 /**
  * ENTRY POINT: TALKBACK AUDIT
  */
-export const checkTalkbackCompatibility = (freqs: Frequency[], distances: number[][], matrix: boolean[][], mode: TalkbackMode = 'standard', country: string = 'UK'): AnalysisResult => {
+export const checkTalkbackCompatibility = (
+    freqs: Frequency[], 
+    distances: number[][], 
+    matrix: boolean[][], 
+    mode: TalkbackMode = 'standard', 
+    country: string = 'UK',
+    customBaseRange?: { min: number; max: number }
+): AnalysisResult => {
     const conflicts: Conflict[] = [];
     const validFreqs = freqs.filter(f => f.value > 0);
     
     const taggedFreqs = validFreqs.map(f => {
+        // Respect explicit isTx flag if provided
+        if (f.isTx !== undefined) return { ...f, isTx: f.isTx };
+
         // Tag based on explicit label or implied type
         let isBase = f.label?.toLowerCase().includes('base') || f.label?.toLowerCase().includes('tx');
         if (!isBase) {
             // Heuristic: if no label, guess based on mode and frequency
-            if (mode === 'europe') {
-                isBase = f.value > 460;
+            if (mode === 'custom' && customBaseRange) {
+                isBase = f.value >= customBaseRange.min && f.value <= customBaseRange.max;
+            } else if (mode === 'europe') {
+                // Europe: Base > 464, SW < 464
+                isBase = f.value > 464;
             } else {
-                isBase = f.value < 460;
+                // Standard: Base < 464, SW > 464
+                isBase = f.value < 464;
             }
         }
         return {
@@ -554,6 +537,73 @@ export const checkCompatibilityTimeline = (freqs: Frequency[], thresholds: Thres
         }
     });
     return { conflicts: allConflicts, totalChecks };
+};
+
+export const suggestBetterFrequencies = (
+    freqs: Frequency[],
+    thresholds: Thresholds,
+    exclusions: { min: number, max: number }[],
+    db: Record<string, EquipmentProfile>,
+    maxIterations: number = 10
+): Frequency[] => {
+    let currentFreqs = [...freqs];
+    
+    for (let iter = 0; iter < maxIterations; iter++) {
+        const { conflicts } = checkCompatibility(currentFreqs, thresholds);
+        if (conflicts.length === 0) break;
+
+        // 1. Identify bottleneck frequencies
+        const conflictCounts = new Map<string, number>();
+        conflicts.forEach(c => {
+            if (c.targetFreq?.id) {
+                conflictCounts.set(c.targetFreq.id, (conflictCounts.get(c.targetFreq.id) || 0) + 1);
+            }
+            c.sourceFreqs?.forEach(s => {
+                if (s.id) {
+                    conflictCounts.set(s.id, (conflictCounts.get(s.id) || 0) + 1);
+                }
+            });
+        });
+
+        // 2. Find the frequency with the most conflicts
+        let worstFreqId = "";
+        let maxConflicts = -1;
+        conflictCounts.forEach((count, id) => {
+            if (count > maxConflicts) {
+                maxConflicts = count;
+                worstFreqId = id;
+            }
+        });
+
+        if (!worstFreqId) break;
+
+        // 3. Try to replace it
+        const worstFreq = currentFreqs.find(f => f.id === worstFreqId);
+        if (!worstFreq) break;
+
+        // Get candidates for replacement
+        const profile = db[worstFreq.equipmentKey || 'custom'] || db['custom'];
+        const candidates = getCandidates(profile.minFreq, profile.maxFreq, profile.tuningStep || 0.025, exclusions, null);
+        
+        // Try to find a candidate that resolves conflicts
+        let replaced = false;
+        for (const cand of shuffleArray(candidates)) {
+            const tempFreqs = currentFreqs.map(f => f.id === worstFreqId ? { ...f, value: cand } : f);
+            if (checkCompatibility(tempFreqs, thresholds).conflicts.length < conflicts.length) {
+                currentFreqs = tempFreqs;
+                replaced = true;
+                break;
+            }
+        }
+        
+        if (!replaced) {
+            // If we can't find a better one, just try a random one to escape local minima
+            const cand = candidates[Math.floor(Math.random() * candidates.length)];
+            currentFreqs = currentFreqs.map(f => f.id === worstFreqId ? { ...f, value: cand } : f);
+        }
+    }
+    
+    return currentFreqs;
 };
 
 export const generateCompatibleFreqs = (
@@ -1264,15 +1314,30 @@ export const calculateTalkbackIntermods = (sources: { value: number }[]): Talkba
     for (let i = 0; i < carriers.length; i++) {
         for (let j = 0; j < carriers.length; j++) {
             if (i === j) continue;
-            twoTone.push({ value: (2 * toHz(carriers[i]) - toHz(carriers[j])) / 1000000, sources: [carriers[i], carriers[j]], type: '2t' });
+            const val = (2 * toHz(carriers[i]) - toHz(carriers[j])) / 1000000;
+            // Skip if product lands on one of the sources (self-hit)
+            if (carriers.some(c => Math.abs(c - val) < 0.000001)) continue;
+            twoTone.push({ value: val, sources: [carriers[i], carriers[j]], type: '2t' });
         }
     }
     for (let i = 0; i < carriers.length; i++) {
-        for (let j = 0; j < carriers.length; j++) {
-            if (i === j) continue;
-            for (let k = 0; k < carriers.length; k++) {
-                if (k === i || k === j) continue;
-                threeTone.push({ value: (toHz(carriers[i]) + toHz(carriers[j]) - toHz(carriers[k])) / 1000000, sources: [carriers[i], carriers[j], carriers[k]], type: '3t' });
+        for (let j = i + 1; j < carriers.length; j++) {
+            for (let k = j + 1; k < carriers.length; k++) {
+                const f1 = toHz(carriers[i]);
+                const f2 = toHz(carriers[j]);
+                const f3 = toHz(carriers[k]);
+                
+                const p3s = [
+                    { val: (f1 + f2 - f3) / 1000000, src: [carriers[i], carriers[j], carriers[k]] },
+                    { val: (f1 + f3 - f2) / 1000000, src: [carriers[i], carriers[k], carriers[j]] },
+                    { val: (f2 + f3 - f1) / 1000000, src: [carriers[j], carriers[k], carriers[i]] }
+                ];
+
+                for (const p of p3s) {
+                    // Skip if product lands on one of the sources (self-hit)
+                    if (carriers.some(c => Math.abs(c - p.val) < 0.000001)) continue;
+                    threeTone.push({ value: p.val, sources: p.src, type: '3t' });
+                }
             }
         }
     }
@@ -1300,11 +1365,21 @@ export const generateZonalTalkbackPairs = async (
         customBw?: number 
     }[],
     spacing: number, distances: number[][], matrix: boolean[][],
-    previousResults: any, onProgress: (p: number) => void, mode: TalkbackMode = 'standard',
-    country: string = 'UK'
+    previousResults: any, manualPairs: any[], onProgress: (p: number) => void, mode: TalkbackMode = 'standard',
+    country: string = 'UK', customBaseRange: { min: number, max: number } = { min: 450, max: 464 }
 ): Promise<ZonalResult[]> => {
     const results: ZonalResult[] = [];
-    const globalFreqPool: (Frequency & { isTx?: boolean })[] = [];
+    const globalFreqPool: (Frequency & { isTx?: boolean, zoneIndex?: number })[] = [];
+
+    // Helper to determine if a frequency is a base transmitter
+    const isBaseTx = (f: number, isBaseExplicit?: boolean) => {
+        if (isBaseExplicit !== undefined) return isBaseExplicit;
+        if (mode === 'custom') {
+            return f >= customBaseRange.min && f <= customBaseRange.max;
+        }
+        if (mode === 'europe') return f > 464;
+        return f < 464;
+    };
 
     // Helper to verify a frequency is not in a forbidden regulatory range
     const forbiddenRanges = TALKBACK_FORBIDDEN_RANGES_BY_COUNTRY[country] || [];
@@ -1317,19 +1392,41 @@ export const generateZonalTalkbackPairs = async (
         }
         return f >= (range.min - 0.00001) && f <= (range.max + 0.00001);
     });
+
+    // Spacing constants from TalkbackTab.tsx
+    const SPACING_FF = 0.01875;
+    const SPACING_IMD = 0.0125;
+    const SPACING_FF_HZ = toHz(SPACING_FF);
+    const SPACING_IMD_HZ = toHz(SPACING_IMD);
+
+    const checkInteracts = (z1: number, z2: number) => {
+        if (z1 < 0 || z2 < 0) return true;
+        const d = distances[z1]?.[z2];
+        const m = matrix?.[z1]?.[z2];
+        if (d === undefined) return true;
+        return d < 25 || m === true;
+    };
     
     // Extract existing locked frequencies with source context
     if (previousResults && Array.isArray(previousResults)) {
         previousResults.forEach((res: ZonalResult, zIdx: number) => {
             res.pairs.forEach(p => {
                 if (p.locked && p.active !== false) {
-                    // In 'europe' mode, the upper band (often the 'tx' property in our data) is Base (isTx: true)
-                    // In 'standard' mode, the lower band (often the 'tx' property in our data) is Base (isTx: true)
-                    // Logic: we designate one field as Base (Aggr) and one as Port (Victim)
-                    globalFreqPool.push({ ...p, value: p.tx, id: p.id + '-tx', type: 'comms', zoneIndex: zIdx, isTx: true });
-                    globalFreqPool.push({ ...p, value: p.rx, id: p.id + '-rx', type: 'comms', zoneIndex: zIdx, isTx: false });
+                    if (p.tx > 0) globalFreqPool.push({ ...p, value: p.tx, id: p.id + '-tx', type: 'comms', zoneIndex: zIdx, isTx: isBaseTx(p.tx, p.txIsBase) });
+                    if (p.rx > 0) globalFreqPool.push({ ...p, value: p.rx, id: p.id + '-rx', type: 'comms', zoneIndex: zIdx, isTx: isBaseTx(p.rx, p.rxIsBase) });
                 }
             });
+        });
+    }
+
+    // Extract active manual pairs
+    if (manualPairs && Array.isArray(manualPairs)) {
+        manualPairs.forEach(p => {
+            if (p.active !== false) {
+                const zIdx = p.zoneIndex ?? -1;
+                if (p.tx > 0) globalFreqPool.push({ ...p, value: p.tx, id: p.id + '-tx', type: 'comms', zoneIndex: zIdx, isTx: isBaseTx(p.tx, p.txIsBase) });
+                if (p.rx > 0) globalFreqPool.push({ ...p, value: p.rx, id: p.id + '-rx', type: 'comms', zoneIndex: zIdx, isTx: isBaseTx(p.rx, p.rxIsBase) });
+            }
         });
     }
 
@@ -1411,14 +1508,14 @@ export const generateZonalTalkbackPairs = async (
             const walkieBw = cfg.simplexWalkieBw || 0.0125;
             
             if (cfg.simplexTxMin !== undefined && cfg.simplexTxMax !== undefined) {
-                for (let f = cfg.simplexTxMin + (txBw/2); f <= cfg.simplexTxMax; f += txBw) {
+                for (let f = cfg.simplexTxMin; f <= cfg.simplexTxMax + 0.000001; f += txBw) {
                     const freqVal = parseFloat(f.toFixed(5));
                     if (!isForbidden(freqVal)) simplexTxPool.push(freqVal);
                 }
             }
             
             if (cfg.simplexWalkieMin !== undefined && cfg.simplexWalkieMax !== undefined) {
-                for (let f = cfg.simplexWalkieMin + (walkieBw/2); f <= cfg.simplexWalkieMax; f += walkieBw) {
+                for (let f = cfg.simplexWalkieMin; f <= cfg.simplexWalkieMax + 0.000001; f += walkieBw) {
                     const freqVal = parseFloat(f.toFixed(5));
                     if (!isForbidden(freqVal)) simplexWalkiePool.push(freqVal);
                 }
@@ -1445,94 +1542,152 @@ export const generateZonalTalkbackPairs = async (
             });
         }
         
-        const sTx = shuffleArray(txFreqPool); 
-        const sRx = shuffleArray(rxFreqPool);
-        const sSimplexTx = shuffleArray(simplexTxPool);
-        const sSimplexWalkie = shuffleArray(simplexWalkiePool);
-        
-        if (sTx.length > 0 && sRx.length > 0) {
-            for (let j = 0; j < Math.min(sTx.length, 3000); j++) candidatePool.push({ tx: sTx[j], rx: sRx[j % sRx.length] });
-        }
-        
-        candidatePool = shuffleArray(candidatePool);
-        let batchCounter = 0;
-        
-        const priority = cfg.generationPriority || ['duplex', 'simplexTx', 'simplexWalkie'];
+        // Compatibility Logic (Directly from TalkbackTab.tsx)
+        const checkPairCompZonal = (cand: {tx: number, rx: number}, currentPlan: DuplexPair[], zoneIdx: number) => {
+            const candTxHz = toHz(cand.tx);
+            const candRxHz = toHz(cand.rx);
 
-        for (const type of priority) {
-            if (type === 'duplex') {
-                for (const cand of candidatePool) {
-                    if (zonePairs.filter(p => p.tx > 0 && p.rx > 0).length >= cfg.pairCount) break;
-                    batchCounter++;
-                    if (batchCounter % 100 === 0) { await new Promise(resolve => setTimeout(resolve, 0)); onProgress(((i / configs.length) + (batchCounter / candidatePool.length / configs.length))); }
-                    const txComp = isTalkbackCompatibleMutual(cand.tx, globalFreqPool, distances, i, matrix, true);
-                    if (txComp.conflicts.length > 0) continue;
-                    const tempPool = [...globalFreqPool, { value: cand.tx, id: 'temp-tx', zoneIndex: i, isTx: true, type: 'comms' as TxType }];
-                    const rxComp = isTalkbackCompatibleMutual(cand.rx, tempPool, distances, i, matrix, false);
-                    if (rxComp.conflicts.length === 0) {
-                        const duplexBw = (mode === 'custom' && cfg.duplexCustomMode === 'custom') ? (cfg.customBw || 0.0125) : 0.0125;
-                        const pair: DuplexPair = { 
-                            id: `ZP-${i}-${zonePairs.length}-${Math.random().toString(36).substring(2, 5)}`, 
-                            label: `${cfg.name.slice(0,2).toUpperCase()} P${zonePairs.filter(p => p.tx > 0 && p.rx > 0).length + 1}`, 
-                            tx: cand.tx, 
-                            rx: cand.rx, 
-                            txBw: duplexBw,
-                            rxBw: duplexBw,
-                            groupName: cfg.name, 
-                            locked: false, 
-                            active: true 
-                        };
-                        zonePairs.push(pair); globalFreqPool.push({ ...pair, value: pair.tx, id: pair.id + '-tx', zoneIndex: i, isTx: true }); globalFreqPool.push({ ...pair, value: pair.rx, id: pair.id + '-rx', zoneIndex: i, isTx: false });
+            // Transmitters: global pool TXs + current plan TXs
+            // We treat all TX frequencies as potential IMD sources, matching TalkbackTab.tsx behavior
+            const txPool = [
+                ...globalFreqPool.filter(f => f.isTx || f.id.endsWith('-tx')).map(f => ({ hz: toHz(f.value), zIdx: f.zoneIndex ?? 0, id: f.id })),
+                ...currentPlan.filter(p => p.tx > 0).map(p => ({ hz: toHz(p.tx), zIdx: zoneIdx, id: p.id + '-tx' }))
+            ];
+            if (cand.tx > 0) txPool.push({ hz: candTxHz, zIdx: zoneIdx, id: 'cand-tx' });
+
+            // Victims: global pool all + current plan all
+            const victimPool = [
+                ...globalFreqPool.map(f => ({ hz: toHz(f.value), zIdx: f.zoneIndex ?? 0, id: f.id })),
+                ...currentPlan.flatMap(p => [
+                    p.tx > 0 ? { hz: toHz(p.tx), zIdx: zoneIdx, id: p.id + '-tx' } : null,
+                    p.rx > 0 ? { hz: toHz(p.rx), zIdx: zoneIdx, id: p.id + '-rx' } : null
+                ]).filter((v): v is { hz: number, zIdx: number, id: string } => v !== null)
+            ];
+            if (cand.tx > 0) victimPool.push({ hz: candTxHz, zIdx: zoneIdx, id: 'cand-tx' });
+            if (cand.rx > 0) victimPool.push({ hz: candRxHz, zIdx: zoneIdx, id: 'cand-rx' });
+
+            // Fundamental Clashes
+            for (const v of victimPool) {
+                // Global fundamental check to ensure unique frequencies across all zones
+                if (cand.tx > 0 && v.id !== 'cand-tx' && Math.abs(candTxHz - v.hz) < SPACING_FF_HZ) return false;
+                if (cand.rx > 0 && v.id !== 'cand-rx' && Math.abs(candRxHz - v.hz) < SPACING_FF_HZ) return false;
+            }
+            if (cand.tx > 0 && cand.rx > 0 && Math.abs(candTxHz - candRxHz) < SPACING_FF_HZ) return false;
+
+            // IMD Checks
+            for (let i = 0; i < txPool.length; i++) {
+                const f1 = txPool[i];
+                for (let j = 0; j < txPool.length; j++) {
+                    if (i === j) continue;
+                    const f2 = txPool[j];
+                    const p2 = 2 * f1.hz - f2.hz;
+                    
+                    // Skip if product lands on one of the sources (self-hit)
+                    if (Math.abs(p2 - f1.hz) < SPACING_IMD_HZ || Math.abs(p2 - f2.hz) < SPACING_IMD_HZ) {
+                        // Continue to 3-tone loop
+                    } else {
+                        for (const v of victimPool) {
+                            // Zonal IMD check: only if all sources interact with the victim
+                            if (checkInteracts(f1.zIdx, v.zIdx) && checkInteracts(f2.zIdx, v.zIdx)) {
+                                if (Math.abs(v.hz - p2) < SPACING_IMD_HZ) return false;
+                            }
+                        }
                     }
-                }
-            } else if (type === 'simplexTx') {
-                for (const candTx of sSimplexTx) {
-                    if (zonePairs.filter(p => p.tx > 0 && p.rx === 0).length >= (cfg.simplexTxCount || 0)) break;
-                    batchCounter++;
-                    if (batchCounter % 100 === 0) { await new Promise(resolve => setTimeout(resolve, 0)); onProgress(((i / configs.length) + (batchCounter / candidatePool.length / configs.length))); }
-                    const txComp = isTalkbackCompatibleMutual(candTx, globalFreqPool, distances, i, matrix, true);
-                    if (txComp.conflicts.length === 0) {
-                        const pair: DuplexPair = { 
-                            id: `ZP-STX-${i}-${zonePairs.length}-${Math.random().toString(36).substring(2, 5)}`, 
-                            label: `${cfg.name.slice(0,2).toUpperCase()} STX${zonePairs.filter(p => p.tx > 0 && p.rx === 0).length + 1}`, 
-                            tx: candTx, 
-                            rx: 0, 
-                            txBw: cfg.simplexTxBw || 0.0125,
-                            groupName: cfg.name, 
-                            locked: false, 
-                            active: true 
-                        };
-                        zonePairs.push(pair); globalFreqPool.push({ ...pair, value: candTx, id: pair.id + '-tx', zoneIndex: i, isTx: true });
-                    }
-                }
-            } else if (type === 'simplexWalkie') {
-                for (const candRx of sSimplexWalkie) {
-                    if (zonePairs.filter(p => p.tx === 0 && p.rx > 0).length >= (cfg.simplexWalkieCount || 0)) break;
-                    batchCounter++;
-                    if (batchCounter % 100 === 0) { await new Promise(resolve => setTimeout(resolve, 0)); onProgress(((i / configs.length) + (batchCounter / candidatePool.length / configs.length))); }
-                    const rxComp = isTalkbackCompatibleMutual(candRx, globalFreqPool, distances, i, matrix, false);
-                    if (rxComp.conflicts.length === 0) {
-                        const pair: DuplexPair = { 
-                            id: `ZP-SW-${i}-${zonePairs.length}-${Math.random().toString(36).substring(2, 5)}`, 
-                            label: `${cfg.name.slice(0,2).toUpperCase()} SW${zonePairs.filter(p => p.tx === 0 && p.rx > 0).length + 1}`, 
-                            tx: 0, 
-                            rx: candRx, 
-                            rxBw: cfg.simplexWalkieBw || 0.0125,
-                            groupName: cfg.name, 
-                            locked: false, 
-                            active: true 
-                        };
-                        zonePairs.push(pair); globalFreqPool.push({ ...pair, value: candRx, id: pair.id + '-rx', zoneIndex: i, isTx: false });
+
+                    for (let k = j + 1; k < txPool.length; k++) {
+                        if (k === i) continue;
+                        const f3 = txPool[k];
+                        const p3s = [f1.hz + f2.hz - f3.hz, f1.hz + f3.hz - f2.hz, f2.hz + f3.hz - f1.hz];
+                        for (const p3 of p3s) {
+                            // Skip if product lands on one of the sources (self-hit)
+                            if (Math.abs(p3 - f1.hz) < SPACING_IMD_HZ || Math.abs(p3 - f2.hz) < SPACING_IMD_HZ || Math.abs(p3 - f3.hz) < SPACING_IMD_HZ) continue;
+
+                            for (const v of victimPool) {
+                                // Zonal IMD check: only if all sources interact with the victim
+                                if (checkInteracts(f1.zIdx, v.zIdx) && checkInteracts(f2.zIdx, v.zIdx) && checkInteracts(f3.zIdx, v.zIdx)) {
+                                    if (Math.abs(v.hz - p3) < SPACING_IMD_HZ) return false;
+                                }
+                            }
+                        }
                     }
                 }
             }
+            return true;
+        };
+
+        // Multi-iteration Search for this zone
+        let bestZonePairs: DuplexPair[] = [];
+        const iterations = 5000; 
+        
+        for (let iter = 0; iter < iterations; iter++) {
+            const current: DuplexPair[] = [];
+            const sTx = shuffleArray(txFreqPool); 
+            const sRx = shuffleArray(rxFreqPool);
+            const localCandidatePool = [...candidatePool];
+            if (sTx.length > 0 && sRx.length > 0) {
+                for (let j = 0; j < Math.min(sTx.length, 3000); j++) localCandidatePool.push({ tx: sTx[j], rx: sRx[j % sRx.length] });
+            }
+            const shuffledDuplex = shuffleArray(localCandidatePool);
+            const shuffledSTx = shuffleArray(simplexTxPool);
+            const shuffledSWalkie = shuffleArray(simplexWalkiePool);
+
+            const priority = cfg.generationPriority || ['duplex', 'simplexTx', 'simplexWalkie'];
+            for (const type of priority) {
+                if (type === 'duplex') {
+                    for (const cand of shuffledDuplex) {
+                        if (current.filter(p => p.tx > 0 && p.rx > 0).length >= cfg.pairCount) break;
+                        if (checkPairCompZonal(cand, current, i)) {
+                            current.push({
+                                id: `ZP-${i}-${current.length}-${Math.random().toString(36).substring(2, 5)}`,
+                                label: `${cfg.name.slice(0,2).toUpperCase()} P${current.filter(p => p.tx > 0 && p.rx > 0).length + 1}`,
+                                tx: cand.tx, rx: cand.rx, txBw: 0.0125, rxBw: 0.0125, groupName: cfg.name, locked: false, active: true
+                            });
+                        }
+                    }
+                } else if (type === 'simplexTx') {
+                    for (const f of shuffledSTx) {
+                        if (current.filter(p => p.tx > 0 && p.rx === 0).length >= (cfg.simplexTxCount || 0)) break;
+                        if (checkPairCompZonal({ tx: f, rx: 0 }, current, i)) {
+                            current.push({
+                                id: `ZP-STX-${i}-${current.length}-${Math.random().toString(36).substring(2, 5)}`,
+                                label: `${cfg.name.slice(0,2).toUpperCase()} STX${current.filter(p => p.tx > 0 && p.rx === 0).length + 1}`,
+                                tx: f, rx: 0, txBw: cfg.simplexTxBw || 0.0125, rxBw: 0, groupName: cfg.name, locked: false, active: true
+                            });
+                        }
+                    }
+                } else if (type === 'simplexWalkie') {
+                    for (const f of shuffledSWalkie) {
+                        if (current.filter(p => p.tx === 0 && p.rx > 0).length >= (cfg.simplexWalkieCount || 0)) break;
+                        if (checkPairCompZonal({ tx: 0, rx: f }, current, i)) {
+                            current.push({
+                                id: `ZP-SW-${i}-${current.length}-${Math.random().toString(36).substring(2, 5)}`,
+                                label: `${cfg.name.slice(0,2).toUpperCase()} SW${current.filter(p => p.tx === 0 && p.rx > 0).length + 1}`,
+                                tx: 0, rx: f, txBw: 0, rxBw: cfg.simplexWalkieBw || 0.0125, groupName: cfg.name, locked: false, active: true
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (current.length > bestZonePairs.length) {
+                bestZonePairs = current;
+                if (bestZonePairs.length >= (cfg.pairCount + (cfg.simplexTxCount || 0) + (cfg.simplexWalkieCount || 0))) break;
+            }
+
+            if (iter % 50 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+                onProgress((i / configs.length) + (iter / iterations / configs.length));
+            }
         }
 
-        const failedDuplex = Math.max(0, cfg.pairCount - zonePairs.filter(p => p.tx > 0 && p.rx > 0).length);
-        const failedSimplexTx = Math.max(0, (cfg.simplexTxCount || 0) - zonePairs.filter(p => p.tx > 0 && p.rx === 0).length);
-        const failedSimplexWalkie = Math.max(0, (cfg.simplexWalkieCount || 0) - zonePairs.filter(p => p.tx === 0 && p.rx > 0).length);
+        // Add best solution to global pool
+        bestZonePairs.forEach(p => {
+            if (p.tx > 0) globalFreqPool.push({ ...p, value: p.tx, id: p.id + '-tx', zoneIndex: i, isTx: isBaseTx(p.tx, p.txIsBase), type: 'comms' });
+            if (p.rx > 0) globalFreqPool.push({ ...p, value: p.rx, id: p.id + '-rx', zoneIndex: i, isTx: isBaseTx(p.rx, p.rxIsBase), type: 'comms' });
+        });
 
-        results.push({ zoneName: cfg.name, pairs: zonePairs, failedCount: failedDuplex + failedSimplexTx + failedSimplexWalkie });
+        const failed = (cfg.pairCount + (cfg.simplexTxCount || 0) + (cfg.simplexWalkieCount || 0)) - bestZonePairs.length;
+        results.push({ zoneName: cfg.name, pairs: bestZonePairs, failedCount: Math.max(0, failed) });
         onProgress((i + 1) / configs.length);
     }
     return results;

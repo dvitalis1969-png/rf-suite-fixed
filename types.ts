@@ -21,6 +21,7 @@ export interface Frequency {
   manualThresholds?: Thresholds;
   zoneIndex?: number; // Added for zonal distance-aware coordination
   linearMode?: boolean; // Bypass 12.5kHz IMD safety floor
+  isTx?: boolean; // Explicitly mark as constant transmitter (Base)
 }
 
 export interface Thresholds {
@@ -220,6 +221,8 @@ export interface DuplexPair {
   rx: number;
   txBw?: number;
   rxBw?: number;
+  txIsBase?: boolean;
+  rxIsBase?: boolean;
   groupName: string;
   locked: boolean;
   active?: boolean;
