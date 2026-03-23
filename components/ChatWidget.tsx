@@ -27,12 +27,12 @@ interface Message {
   audioUrl?: string;
 }
 
-const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<string, boolean>; user?: any; initialDmUser?: any }> = React.memo(({ projectId, unreadDMs = {}, user, initialDmUser }) => {
+const ChatWidget: React.FC<{ projectId?: string | number; unreadDMs?: Record<string, boolean>; user?: any; initialDmUser?: any }> = React.memo(({ projectId, unreadDMs = {}, user, initialDmUser }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<{ id: string; name: string }[]>([]);
-  const [chatMode, setChatMode] = useState<'project' | 'lounge' | 'dm'>('project');
+  const [chatMode, setChatMode] = useState<'project' | 'lounge' | 'dm'>(projectId ? 'project' : 'lounge');
   const [selectedDmUser, setSelectedDmUser] = useState<{ id: string; name: string } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -733,12 +733,14 @@ const ChatWidget: React.FC<{ projectId: string | number; unreadDMs?: Record<stri
     <div className="flex flex-col flex-1 min-h-0 bg-slate-950/40 rounded-lg border border-white/5 p-4 relative backdrop-blur-sm">
       <div className="flex items-center justify-between mb-2 gap-2">
         <div className="flex gap-1">
-          <button 
-            onClick={() => setChatMode('project')}
-            className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${chatMode === 'project' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-          >
-            Project
-          </button>
+          {projectId !== undefined && (
+            <button 
+              onClick={() => setChatMode('project')}
+              className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${chatMode === 'project' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+            >
+              Project
+            </button>
+          )}
           <button 
             onClick={() => setChatMode('lounge')}
             className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded relative ${chatMode === 'lounge' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}

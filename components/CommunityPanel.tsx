@@ -8,7 +8,7 @@ import { handleFirestoreError, OperationType } from '../src/utils/firestoreError
 
 import { User } from '../types';
 
-const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; isOpen?: boolean; selectedDmUser?: any; onSelectDmUser?: (user: any) => void; onClose?: () => void }> = ({ projectId, user, isOpen, selectedDmUser, onSelectDmUser, onClose }) => {
+const CommunityPanel: React.FC<{ projectId?: string | number; user: User | null; isOpen?: boolean; selectedDmUser?: any; onSelectDmUser?: (user: any) => void; onClose?: () => void }> = ({ projectId, user, isOpen, selectedDmUser, onSelectDmUser, onClose }) => {
   const [isMinimized, setIsMinimized] = useState(isOpen !== undefined ? !isOpen : true);
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [size, setSize] = useState({ width: 384, height: 600 });
@@ -206,7 +206,7 @@ const CommunityPanel: React.FC<{ projectId: string | number; user: User | null; 
               </h3>
             </div>
             <div className="flex items-center gap-2">
-              <PresenceIndicator projectId={projectId} />
+              {projectId !== undefined && <PresenceIndicator projectId={projectId} />}
               <button onClick={() => { setIsMinimized(true); onClose?.(); }} className="text-slate-400 hover:text-white">
                 <Minus className="w-4 h-4" />
               </button>

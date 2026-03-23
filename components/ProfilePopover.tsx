@@ -14,12 +14,19 @@ const ProfilePopover: React.FC<ProfilePopoverProps> = ({ selectedProfile, select
   if (!selectedProfile) return null;
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      className="absolute top-20 right-20 z-[1000] p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={onClose}
     >
-      <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-[240px] shadow-2xl relative">
+      <motion.div 
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-[280px] shadow-2xl relative"
+        onClick={e => e.stopPropagation()}
+      >
         <button 
           onClick={onClose}
           className="absolute top-2 right-2 text-slate-500 hover:text-white"
@@ -99,7 +106,7 @@ const ProfilePopover: React.FC<ProfilePopoverProps> = ({ selectedProfile, select
             Send Message
           </button>
         </div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 };

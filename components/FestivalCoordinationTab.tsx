@@ -57,7 +57,6 @@ interface FestivalCoordinationTabProps {
 
 const buttonBase = "px-4 py-2 rounded-lg font-semibold uppercase tracking-wide transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 transform active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-[10px]";
 const primaryButton = `bg-slate-700 text-slate-200 border-b-4 border-slate-900 hover:bg-slate-600 ${buttonBase}`;
-const generateButton = `bg-amber-900/40 text-amber-200 border-b-4 border-amber-950 hover:bg-amber-900/60 ${buttonBase}`;
 const secondaryButton = `bg-slate-800 text-slate-400 border-b-4 border-slate-950 hover:bg-slate-700 ${buttonBase}`;
 const greenButton = `bg-emerald-900/40 text-emerald-200 border-b-4 border-emerald-950 hover:bg-emerald-900/60 ${buttonBase}`;
 const actionButton = `bg-slate-700 text-slate-300 border-b-4 border-slate-900 hover:bg-slate-600 ${buttonBase}`;
@@ -1574,13 +1573,6 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-3">Engine Controls</h4>
                     <div className="space-y-3">
                         <button 
-                            onClick={handleGenerate} 
-                            disabled={isGenerating}
-                            className={`w-full py-3 rounded-xl font-black uppercase tracking-[0.2em] transition-all ${generateButton} text-xs`}
-                        >
-                            {isGenerating ? 'Calculating Plan...' : '🚀 Generate Site Plan'}
-                        </button>
-                        <button 
                             onClick={() => setShowTabulation(!showTabulation)}
                             className={`w-full py-2.5 rounded-xl font-black uppercase tracking-widest transition-all ${secondaryButton} text-[10px]`}
                         >
@@ -1778,7 +1770,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                 {isGenerating ? (
                                     <><span className="w-3 h-3 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING...</>
                                 ) : (
-                                    <><span>⚡</span> GENERATE PLAN</>
+                                    <><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> GENERATE PLAN</>
                                 )}
                             </button>
                             <button 
