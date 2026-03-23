@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-    FestivalAct, ConstantSystemRequest, EquipmentRequest, ZoneConfig, Thresholds, EquipmentProfile, Frequency, Conflict, ScanDataPoint, TxType, CompatibilityLevel, SiteMapState, OptimizationReport, OptimizationSuggestion, BottleneckStats, TVChannelState, WMASState
+    FestivalAct, ConstantSystemRequest, EquipmentRequest, ZoneConfig, Thresholds, EquipmentProfile, Frequency, Conflict, ScanDataPoint, TxType, CompatibilityLevel, SiteMapState, OptimizationReport, OptimizationSuggestion, BottleneckStats, TVChannelState, WMASState, GeneratorRequest
 } from '../types';
-import { generateFestivalPlan, generateConstantFrequencies, generateHouseSystemsFrequencies, validateFestivalCompatibility, getCoordinationDiagnostics, CoordinationDiagnostic, getFinalThresholds, checkCompatibility } from '../services/rfService';
+import { generateFestivalPlan, generateConstantFrequencies, generateHouseSystemsFrequencies, validateFestivalCompatibility, getCoordinationDiagnostics, CoordinationDiagnostic, getFinalThresholds, checkCompatibility, runShadowCoordination } from '../services/rfService';
 import { EQUIPMENT_DATABASE, COMPATIBILITY_PROFILES, UK_TV_CHANNELS, US_TV_CHANNELS, WMAS_PRESET_PROFILES } from '../constants';
 import Card, { CardTitle } from './Card';
 import SpectrumVisualizer from './SpectrumVisualizer';
@@ -48,6 +48,7 @@ interface FestivalCoordinationTabProps {
     setScanData?: (data: ScanDataPoint[] | null) => void;
     siteMapState: SiteMapState;
     equipmentOverrides?: Record<string, Partial<Thresholds>>;
+    setEquipmentOverrides?: React.Dispatch<React.SetStateAction<Record<string, Partial<Thresholds>>>>;
     tvChannelStates: Record<number, TVChannelState>;
     setTvChannelStates: (states: Record<number, TVChannelState>) => void;
     onSimulateScan?: () => void;
@@ -777,11 +778,13 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     zoneConfigs, setZoneConfigs, numZones, setNumZones, distances, setDistances,
     initialThresholds, customEquipment, compatibilityMatrix, 
     setCompatibilityMatrix,
-    scanData, setScanData, siteMapState, equipmentOverrides = {},
+    scanData, setScanData, siteMapState, equipmentOverrides = {}, setEquipmentOverrides,
     tvChannelStates: initialTvStates = {}, setTvChannelStates, onSimulateScan, wmasState, setIsCalculating
 }) => {
     const [activeSubTab, setActiveSubTab] = useState<'acts' | 'constant' | 'house'>('acts');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isShadowGenerating, setIsShadowGenerating] = useState(false);
+    const [shadowCoordinationProposal, setShadowCoordinationProposal] = useState<{ frequencies: Frequency[], overrides: Record<string, Partial<Thresholds>>, strategy?: string } | null>(null);
     const [progress, setProgress] = useState({ found: 0, processed: 0, total: 0, totalRequested: 0, status: '' });
     const [overlapMinutes, setOverlapMinutes] = useState(30);
     const [manualExclusions, setManualExclusions] = useState('');
@@ -1097,9 +1100,62 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
         setHouseSystems(prev => prev.map(update));
     };
 
-    const handleGenerate = async () => {
+    const handleShadowCoordination = async () => {
+        setIsShadowGenerating(true);
+        const manualEx = manualExclusions.split(',').map(s => { const parts = s.split('-').map(p => parseFloat(p.trim())); return parts.length === 2 ? { min: parts[0], max: parts[1] } : null; }).filter((x): x is { min: number, max: number } => x !== null);
+        
+        try {
+            const requests: GeneratorRequest[] = [...constantSystems, ...houseSystems, ...festivalActs].flatMap(s => [
+                ...(s.micRequests || []).map(r => ({ ...r, key: r.equipmentKey, customMin: r.customMin || 470, customMax: r.customMax || 608 })),
+                ...(s.iemRequests || []).map(r => ({ ...r, key: r.equipmentKey, customMin: r.customMin || 470, customMax: r.customMax || 608 }))
+            ]);
+            const locked = [...constantSystems, ...houseSystems, ...festivalActs].flatMap(s => s.frequencies || []).filter(f => f.locked);
+            
+            const result = await runShadowCoordination(
+                requests,
+                locked,
+                EQUIPMENT_DATABASE,
+                manualEx,
+                null,
+                false,
+                false,
+                (p) => setProgress(prev => ({ ...prev, status: `Shadow Coordination: ${Math.round(p * 100)}%` })),
+                [],
+                tvStates,
+                tvRegion,
+                initialThresholds
+            );
+            
+            if (result) {
+                setShadowCoordinationProposal(result);
+            } else {
+                alert("Shadow coordination could not find a solution.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Shadow coordination failed.");
+        } finally {
+            setIsShadowGenerating(false);
+        }
+    };
+
+    const handleApplyShadowProposal = () => {
+        if (!shadowCoordinationProposal || !setEquipmentOverrides) return;
+        
+        const newOverrides = { ...equipmentOverrides };
+        Object.entries(shadowCoordinationProposal.overrides).forEach(([key, val]) => {
+            newOverrides[key] = val;
+        });
+
+        setEquipmentOverrides(newOverrides);
+        setShadowCoordinationProposal(null);
+        handleGenerate(newOverrides);
+    };
+
+    const handleGenerate = async (overrides?: Record<string, Partial<Thresholds>>) => {
         if (setIsCalculating) setIsCalculating(true);
         setIsGenerating(true); setOptimizationReport(null);
+        const effectiveOverrides = overrides || equipmentOverrides;
         let reqTotal = 0;
         [...constantSystems, ...houseSystems, ...festivalActs].forEach(s => [...(s.micRequests || []), ...(s.iemRequests || [])].forEach(r => reqTotal += r.count));
         const manualEx = manualExclusions.split(',').map(s => { const parts = s.split('-').map(p => parseFloat(p.trim())); return parts.length === 2 ? { min: parts[0], max: parts[1] } : null; }).filter((x): x is { min: number, max: number } => x !== null);
@@ -1107,15 +1163,21 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
         setProgress({ found: 0, processed: 0, total: 0, totalRequested: reqTotal, status: 'Initializing Engine...' });
 
         try {
-            const newConstants = await generateConstantFrequencies(constantSystems, houseSystems, zoneConfigs, distances, fullEquipmentDatabase, manualEx, compatibilityMatrix, (p) => setProgress(prev => ({ ...prev, status: p.status || 'Calculating Static TX...' })), null, equipmentOverrides, tvStates, tvRegion, wmasState);
+            const newConstants = await generateConstantFrequencies(constantSystems, houseSystems, zoneConfigs, distances, EQUIPMENT_DATABASE, manualEx, compatibilityMatrix, (p) => setProgress(prev => ({ ...prev, status: p.status || 'Calculating Static TX...' })), null, effectiveOverrides, tvStates, tvRegion, wmasState);
             setConstantSystems(newConstants);
             
-            const newHouse = await generateHouseSystemsFrequencies(houseSystems, newConstants, zoneConfigs, distances, fullEquipmentDatabase, manualEx, compatibilityMatrix, (p) => setProgress(prev => ({ ...prev, status: p.status || 'Calculating House Systems...' })), null, equipmentOverrides, tvStates, tvRegion, wmasState);
+            const newHouse = await generateHouseSystemsFrequencies(houseSystems, newConstants, zoneConfigs, distances, EQUIPMENT_DATABASE, manualEx, compatibilityMatrix, (p) => setProgress(prev => ({ ...prev, status: p.status || 'Calculating House Systems...' })), null, effectiveOverrides, tvStates, tvRegion, wmasState);
             setHouseSystems(newHouse);
             
-            const { results: plan, report } = await generateFestivalPlan(festivalActs, newConstants, newHouse, zoneConfigs, distances, overlapMinutes, fullEquipmentDatabase, manualEx, compatibilityMatrix, (p) => setProgress(prev => ({ ...p, totalRequested: reqTotal, status: p.status || prev.status })), undefined, null, equipmentOverrides, tvStates, tvRegion, wmasState);
+            const { results: plan, report } = await generateFestivalPlan(festivalActs, newConstants, newHouse, zoneConfigs, distances, overlapMinutes, EQUIPMENT_DATABASE, manualEx, compatibilityMatrix, (p) => setProgress(prev => ({ ...p, totalRequested: reqTotal, status: p.status || prev.status })), undefined, null, effectiveOverrides, tvStates, tvRegion, wmasState);
             setFestivalActs(plan); setOptimizationReport(report);
             setIsHudMinimized(false);
+
+            if (report.shortfall > 0) {
+                if (window.confirm("Coordination shortfall detected. Let me carry out a shadow coordination to see if I can generate the required yield?")) {
+                    handleShadowCoordination();
+                }
+            }
         } catch (e) { console.error(e); } finally { 
             setIsGenerating(false); 
             if (setIsCalculating) setIsCalculating(false);
@@ -1727,11 +1789,11 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                         <div className="flex gap-2 px-2">
                         <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-indigo-600 text-white border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20">+ Add Act</button>
                         <button onClick={() => {
-                            const newMicReq = { id: `req-${Date.now()}-mic`, make: 'Shure', model: 'Axient Digital', band: 'G57', count: 1 };
+                            const newMicReq: EquipmentRequest = { id: `req-${Date.now()}-mic`, equipmentKey: 'shure-ad-g56', count: 1, compatibilityLevel: 'standard' };
                             setFestivalActs(prev => prev.map(act => ({ ...act, micRequests: [...(act.micRequests || []), newMicReq] })));
                         }} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-emerald-600 text-white border-emerald-800 hover:bg-emerald-500 shadow-lg shadow-emerald-500/20">+ Mic to All</button>
                         <button onClick={() => {
-                            const newIemReq = { id: `req-${Date.now()}-iem`, make: 'Shure', model: 'PSM 1000', band: 'G10', count: 1 };
+                            const newIemReq: EquipmentRequest = { id: `req-${Date.now()}-iem`, equipmentKey: 'shure-psm1000-g10', count: 1, compatibilityLevel: 'standard' };
                             setFestivalActs(prev => prev.map(act => ({ ...act, iemRequests: [...(act.iemRequests || []), newIemReq] })));
                         }} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-rose-600 text-white border-rose-800 hover:bg-rose-500 shadow-lg shadow-rose-500/20">+ IEM to All</button>
                         <button onClick={() => fileInputRef.current?.click()} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-slate-800 text-slate-400 border-slate-950 hover:bg-slate-700">Import CSV</button>
@@ -1777,14 +1839,25 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
 
                         <div className="flex flex-wrap gap-2 px-1">
                             <button 
-                                onClick={handleGenerate} 
-                                disabled={isGenerating} 
+                                onClick={() => handleGenerate()} 
+                                disabled={isGenerating || isShadowGenerating} 
                                 className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-yellow-500 text-slate-900 border-yellow-700 hover:bg-yellow-400 shadow-lg shadow-yellow-500/10 ring-1 ring-yellow-400/30 min-w-[150px]"
                             >
                                 {isGenerating ? (
                                     <><span className="w-3 h-3 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING...</>
                                 ) : (
                                     <><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> GENERATE PLAN</>
+                                )}
+                            </button>
+                            <button 
+                                onClick={handleShadowCoordination} 
+                                disabled={isGenerating || isShadowGenerating} 
+                                className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-indigo-600 text-white border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/10 min-w-[150px]"
+                            >
+                                {isShadowGenerating ? (
+                                    <><span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></span> ANALYZING...</>
+                                ) : (
+                                    <><span>👻</span> SHADOW DRY-RUN</>
                                 )}
                             </button>
                             <button 
@@ -2188,6 +2261,63 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                 Report Generated: {new Date().toLocaleTimeString()}
                             </div>
                             <button onClick={() => setHasAnalyzed(false)} className={`${primaryButton} !px-8 !py-3`}>Close Ledger</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {shadowCoordinationProposal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-slate-900 border-2 border-indigo-500/40 shadow-[0_40px_120px_rgba(0,0,0,0.8)] rounded-3xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-indigo-500/10">
+                            <h5 className="text-lg font-black uppercase tracking-widest text-indigo-400">Shadow Coordination Proposal</h5>
+                        </div>
+                        <div className="p-6 text-slate-300">
+                            {shadowCoordinationProposal.strategy && (
+                                <div className="mb-4 px-3 py-1 bg-indigo-500/20 border border-indigo-500/30 rounded-full inline-flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                                    <span className="text-[10px] font-black uppercase tracking-tighter text-indigo-300">Optimization Strategy: {shadowCoordinationProposal.strategy}</span>
+                                </div>
+                            )}
+                            {Object.keys(shadowCoordinationProposal.overrides).length > 0 ? (
+                                <>
+                                    <p className="mb-4">I have found a solution to meet your frequency requirements by applying the following parameter adjustments:</p>
+                                    <ul className="space-y-3 mb-6">
+                                        {Object.entries(shadowCoordinationProposal.overrides).map(([key, val]) => {
+                                            const profile = EQUIPMENT_DATABASE[key] || { name: key };
+                                            return (
+                                                <li key={key} className="bg-white/5 p-3 rounded-xl border border-white/10">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className="text-indigo-300 font-black uppercase tracking-widest text-[10px]">{profile.name}</span>
+                                                        <span className="text-[9px] text-slate-500 font-mono">{key}</span>
+                                                    </div>
+                                                    <div className="flex gap-4 text-xs font-mono text-slate-400">
+                                                        {val.twoTone !== undefined && (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[9px] uppercase font-black text-slate-600">2-Tone</span>
+                                                                <span className="text-emerald-400">{val.twoTone} MHz</span>
+                                                            </div>
+                                                        )}
+                                                        {val.threeTone !== undefined && (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[9px] uppercase font-black text-slate-600">3-Tone</span>
+                                                                <span className="text-emerald-400">{val.threeTone} MHz</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                </>
+                            ) : (
+                                <p className="mb-6">I have found a solution that meets your frequency requirements using standard parameters. This can happen due to the randomized nature of the coordination engine.</p>
+                            )}
+                            <p className="text-sm italic text-slate-400">Would you like to apply these changes and re-run the coordination?</p>
+                        </div>
+                        <div className="p-6 bg-slate-950 border-t border-white/10 flex justify-end gap-4">
+                            <button onClick={() => setShadowCoordinationProposal(null)} className="px-6 py-3 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700">Cancel</button>
+                            <button onClick={handleApplyShadowProposal} className={`${primaryButton} !px-8 !py-3`}>Apply Changes</button>
                         </div>
                     </div>
                 </div>

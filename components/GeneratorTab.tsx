@@ -518,10 +518,10 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                                             id: `SITE-MIC-${i + 1}-${Math.random().toString(36).substring(2,5).toUpperCase()}`,
                                             value: 0,
                                             label: `Mic ${i + 1}`,
-                                            type: 'mic',
+                                            type: 'mic' as TxType,
                                             locked: true,
                                             equipmentKey: 'custom',
-                                            compatibilityLevel: 'standard'
+                                            compatibilityLevel: 'standard' as CompatibilityLevel
                                         }));
                                         setManualConstraints(newConstraints);
                                     } else if (e.target.value === '') {
@@ -627,10 +627,10 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                                             id: `SITE-${type.toUpperCase()}-${i + 1}-${Math.random().toString(36).substring(2,5).toUpperCase()}`,
                                             value: 0,
                                             label: `${type.toUpperCase()} ${i + 1}`,
-                                            type: type,
+                                            type: type as TxType,
                                             locked: true,
                                             equipmentKey: 'custom',
-                                            compatibilityLevel: 'standard'
+                                            compatibilityLevel: 'standard' as CompatibilityLevel
                                         }));
                                         setManualConstraints([...manualConstraints, ...newConstraints]);
                                         setShowAddMore(false);
