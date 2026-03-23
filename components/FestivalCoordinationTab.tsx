@@ -892,17 +892,17 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                 
                 // Only update if the content actually changed
                 const hasChanged = next.length !== currentSystems.length || 
-                                 next.some((s, i) => s !== currentSystems[i]);
+                                 next.some((s, i) => s.stageName !== currentSystems[i]?.stageName);
 
                 if (hasChanged) {
-                    setTimeout(() => setFn(next), 0);
+                    setFn(next);
                 }
             }
         };
 
         syncSystems(constantSystems, setConstantSystems);
         syncSystems(houseSystems, setHouseSystems);
-    }, [zoneConfigs, constantSystems, houseSystems, setConstantSystems, setHouseSystems]);
+    }, [zoneConfigs, setConstantSystems, setHouseSystems]);
 
     const handleNumZonesChange = (val: string) => {
         setNumZonesInput(val);
@@ -1726,6 +1726,14 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     <div className="space-y-2">
                         <div className="flex gap-2 px-2">
                         <button onClick={() => setFestivalActs([...festivalActs, { id: `act-${Date.now()}`, actName: `New Act`, stage: zoneConfigs[0]?.name || 'Stage 1', startTime: new Date(), endTime: new Date(Date.now() + 3600000), active: true, micRequests: [], iemRequests: [], frequencies: [] }])} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-indigo-600 text-white border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20">+ Add Act</button>
+                        <button onClick={() => {
+                            const newMicReq = { id: `req-${Date.now()}-mic`, make: 'Shure', model: 'Axient Digital', band: 'G57', count: 1 };
+                            setFestivalActs(prev => prev.map(act => ({ ...act, micRequests: [...(act.micRequests || []), newMicReq] })));
+                        }} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-emerald-600 text-white border-emerald-800 hover:bg-emerald-500 shadow-lg shadow-emerald-500/20">+ Mic to All</button>
+                        <button onClick={() => {
+                            const newIemReq = { id: `req-${Date.now()}-iem`, make: 'Shure', model: 'PSM 1000', band: 'G10', count: 1 };
+                            setFestivalActs(prev => prev.map(act => ({ ...act, iemRequests: [...(act.iemRequests || []), newIemReq] })));
+                        }} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-rose-600 text-white border-rose-800 hover:bg-rose-500 shadow-lg shadow-rose-500/20">+ IEM to All</button>
                         <button onClick={() => fileInputRef.current?.click()} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-slate-800 text-slate-400 border-slate-950 hover:bg-slate-700">Import CSV</button>
                         <button onClick={() => setIsConverterOpen(true)} className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-indigo-600 text-white border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/20">🧮 EXCEL CONVERTER</button>
                         <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={e => {
@@ -1754,10 +1762,16 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                     {/* Command Center Strip */}
                     <div className="bg-slate-950/50 p-1 rounded-xl border border-indigo-500/30 flex flex-col gap-1">
                         {optimizationReport && (
-                            <div className="flex items-center justify-end px-1 pt-1">
-                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm ${optimizationReport.shortfall === 0 ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
-                                    {optimizationReport.found}/{optimizationReport.requested} CHANNELS OK
-                                </span>
+                            <div className="flex items-center justify-center p-4 bg-slate-900 border border-indigo-500/30 rounded-xl mb-2 shadow-xl">
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Coordination Yield</span>
+                                    <span className={`text-4xl font-black tracking-tighter ${optimizationReport.shortfall === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {optimizationReport.found} <span className="text-xl text-slate-600">/ {optimizationReport.requested}</span>
+                                    </span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1">
+                                        {optimizationReport.shortfall === 0 ? 'Target Achieved' : `${optimizationReport.shortfall} Shortfall`}
+                                    </span>
+                                </div>
                             </div>
                         )}
 
@@ -1788,7 +1802,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                             </button>
                         </div>
 
-                        {isGenerating && (
+                        {(isGenerating || (progress.totalRequested > 0)) && (
                             <div className="space-y-2 p-3 bg-indigo-500/10 rounded-lg border border-indigo-500/20 animate-in fade-in duration-300">
                                 <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-indigo-300">
                                     <span>Coordination Progress</span>

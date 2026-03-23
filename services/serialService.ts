@@ -269,7 +269,7 @@ export async function readTinySAScan(device: SerialDevice, startFreq: number, en
         
         let timeoutId: any;
         const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error('TinySA Trace Timeout')), 15000);
+            timeoutId = setTimeout(() => reject(new Error('TinySA Trace Timeout')), 30000);
         });
 
         const readPromise = (async () => {
@@ -371,7 +371,7 @@ export async function captureTinySAScreen(device: SerialDevice, onStatus?: (stat
 
         let timeoutId: any;
         const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error('TinySA Capture Timeout')), 15000);
+            timeoutId = setTimeout(() => reject(new Error('TinySA Capture Timeout')), 30000);
         });
 
         const readPromise = (async () => {

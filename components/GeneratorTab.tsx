@@ -139,6 +139,10 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
     
     const [tvRegion, setTvRegion] = useState<'uk' | 'us'>(initialRegion);
     const [tvStates, setTvStates] = useState<Record<number, TVChannelState>>(initialTvStates);
+    
+    const [micCount, setMicCount] = useState<string>('');
+    const [showAddMore, setShowAddMore] = useState(false);
+    const [additionalEquipment, setAdditionalEquipment] = useState<{type: 'IEM' | 'Comms', quantity: number}[]>([]);
 
     // Sync internal state with props when they change (avoiding setState in render)
     useEffect(() => {
@@ -501,51 +505,77 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                             </label>
                         </div>
 
-                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 mb-6 custom-scrollbar">
+                        <div className="mb-4">
+                            <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Number of Mics</label>
+                            <input 
+                                type="number" 
+                                value={micCount} 
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setMicCount(e.target.value);
+                                    if (!isNaN(val) && val >= 0) {
+                                        const newConstraints = Array.from({ length: val }, (_, i) => ({
+                                            id: `SITE-MIC-${i + 1}-${Math.random().toString(36).substring(2,5).toUpperCase()}`,
+                                            value: 0,
+                                            label: `Mic ${i + 1}`,
+                                            type: 'mic',
+                                            locked: true,
+                                            equipmentKey: 'custom',
+                                            compatibilityLevel: 'standard'
+                                        }));
+                                        setManualConstraints(newConstraints);
+                                    } else if (e.target.value === '') {
+                                        setManualConstraints([]);
+                                    }
+                                }}
+                                className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-300 text-xs font-bold w-full"
+                            />
+                        </div>
+
+                        <div className="flex flex-wrap gap-3 mb-6 custom-scrollbar">
                             {manualConstraints.map((freq, i) => (
-                                <div key={freq.id || i} className="flex flex-col sm:grid sm:grid-cols-[auto,1fr,2fr,auto,auto] gap-3 items-start sm:items-center bg-slate-900/50 p-3 sm:p-2.5 rounded-xl border border-white/5 group hover:border-indigo-500/30 transition-all relative">
-                                    <div className="flex items-center justify-between w-full sm:w-auto">
-                                        <label className="text-[9px] text-slate-600 font-mono w-6 text-center font-bold">{i + 1}</label>
-                                        <button onClick={() => removeManualConstraint(i)} className="sm:hidden text-red-400/50 hover:text-red-400 transition-colors p-1 text-2xl leading-none">&times;</button>
+                                <div key={freq.id || i} className="flex flex-col gap-2 items-center bg-slate-900/50 p-3 rounded-xl border border-white/5 group hover:border-indigo-500/30 transition-all relative w-32">
+                                    <div className="flex items-center justify-between w-full">
+                                        <label className="text-[9px] text-slate-600 font-mono font-bold">{i + 1}</label>
+                                        <button onClick={() => removeManualConstraint(i)} className="text-red-400/50 hover:text-red-400 transition-colors p-1 text-lg leading-none">&times;</button>
                                     </div>
-                                    <div className="w-full sm:w-auto">
-                                        <label className="sm:hidden text-[8px] text-slate-500 uppercase font-black mb-1 block">Frequency</label>
-                                        <ManualFreqInput 
-                                            value={freq.value} 
-                                            onChange={val => updateManualConstraint(i, 'value', val)}
-                                            className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-indigo-300 text-xs font-black font-mono focus:ring-1 focus:ring-indigo-500 outline-none shadow-inner w-full sm:w-28"
-                                        />
-                                    </div>
-                                    <div className="w-full">
-                                        <label className="sm:hidden text-[8px] text-slate-500 uppercase font-black mb-1 block">Label</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Label (e.g. Site Mic 1)" 
-                                            value={freq.label || ''} 
-                                            onChange={e => updateManualConstraint(i, 'label', e.target.value)}
-                                            className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-300 text-xs font-bold w-full"
-                                        />
-                                    </div>
-                                    <div className="w-full sm:w-auto">
-                                        <label className="sm:hidden text-[8px] text-slate-500 uppercase font-black mb-1 block">Type</label>
-                                        <select 
-                                            value={freq.type || 'mic'} 
-                                            onChange={e => updateManualConstraint(i, 'type', e.target.value)}
-                                            className="bg-slate-800 border border-slate-700 rounded p-2 text-slate-400 text-[9px] font-black uppercase tracking-tighter w-full sm:w-auto"
-                                        >
-                                            <option value="mic">Mic</option><option value="iem">IEM</option><option value="generic">Gen</option>
-                                        </select>
-                                    </div>
-                                    <button onClick={() => removeManualConstraint(i)} className="hidden sm:block text-red-400/50 hover:text-red-400 transition-colors p-1 text-2xl leading-none">&times;</button>
+                                    <ManualFreqInput 
+                                        value={freq.value} 
+                                        onChange={val => updateManualConstraint(i, 'value', val)}
+                                        className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-indigo-300 text-xs font-black font-mono focus:ring-1 focus:ring-indigo-500 outline-none shadow-inner w-full"
+                                    />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Label" 
+                                        value={freq.label || ''} 
+                                        onChange={e => updateManualConstraint(i, 'label', e.target.value)}
+                                        className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-300 text-[10px] font-bold w-full"
+                                    />
+                                    <select 
+                                        value={freq.type || 'mic'} 
+                                        onChange={e => updateManualConstraint(i, 'type', e.target.value)}
+                                        className="bg-slate-800 border border-slate-700 rounded p-1 text-slate-400 text-[8px] font-black uppercase tracking-tighter w-full"
+                                    >
+                                        <option value="mic">Mic</option><option value="iem">IEM</option><option value="comms">Comms</option><option value="generic">Gen</option>
+                                    </select>
                                 </div>
                             ))}
                             {manualConstraints.length === 0 && (
-                                <div className="py-10 text-center border-2 border-dashed border-white/5 rounded-2xl bg-black/20">
-                                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No Existing Site Frequencies Entered</p>
+                                <div className="py-10 text-center border-2 border-dashed border-white/5 rounded-2xl bg-black/20 w-full">
+                                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest">No Frequencies Entered</p>
                                 </div>
                             )}
                         </div>
                         
+                        {/* Add More Equipment Prompt */}
+                        <div className="mb-4 p-4 bg-slate-900/50 rounded-xl border border-slate-700">
+                            <p className="text-[10px] text-slate-300 font-bold uppercase mb-3">Add More Equipment?</p>
+                            <div className="flex gap-4">
+                                <button onClick={() => setShowAddMore(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold">Yes</button>
+                                <button onClick={() => setShowAddMore(false)} className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-xs font-bold">No</button>
+                            </div>
+                        </div>
+
                         <div className="p-4 bg-slate-950/50 border border-white/5 rounded-2xl mb-4">
                             <div className="flex justify-between items-center mb-3">
                                 <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Site Protection Parameters</span>
@@ -567,7 +597,47 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                             </div>
                         </div>
 
-                        <button onClick={addManualConstraint} className={`w-full py-3 text-[10px] font-black uppercase tracking-[0.2em] ${greenButton}`}>+ ADD SITE FREQUENCY FOR PROTECTION</button>
+                        {showAddMore && (
+                            <div className="mb-4 p-4 bg-slate-900/50 rounded-xl border border-indigo-500/30">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Type</label>
+                                        <select 
+                                            id="add-equip-type"
+                                            className="bg-slate-800 border border-slate-700 rounded p-2 text-slate-400 text-[9px] font-black uppercase tracking-tighter w-full"
+                                        >
+                                            <option value="iem">IEM</option>
+                                            <option value="comms">Comms</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-slate-500 uppercase font-black mb-1 block">Quantity</label>
+                                        <input 
+                                            id="add-equip-qty"
+                                            type="number" 
+                                            className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-300 text-xs font-bold w-full"
+                                        />
+                                    </div>
+                                </div>
+                                <button onClick={() => {
+                                    const type = (document.getElementById('add-equip-type') as HTMLSelectElement).value;
+                                    const qty = parseInt((document.getElementById('add-equip-qty') as HTMLInputElement).value);
+                                    if (!isNaN(qty) && qty > 0) {
+                                        const newConstraints = Array.from({ length: qty }, (_, i) => ({
+                                            id: `SITE-${type.toUpperCase()}-${i + 1}-${Math.random().toString(36).substring(2,5).toUpperCase()}`,
+                                            value: 0,
+                                            label: `${type.toUpperCase()} ${i + 1}`,
+                                            type: type,
+                                            locked: true,
+                                            equipmentKey: 'custom',
+                                            compatibilityLevel: 'standard'
+                                        }));
+                                        setManualConstraints([...manualConstraints, ...newConstraints]);
+                                        setShowAddMore(false);
+                                    }
+                                }} className="mt-4 w-full py-2 bg-green-600 text-white rounded-lg text-xs font-bold">Add</button>
+                            </div>
+                        )}
                     </Card>
                 </div>
 

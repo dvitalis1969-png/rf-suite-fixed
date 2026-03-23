@@ -1,0 +1,5 @@
+{
+  "stripeSecret": "sk_test_51T6b1oPpMzMI17lXelMl5li7oUiiPBKdlAPhzkuCVU5vzc8Ia7GSalKCN0jCPkBBsHUpHqyLygsoqgQczM1bR5u30067lYe11y",
+  "stripePublishable": "pk_test_51T6b1oPpMzMI17lXuwYVNGHIOp7LuiAnyNgmptXsY10VozITQym7gkxrnTITG4A69MQqNwiVEMTHSEMWJHZs5PPs00mgOprcLT",
+  "stripeWebhook": "whsec_Toi4YeWR0PzhEWXvDhhp14ATKygZYA9Z"
+}

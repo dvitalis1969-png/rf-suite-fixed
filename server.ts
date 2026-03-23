@@ -17,7 +17,22 @@ const __dirname = path.dirname(__filename);
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe {
   if (!stripeClient) {
-    const key = process.env.STRIPE_SECRET_KEY;
+    let key = process.env.STRIPE_SECRET_KEY;
+    
+    if (!key) {
+      // Try to load from local stripe-config.json if it exists
+      const stripePath = path.join(process.cwd(), 'stripe-config.json');
+      if (fs.existsSync(stripePath)) {
+        try {
+          const stripeConfig = JSON.parse(fs.readFileSync(stripePath, 'utf8'));
+          key = stripeConfig.stripeSecret;
+          console.log("✅ Stripe initialized from local stripe-config.json");
+        } catch (e) {
+          console.error("Error loading local stripe-config.json:", e);
+        }
+      }
+    }
+
     if (!key) throw new Error('STRIPE_SECRET_KEY environment variable is required');
     stripeClient = new Stripe(key);
   }
@@ -41,7 +56,23 @@ function initFirebaseAdmin() {
     }
 
     if (!projectId || !clientEmail || !privateKey) {
-      console.warn("Firebase Admin credentials missing:", { 
+      // Try to load from local service-account.json if it exists
+      const saPath = path.join(process.cwd(), 'service-account.json');
+      if (fs.existsSync(saPath)) {
+        try {
+          const sa = JSON.parse(fs.readFileSync(saPath, 'utf8'));
+          initializeApp({
+            credential: cert(sa),
+          });
+          firebaseAdminInitialized = true;
+          console.log("✅ Firebase Admin initialized from local service-account.json");
+          return;
+        } catch (e) {
+          console.error("Error loading local service-account.json:", e);
+        }
+      }
+
+      console.warn("Firebase Admin credentials missing from environment and local file:", { 
         projectId: !!projectId, 
         clientEmail: !!clientEmail, 
         privateKey: !!privateKey 
@@ -90,10 +121,10 @@ async function startServer() {
       version: "v2.5.1-STABLE-MARCH-17-13:12",
       firebaseAdminInitialized,
       config: {
-        stripeSecret: !!process.env.STRIPE_SECRET_KEY,
-        stripePublishable: !!process.env.VITE_STRIPE_PUBLISHABLE_KEY,
-        stripeWebhook: !!process.env.STRIPE_WEBHOOK_SECRET,
-        firebaseAdmin: !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY)
+        stripeSecret: !!(process.env.STRIPE_SECRET_KEY || fs.existsSync(path.join(process.cwd(), 'stripe-config.json'))),
+        stripePublishable: !!(process.env.VITE_STRIPE_PUBLISHABLE_KEY || fs.existsSync(path.join(process.cwd(), 'stripe-config.json'))),
+        stripeWebhook: !!(process.env.STRIPE_WEBHOOK_SECRET || fs.existsSync(path.join(process.cwd(), 'stripe-config.json'))),
+        firebaseAdmin: !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) || fs.existsSync(path.join(process.cwd(), 'service-account.json'))
       }
     });
   });
@@ -114,7 +145,18 @@ async function startServer() {
     initFirebaseAdmin();
     const stripe = getStripe();
     const sig = req.headers['stripe-signature'];
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    let endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!endpointSecret) {
+      // Try to load from local stripe-config.json if it exists
+      const stripePath = path.join(process.cwd(), 'stripe-config.json');
+      if (fs.existsSync(stripePath)) {
+        try {
+          const stripeConfig = JSON.parse(fs.readFileSync(stripePath, 'utf8'));
+          endpointSecret = stripeConfig.stripeWebhook;
+        } catch (e) {}
+      }
+    }
 
     if (!sig || !endpointSecret) {
       return res.status(400).send('Missing Stripe signature or webhook secret');
@@ -175,6 +217,33 @@ async function startServer() {
       console.error("Webhook processing error:", err);
       res.status(500).send("Internal Server Error");
     }
+  });
+
+  app.get("/api/config", (req, res) => {
+    let stripePublishable = process.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    
+    if (!stripePublishable) {
+      const stripePath = path.join(process.cwd(), 'stripe-config.json');
+      if (fs.existsSync(stripePath)) {
+        try {
+          const stripeConfig = JSON.parse(fs.readFileSync(stripePath, 'utf8'));
+          stripePublishable = stripeConfig.stripePublishable;
+        } catch (e) {}
+      }
+    }
+
+    res.json({
+      stripePublishable: stripePublishable || null,
+      firebase: {
+        projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+        apiKey: process.env.VITE_FIREBASE_API_KEY,
+        authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+        storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.VITE_FIREBASE_APP_ID,
+        databaseId: process.env.VITE_FIREBASE_DATABASE_ID
+      }
+    });
   });
 
   // Regular JSON parsing for other routes
