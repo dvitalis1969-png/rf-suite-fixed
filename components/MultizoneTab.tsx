@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Card, { CardTitle } from './Card';
+import TvGrid from './TvGrid';
 import { Thresholds, Zone, ZoneConfig, Frequency, EquipmentProfile, CompatibilityLevel, TxType, TVChannelState, WMASState } from '../types';
 import { generateMultizoneFrequencies, getFinalThresholds, getCoordinationDiagnostics, CoordinationDiagnostic } from '../services/rfService';
 import { UK_TV_CHANNELS, EQUIPMENT_DATABASE, COMPATIBILITY_PROFILES } from '../constants';
@@ -645,31 +646,14 @@ const MultizoneTab: React.FC<MultizoneTabProps> = ({
                         </div>
                     </div>
                 </div>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-11 gap-2 p-2 bg-slate-950/30 rounded-xl">
-                    {allTvChannels.map((ch) => {
-                        const state = channelStates[ch] || 'available';
-                        const range = UK_TV_CHANNELS[ch];
-                        
-                        let channelClasses = 'p-1.5 text-center rounded-lg border-2 transition-all cursor-pointer select-none ';
-                        if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
-                        else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
-                        else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
-                        else channelClasses += 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50';
-
-                        return (
-                            <div key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses}>
-                                <div className={`text-[10px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>CH {ch}</div>
-                                <div className={`text-[8px] font-mono tracking-tighter ${state === 'available' ? 'text-slate-500' : 'text-white/60'}`}>{range[0]}-{range[1]}</div>
-                                <div className={`mt-1 text-[7px] font-black uppercase ${state === 'available' ? 'text-white/10' : 'text-white/40'}`}>
-                                    {state === 'mic-only' && 'MIC'}
-                                    {state === 'iem-only' && 'IEM'}
-                                    {state === 'blocked' && 'OFF'}
-                                    {state === 'available' && '—'}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                <TvGrid 
+                    tvRegion="uk"
+                    tvStates={channelStates}
+                    setTvStates={updateChannelStates}
+                    handleTvChannelCycle={handleTvChannelCycle}
+                    handleBlockAllTvChannels={handleBlockAllChannels}
+                    handleClearTv={handleResetChannels}
+                />
             </Card>
 
             <Card className="!bg-slate-900/80 border-indigo-500/30">

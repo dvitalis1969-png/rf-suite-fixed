@@ -778,11 +778,10 @@ export const resolveGeneratorRequests = async (
     ignoreManualIMD: boolean = false,
     triStates?: Record<number, TVChannelState>,
     region: 'uk' | 'us' = 'uk',
-    siteThresholds?: Thresholds,
-    isShadowRun: boolean = false
+    siteThresholds?: Thresholds
 ): Promise<Frequency[]> => {
     
-    const MAX_TRIALS = isShadowRun ? 200 : 100; 
+    const MAX_TRIALS = 100; 
     let bestTotalFound = -1;
     let bestPool: Frequency[] = [];
     
@@ -831,7 +830,7 @@ export const resolveGeneratorRequests = async (
             }
 
             const profile = db[req.key] || db['custom'];
-            const tuningStep = isShadowRun ? 0.010 : (profile?.tuningStep || 0.025);
+            const tuningStep = profile?.tuningStep || 0.025;
             const typeToUse = req.type || (profile?.type as TxType) || 'generic';
             const finalExclusions = getEquipmentAwareExclusions(exclusions, typeToUse, triStates, region);
             
@@ -886,151 +885,6 @@ export const resolveGeneratorRequests = async (
     }
 
     return bestPool;
-};
-
-/**
- * REWRITTEN: UNIFIED POOL COORD ENGINE
- * Now treats site frequencies as full intermod actors instead of isolated blocks.
- * UPDATED: Added multi-trial loop to ensure yield matches request count.
- */
-export const runShadowCoordination = async (
-    requests: GeneratorRequest[],
-    lockedConstraints: Frequency[],
-    db: Record<string, EquipmentProfile>,
-    exclusions: { min: number, max: number }[],
-    inclusions: { min: number, max: number }[] | null,
-    advanced: boolean,
-    useGlobalThresholds: boolean,
-    onProgress: (p: number) => void,
-    manualConstraints: Frequency[],
-    triStates?: Record<number, TVChannelState>,
-    region: 'uk' | 'us' = 'uk',
-    siteThresholds?: Thresholds
-): Promise<{ frequencies: Frequency[], overrides: Record<string, Partial<Thresholds>>, strategy?: string } | null> => {
-    let currentOverrides: Record<string, Partial<Thresholds>> = {};
-    let currentRequests = [...requests];
-    const totalToFind = requests.reduce((s, r) => s + (parseInt(String(r.count)) || 0), 0);
-
-    const equipmentKeys = Array.from(new Set(requests.map(r => r.key)));
-    const iemKeys = equipmentKeys.filter(k => (db[k] || db['custom'])?.type === 'iem');
-    const micKeys = equipmentKeys.filter(k => (db[k] || db['custom'])?.type === 'mic');
-
-    // Advanced Iterative Optimization Engine
-    // We try progressively more aggressive strategies to find the missing frequencies
-    const MAX_SHADOW_TRIALS = 50;
-    
-    for (let trial = 0; trial < MAX_SHADOW_TRIALS; trial++) {
-        onProgress(trial / MAX_SHADOW_TRIALS);
-
-        let strategy = "Standard Parameters";
-        let ignoreManualIMD = false;
-        
-        if (trial === 0) {
-            strategy = "Standard Parameters (Deep Search)";
-        } else if (trial < 10) {
-            // Phase 1: Relax IEM IMD (IEMs are usually the biggest aggressors)
-            strategy = "Relaxing IEM IMD Thresholds";
-            const reduction = trial * 0.010; // 10kHz per trial
-            iemKeys.forEach(k => {
-                const base = getFinalThresholds({ equipmentKey: k, compatibilityLevel: 'standard' }, db, {});
-                currentOverrides[k] = {
-                    twoTone: Math.max(0.005, base.twoTone - reduction),
-                    threeTone: Math.max(0, base.threeTone - reduction)
-                };
-            });
-        } else if (trial < 20) {
-            // Phase 2: Relax Mic IMD
-            strategy = "Relaxing Mic IMD Thresholds";
-            const reduction = (trial - 9) * 0.010;
-            micKeys.forEach(k => {
-                const base = getFinalThresholds({ equipmentKey: k, compatibilityLevel: 'standard' }, db, {});
-                currentOverrides[k] = {
-                    twoTone: Math.max(0.005, base.twoTone - reduction),
-                    threeTone: Math.max(0, base.threeTone - reduction)
-                };
-            });
-        } else if (trial < 30) {
-            // Phase 3: Reduce Fundamental Guard Band (Surgical packing)
-            strategy = "Reducing Guard Bands (Fundamental)";
-            const reduction = (trial - 19) * 0.025; // 25kHz per trial
-            equipmentKeys.forEach(k => {
-                const base = getFinalThresholds({ equipmentKey: k, compatibilityLevel: 'standard' }, db, currentOverrides);
-                currentOverrides[k] = {
-                    ...currentOverrides[k],
-                    fundamental: Math.max(0.125, base.fundamental - reduction)
-                };
-            });
-        } else if (trial < 40) {
-            // Phase 4: Drop 3-Tone IMD entirely for all
-            strategy = "Dropping 3-Tone IMD Protection";
-            equipmentKeys.forEach(k => {
-                currentOverrides[k] = {
-                    ...currentOverrides[k],
-                    threeTone: 0
-                };
-            });
-            currentRequests = requests.map(r => ({ ...r, linearMode: true }));
-        } else if (trial < 45) {
-            // Phase 5: Drop 2-Tone IMD entirely (Fundamental only)
-            strategy = "Dropping All IMD Protection (Fundamental Only)";
-            equipmentKeys.forEach(k => {
-                currentOverrides[k] = {
-                    fundamental: 0.125,
-                    twoTone: 0,
-                    threeTone: 0
-                };
-            });
-            ignoreManualIMD = true;
-        } else if (trial < 48) {
-            // Phase 6: Absolute Minimum (Last resort)
-            strategy = "Absolute Minimum Spacing (0.1MHz)";
-            equipmentKeys.forEach(k => {
-                currentOverrides[k] = {
-                    fundamental: 0.1,
-                    twoTone: 0,
-                    threeTone: 0
-                };
-            });
-            ignoreManualIMD = true;
-        } else {
-            // Phase 7: Ultra Aggressive (0.05MHz) - Physically touching
-            strategy = "Ultra Aggressive Packing (0.05MHz)";
-            equipmentKeys.forEach(k => {
-                currentOverrides[k] = {
-                    fundamental: 0.05,
-                    twoTone: 0,
-                    threeTone: 0
-                };
-            });
-            ignoreManualIMD = true;
-        }
-
-        const pool = await resolveGeneratorRequests(
-            currentRequests,
-            lockedConstraints,
-            db,
-            exclusions,
-            inclusions,
-            advanced,
-            useGlobalThresholds,
-            () => {}, // Silence sub-progress
-            manualConstraints,
-            currentOverrides,
-            undefined,
-            ignoreManualIMD,
-            triStates,
-            region,
-            siteThresholds,
-            true // isShadowRun
-        );
-
-        const found = pool.filter(f => f.sourceRequestId).length;
-        if (found >= totalToFind) {
-            return { frequencies: pool, overrides: currentOverrides, strategy };
-        }
-    }
-
-    return null;
 };
 
 export const generateConstantFrequencies = async (
@@ -1179,8 +1033,7 @@ export const generateTourFrequencies = async (
             false, 
             cluster.tvChannelStates,
             region,
-            undefined,
-            false // isShadowRun
+            undefined
         );
 
         // resolveGeneratorRequests returns the full pool (lockedLocals + clusterConstantFreqs + newLocals)

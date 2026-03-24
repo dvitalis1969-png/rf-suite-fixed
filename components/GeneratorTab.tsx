@@ -4,6 +4,7 @@ import { Frequency, Thresholds, EquipmentProfile, CompatibilityLevel, Scene, Gen
 import { resolveGeneratorRequests, getCoordinationDiagnostics, CoordinationDiagnostic, getFinalThresholds } from '../services/rfService';
 import Card, { CardTitle, Placeholder } from './Card';
 import { EQUIPMENT_DATABASE, UK_TV_CHANNELS, US_TV_CHANNELS, COMPATIBILITY_PROFILES } from '../constants';
+import TvGrid from './TvGrid';
 
 const ManualFreqInput: React.FC<{
     value: number;
@@ -846,45 +847,16 @@ const GeneratorTab: React.FC<GeneratorTabProps> = ({
                         </div>
                         
                         <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-700">
-                            <div className="flex flex-col gap-3 mb-4">
-                                <label className="text-xs text-slate-300 font-bold uppercase block">Quad-State TV Grid</label>
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div className="flex gap-3 text-[8px] font-black uppercase">
-                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span className="text-slate-400">Avail</span></div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-sky-400 border border-sky-300" /> <span className="text-sky-400">Mic</span></div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-amber-500 border border-amber-400" /> <span className="text-amber-500">IEM</span></div>
-                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-rose-600 border border-rose-500" /> <span className="text-rose-500">Off</span></div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={handleBlockAllTvChannels} className="text-[9px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
-                                        <button onClick={clearTv} className="text-[9px] font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded hover:bg-slate-700 hover:text-white transition-all">Clear All</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-4 gap-2">
-                                {Object.entries(currentTvChannels).map(([chStr, range]) => {
-                                    const ch = Number(chStr);
-                                    const state = tvStates[ch] || 'available';
-                                    
-                                    let channelClasses = 'p-1.5 text-center rounded-lg border-2 transition-all cursor-pointer select-none ';
-                                    if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
-                                    else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
-                                    else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
-                                    else channelClasses += 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50';
-
-                                    return (
-                                        <button key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses} title={`${range[0]}-${range[1]} MHz`}>
-                                            <div className={`text-[10px] font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>{ch}</div>
-                                            <div className="mt-0.5 text-[7px] font-black uppercase text-white/40">
-                                                {state === 'mic-only' && 'MIC'}
-                                                {state === 'iem-only' && 'IEM'}
-                                                {state === 'blocked' && 'OFF'}
-                                                {state === 'available' && '—'}
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            <TvGrid 
+                                tvRegion={tvRegion}
+                                setTvRegion={setTvRegion}
+                                tvStates={tvStates}
+                                setTvStates={setTvStates}
+                                tvChannelErpData={undefined}
+                                handleTvChannelCycle={handleTvChannelCycle}
+                                handleBlockAllTvChannels={handleBlockAllTvChannels}
+                                handleClearTv={clearTv}
+                            />
                         </div>
                     </div>
                      <button onClick={handleGenerate} disabled={isLoading} className={`w-full mt-8 ${generateButton} !py-4 text-lg font-black tracking-[0.2em]`}>

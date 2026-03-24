@@ -10,6 +10,7 @@ import { getFinalThresholds, generateTourFrequencies } from '../services/rfServi
 import { UK_TV_CHANNELS, US_TV_CHANNELS, EQUIPMENT_DATABASE } from '../constants';
 import { getBlockedChannelsForZip } from '../utils/tvDatabase';
 import Card, { CardTitle } from './Card';
+import TvGrid from './TvGrid';
 
 interface TourPlanningTabProps {
     state: TourPlanningState;
@@ -563,51 +564,34 @@ const TourPlanningTab: React.FC<TourPlanningTabProps> = ({ state, setState, cust
                                 </button>
                             </div>
                         </div>
-                        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-1.5">
-                            {Object.entries(channels).map(([ch, range]) => {
-                                const channel = parseInt(ch);
+                        <TvGrid 
+                            tvRegion={state.region}
+                            setTvRegion={(region) => setState(prev => ({ ...prev, region }))}
+                            tvStates={state.globalTvChannelStates || {}}
+                            setTvStates={(globalTvChannelStates) => setState(prev => ({ ...prev, globalTvChannelStates }))}
+                            handleTvChannelCycle={(channel) => {
                                 const tvState = (state.globalTvChannelStates || {})[channel] || 'available';
-                                return (
-                                        <button
-                                        key={channel}
-                                        title={`Channel ${channel}: ${range[0]} MHz - ${range[1]} MHz`}
-                                        onClick={() => {
-                                            const states = ['available', 'mic-only', 'iem-only', 'blocked'] as TVChannelState[];
-                                            const next = states[(states.indexOf(tvState) + 1) % states.length];
-                                            setState(prev => ({
-                                                ...prev,
-                                                globalTvChannelStates: {
-                                                    ...(prev.globalTvChannelStates || {}),
-                                                    [channel]: next
-                                                }
-                                            }));
-                                        }}
-                                        className={`
-                                            flex flex-col items-center justify-center p-1.5 rounded-lg border-2 transition-all cursor-pointer select-none
-                                            ${tvState === 'available' ? 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50 text-emerald-400' : ''}
-                                            ${tvState === 'mic-only' ? 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg text-slate-900' : ''}
-                                            ${tvState === 'iem-only' ? 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg text-slate-900' : ''}
-                                            ${tvState === 'blocked' ? 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg text-slate-900' : ''}
-                                        `}
-                                    >
-                                        <span className="text-[10px] font-black">CH {channel}</span>
-                                        <span className={`text-[7px] uppercase font-bold ${tvState === 'available' ? 'text-slate-500' : 'text-white/60'}`}>{range[0]}-{range[1]}</span>
-                                        <div className={`mt-1 text-[7px] font-black uppercase ${tvState === 'available' ? 'text-white/10' : 'text-white/40'}`}>
-                                            {tvState === 'mic-only' && 'MIC'}
-                                            {tvState === 'iem-only' && 'IEM'}
-                                            {tvState === 'blocked' && 'OFF'}
-                                            {tvState === 'available' && '—'}
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-3 justify-center">
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-emerald-500/10 border border-emerald-500/30"></div><span className="text-[8px] text-slate-500 font-black uppercase">Available</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-sky-400 border border-sky-300"></div><span className="text-[8px] text-sky-400 font-black uppercase">Mic Only</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-amber-500 border border-amber-400"></div><span className="text-[8px] text-amber-500 font-black uppercase">IEM</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-rose-600 border border-rose-500"></div><span className="text-[8px] text-rose-500 font-black uppercase">Blocked</span></div>
-                        </div>
+                                const states = ['available', 'mic-only', 'iem-only', 'blocked'] as TVChannelState[];
+                                const next = states[(states.indexOf(tvState) + 1) % states.length];
+                                setState(prev => ({
+                                    ...prev,
+                                    globalTvChannelStates: {
+                                        ...(prev.globalTvChannelStates || {}),
+                                        [channel]: next
+                                    }
+                                }));
+                            }}
+                            handleBlockAllTvChannels={() => {
+                                const newStates: Record<number, TVChannelState> = {};
+                                Object.keys(channels).forEach(ch => {
+                                    newStates[parseInt(ch)] = 'blocked';
+                                });
+                                setState(prev => ({ ...prev, globalTvChannelStates: newStates }));
+                            }}
+                            handleClearTv={() => {
+                                setState(prev => ({ ...prev, globalTvChannelStates: {} }));
+                            }}
+                        />
                     </Card>
                     <div className="flex justify-end mt-6">
                         <button onClick={() => setCurrentStep(1)} className={primaryButton}>Next Step ➔</button>

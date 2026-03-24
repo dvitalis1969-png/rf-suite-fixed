@@ -617,6 +617,196 @@ async function startServer() {
     }
   });
 
+  app.get("/api/lookup/uk-tv", (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      
+      if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ error: "Invalid coordinates" });
+      }
+
+      const transmittersPath = path.join(process.cwd(), 'data', 'uk_transmitters.json');
+      if (!fs.existsSync(transmittersPath)) {
+        return res.json({ occupied: [] });
+      }
+
+      const transmitters = JSON.parse(fs.readFileSync(transmittersPath, 'utf8'));
+      const channelData: Record<number, { maxErp: number, transmitterName: string }> = {};
+      const coveringNames: string[] = [];
+
+      const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+          Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      // Find all transmitters that cover this location
+      // Ignore local fillers with ERP < 6W (0.006 kW)
+      const covering = transmitters
+        .filter((t: any) => t.erp && t.erp >= 0.006)
+        .map((t: any) => {
+          const distance = haversine(lat, lng, t.lat, t.lng);
+          // Calculate a rough signal strength proxy: ERP / distance^3
+          // Add a small constant to distance to avoid division by zero
+          const signalStrength = (t.erp || 100) / Math.pow(Math.max(distance, 1), 3);
+          return { ...t, distance, signalStrength };
+        })
+        .filter((t: any) => t.distance <= t.radius)
+        .sort((a: any, b: any) => b.signalStrength - a.signalStrength);
+
+      if (covering.length > 0) {
+        const strongestSignal = covering[0].signalStrength;
+        
+        // Block transmitters whose signal is within ~8dB (1/6.6th) of the strongest signal,
+        // OR if they have a significant absolute signal strength (> 0.0005),
+        // OR if they are very close (< 15km)
+        const relevantTransmitters = covering.filter((t: any) => 
+          t.signalStrength >= strongestSignal * 0.15 || t.signalStrength > 0.0005 || t.distance < 15
+        );
+
+        relevantTransmitters.forEach((t: any) => {
+          t.channels.forEach((ch: number) => {
+            // ERP Overrides based on provided CSV data
+            let erp = t.erp;
+            const overrides: Record<string, Record<number, number>> = {
+              "Angus": { 33: 10, 36: 10, 48: 10 },
+              "Arfon North": { 29: 8, 31: 8, 37: 8 },
+              "Arfon South": { 41: 2, 44: 2, 47: 2 },
+              "Beacon Hill": { 42: 10, 45: 10, 40: 10 },
+              "Belmont": { 30: 64, 23: 75, 26: 75 },
+              "Bilsdale": { 21: 117.5, 43: 50, 46: 50, 40: 50 },
+              "Blaenplwyf": { 25: 10, 22: 10, 28: 10 },
+              "Brougher Mountain": { 21: 2, 24: 2, 27: 2, 30: 1 },
+              "Caldbeck": { 23: 50, 26: 50, 30: 50 },
+              "Caradon Hill": { 21: 50, 24: 50, 27: 50 },
+              "Carmel": { 33: 10, 36: 10, 48: 10 },
+              "Chatton": { 29: 10, 31: 10, 37: 10 },
+              "Craigkelly": { 29: 10, 31: 10, 37: 10 },
+              "Darvel": { 32: 10, 34: 10, 35: 10 },
+              "Divis": { 23: 50, 26: 50, 30: 50 },
+              "Dover": { 39: 40, 42: 40, 48: 40 },
+              "Durris": { 23: 50, 26: 50, 30: 50 },
+              "Eitshal": { 25: 10, 22: 10 },
+              "Hannington": { 40: 25, 43: 25, 46: 25 },
+              "Huntshaw Cross": { 32: 10, 34: 10, 35: 10 },
+              "Keelylang Hill": { 42: 10, 45: 10, 39: 10 },
+              "Knockmore": { 33: 10, 36: 10, 48: 10 },
+              "Limavady": { 40: 10, 43: 10, 46: 10 },
+              "Midhurst": { 29: 10, 34: 10, 33: 10 },
+              "Moel Y Parc": { 33: 10, 36: 10, 48: 10 },
+              "Oxford": { 29: 50, 37: 50, 31: 50 },
+              "Presely": { 42: 10, 45: 10, 39: 10 },
+              "Redruth": { 48: 10, 33: 10, 32: 10 },
+              "Ridge Hill": { 21: 10, 24: 10, 27: 10 },
+              "Rosemarkie": { 43: 10, 46: 10, 40: 10 },
+              "Rowridge": { 25: 50, 22: 50, 28: 50 },
+              "Rumster Forest": { 32: 10, 34: 10, 35: 10 },
+              "Sandy Heath": { 33: 170, 36: 170, 48: 170 },
+              "Selkirk": { 33: 5, 36: 5, 48: 5 },
+              "Stockland Hill": { 25: 25, 22: 25, 28: 25 },
+              "Waltham": { 29: 25, 37: 25, 31: 25 },
+              "Wenvoe": { 42: 50, 45: 50, 39: 50 }
+            };
+
+            if (overrides[t.name] && overrides[t.name][ch] !== undefined) {
+              erp = overrides[t.name][ch];
+            }
+            
+            if (!channelData[ch] || erp > channelData[ch].maxErp) {
+              channelData[ch] = { maxErp: erp, transmitterName: t.name };
+            }
+          });
+          coveringNames.push(t.name);
+        });
+      }
+
+      res.json({ 
+        occupied: channelData,
+        transmitters: coveringNames
+      });
+    } catch (err) {
+      console.error("UK TV Lookup error:", err);
+      res.status(500).json({ error: "Failed to lookup TV transmitters" });
+    }
+  });
+
+  app.get("/api/lookup/us-tv", (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      
+      if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ error: "Invalid coordinates" });
+      }
+
+      const transmittersPath = path.join(process.cwd(), 'data', 'us_transmitters.json');
+      if (!fs.existsSync(transmittersPath)) {
+        return res.json({ occupied: [] });
+      }
+
+      const transmitters = JSON.parse(fs.readFileSync(transmittersPath, 'utf8'));
+      const occupied = new Set<number>();
+      const coveringNames: string[] = [];
+
+      const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+          Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      // Find all transmitters that cover this location
+      // Ignore local fillers with ERP <= 5W (0.005 kW)
+      const covering = transmitters
+        .filter((t: any) => !t.erp || t.erp > 0.005)
+        .map((t: any) => {
+          const distance = haversine(lat, lng, t.lat, t.lng);
+          // Calculate a rough signal strength proxy: ERP / distance^3
+          // Add a small constant to distance to avoid division by zero
+          const signalStrength = (t.erp || 100) / Math.pow(Math.max(distance, 1), 3);
+          return { ...t, distance, signalStrength };
+        })
+        .filter((t: any) => t.distance <= t.radius)
+        .sort((a: any, b: any) => b.signalStrength - a.signalStrength);
+
+      if (covering.length > 0) {
+        const strongestSignal = covering[0].signalStrength;
+        
+        // Block transmitters whose signal is within ~8dB (1/6.6th) of the strongest signal,
+        // OR if they have a significant absolute signal strength (> 0.0005),
+        // OR if they are very close (< 15km)
+        const relevantTransmitters = covering.filter((t: any) => 
+          t.signalStrength >= strongestSignal * 0.15 || t.signalStrength > 0.0005 || t.distance < 15
+        );
+
+        relevantTransmitters.forEach((t: any) => {
+          t.channels.forEach((ch: number) => occupied.add(ch));
+          coveringNames.push(t.name);
+        });
+      }
+
+      res.json({ 
+        occupied: Array.from(occupied).sort((a, b) => a - b),
+        transmitters: coveringNames
+      });
+    } catch (err) {
+      console.error("US TV Lookup error:", err);
+      res.status(500).json({ error: "Failed to lookup TV transmitters" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

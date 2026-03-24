@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => {
             clientsClaim: true,
             skipWaiting: true,
             navigateFallbackDenylist: [/^\/api/],
+            maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           },
           devOptions: {
             enabled: false,

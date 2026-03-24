@@ -3,7 +3,7 @@
 // FIX: Add 'mic' to TxType to allow assignment from EquipmentProfile.type
 export type TxType = 'generic' | 'iem' | 'comms' | 'mic' | 'wmas';
 
-export type TVChannelState = 'available' | 'mic-only' | 'iem-only' | 'blocked';
+export type TVChannelState = 'available' | 'mic-only' | 'iem-only' | 'both' | 'blocked';
 
 export type TalkbackMode = 'standard' | 'europe' | 'custom';
 

@@ -3,9 +3,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     FestivalAct, ConstantSystemRequest, EquipmentRequest, ZoneConfig, Thresholds, EquipmentProfile, Frequency, Conflict, ScanDataPoint, TxType, CompatibilityLevel, SiteMapState, OptimizationReport, OptimizationSuggestion, BottleneckStats, TVChannelState, WMASState, GeneratorRequest
 } from '../types';
-import { generateFestivalPlan, generateConstantFrequencies, generateHouseSystemsFrequencies, validateFestivalCompatibility, getCoordinationDiagnostics, CoordinationDiagnostic, getFinalThresholds, checkCompatibility, runShadowCoordination } from '../services/rfService';
+import { generateFestivalPlan, generateConstantFrequencies, generateHouseSystemsFrequencies, validateFestivalCompatibility, getCoordinationDiagnostics, CoordinationDiagnostic, getFinalThresholds, checkCompatibility } from '../services/rfService';
 import { EQUIPMENT_DATABASE, COMPATIBILITY_PROFILES, UK_TV_CHANNELS, US_TV_CHANNELS, WMAS_PRESET_PROFILES } from '../constants';
+import { gridRefToWgs84, osgbToWgs84 } from '../src/lib/coordUtils';
 import Card, { CardTitle } from './Card';
+import TvGrid from './TvGrid';
 import SpectrumVisualizer from './SpectrumVisualizer';
 import LiveScanAnalyzer from './LiveScanAnalyzer';
 
@@ -783,8 +785,6 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
 }) => {
     const [activeSubTab, setActiveSubTab] = useState<'acts' | 'constant' | 'house'>('acts');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [isShadowGenerating, setIsShadowGenerating] = useState(false);
-    const [shadowCoordinationProposal, setShadowCoordinationProposal] = useState<{ frequencies: Frequency[], overrides: Record<string, Partial<Thresholds>>, strategy?: string } | null>(null);
     const [progress, setProgress] = useState({ found: 0, processed: 0, total: 0, totalRequested: 0, status: '' });
     const [overlapMinutes, setOverlapMinutes] = useState(30);
     const [manualExclusions, setManualExclusions] = useState('');
@@ -792,6 +792,7 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     const [isHudMinimized, setIsHudMinimized] = useState(false);
     const [tvRegion, setTvRegion] = useState<'uk' | 'us'>('uk');
     const [tvStates, setTvStates] = useState<Record<number, TVChannelState>>(initialTvStates);
+    const [tvChannelErpData, setTvChannelErpData] = useState<Record<number, { maxErp: number, transmitterName: string }>>({});
     const [showTabulation, setShowTabulation] = useState(false);
     const [diagnosticConflicts, setDiagnosticConflicts] = useState<Conflict[]>([]);
     const [hasAnalyzed, setHasAnalyzed] = useState(false);
@@ -799,6 +800,14 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
     const [numZonesInput, setNumZonesInput] = useState(numZones.toString());
     const [isConverterOpen, setIsConverterOpen] = useState(false);
     const [exclusionThreshold, setExclusionThreshold] = useState(-85);
+    const [isLocating, setIsLocating] = useState(false);
+    const [activeTransmitters, setActiveTransmitters] = useState<string[]>([]);
+    const [coordType, setCoordType] = useState<'latlng' | 'osgb' | 'gridref'>('latlng');
+    const [latInput, setLatInput] = useState('');
+    const [lngInput, setLngInput] = useState('');
+    const [osgbEasting, setOsgbEasting] = useState('');
+    const [osgbNorthing, setOsgbNorthing] = useState('');
+    const [gridRefInput, setGridRefInput] = useState('');
     
     // Global Distance State
     const [globalDistInput, setGlobalDistInput] = useState<string>("150");
@@ -853,27 +862,27 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
         if (!scanData) return;
         const channelMap = tvRegion === 'uk' ? UK_TV_CHANNELS : US_TV_CHANNELS;
         
-        const nextStates = { ...tvStates };
-        let changed = false;
+        setTvStates(prevTvStates => {
+            const nextStates = { ...prevTvStates };
+            let changed = false;
 
-        Object.entries(channelMap).forEach(([chStr, [start, end]]) => {
-            const ch = parseInt(chStr);
-            const chData = scanData.filter(p => p.freq >= start && p.freq <= end);
-            if (chData.length > 0) {
-                const maxChAmp = Math.max(...chData.map(p => p.amp));
-                if (maxChAmp > exclusionThreshold) {
-                    if (nextStates[ch] !== 'blocked') {
-                        nextStates[ch] = 'blocked';
-                        changed = true;
+            Object.entries(channelMap).forEach(([chStr, [start, end]]) => {
+                const ch = parseInt(chStr);
+                const chData = scanData.filter(p => p.freq >= start && p.freq <= end);
+                if (chData.length > 0) {
+                    const maxChAmp = Math.max(...chData.map(p => p.amp));
+                    if (maxChAmp > exclusionThreshold) {
+                        if (nextStates[ch] !== 'blocked') {
+                            nextStates[ch] = 'blocked';
+                            changed = true;
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        if (changed) {
-            setTvStates(nextStates);
-        }
-    }, [scanData, exclusionThreshold, tvRegion, tvStates]);
+            return changed ? nextStates : prevTvStates;
+        });
+    }, [scanData, exclusionThreshold, tvRegion]);
 
     // Automatic synchronization between zoneConfigs (Topology) and the Constant/House system gear ledgers.
     useEffect(() => {
@@ -1100,58 +1109,6 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
         setHouseSystems(prev => prev.map(update));
     };
 
-    const handleShadowCoordination = async () => {
-        setIsShadowGenerating(true);
-        const manualEx = manualExclusions.split(',').map(s => { const parts = s.split('-').map(p => parseFloat(p.trim())); return parts.length === 2 ? { min: parts[0], max: parts[1] } : null; }).filter((x): x is { min: number, max: number } => x !== null);
-        
-        try {
-            const requests: GeneratorRequest[] = [...constantSystems, ...houseSystems, ...festivalActs].flatMap(s => [
-                ...(s.micRequests || []).map(r => ({ ...r, key: r.equipmentKey, customMin: r.customMin || 470, customMax: r.customMax || 608 })),
-                ...(s.iemRequests || []).map(r => ({ ...r, key: r.equipmentKey, customMin: r.customMin || 470, customMax: r.customMax || 608 }))
-            ]);
-            const locked = [...constantSystems, ...houseSystems, ...festivalActs].flatMap(s => s.frequencies || []).filter(f => f.locked);
-            
-            const result = await runShadowCoordination(
-                requests,
-                locked,
-                EQUIPMENT_DATABASE,
-                manualEx,
-                null,
-                false,
-                false,
-                (p) => setProgress(prev => ({ ...prev, status: `Shadow Coordination: ${Math.round(p * 100)}%` })),
-                [],
-                tvStates,
-                tvRegion,
-                initialThresholds
-            );
-            
-            if (result) {
-                setShadowCoordinationProposal(result);
-            } else {
-                alert("Shadow coordination could not find a solution.");
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Shadow coordination failed.");
-        } finally {
-            setIsShadowGenerating(false);
-        }
-    };
-
-    const handleApplyShadowProposal = () => {
-        if (!shadowCoordinationProposal || !setEquipmentOverrides) return;
-        
-        const newOverrides = { ...equipmentOverrides };
-        Object.entries(shadowCoordinationProposal.overrides).forEach(([key, val]) => {
-            newOverrides[key] = val;
-        });
-
-        setEquipmentOverrides(newOverrides);
-        setShadowCoordinationProposal(null);
-        handleGenerate(newOverrides);
-    };
-
     const handleGenerate = async (overrides?: Record<string, Partial<Thresholds>>) => {
         if (setIsCalculating) setIsCalculating(true);
         setIsGenerating(true); setOptimizationReport(null);
@@ -1172,12 +1129,6 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
             const { results: plan, report } = await generateFestivalPlan(festivalActs, newConstants, newHouse, zoneConfigs, distances, overlapMinutes, EQUIPMENT_DATABASE, manualEx, compatibilityMatrix, (p) => setProgress(prev => ({ ...p, totalRequested: reqTotal, status: p.status || prev.status })), undefined, null, effectiveOverrides, tvStates, tvRegion, wmasState);
             setFestivalActs(plan); setOptimizationReport(report);
             setIsHudMinimized(false);
-
-            if (report.shortfall > 0) {
-                if (window.confirm("Coordination shortfall detected. Let me carry out a shadow coordination to see if I can generate the required yield?")) {
-                    handleShadowCoordination();
-                }
-            }
         } catch (e) { console.error(e); } finally { 
             setIsGenerating(false); 
             if (setIsCalculating) setIsCalculating(false);
@@ -1208,7 +1159,8 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
             let next: TVChannelState = 'available';
             if (current === 'available') next = 'mic-only';
             else if (current === 'mic-only') next = 'iem-only';
-            else if (current === 'iem-only') next = 'blocked';
+            else if (current === 'iem-only') next = 'both';
+            else if (current === 'both') next = 'blocked';
             else if (current === 'blocked') next = 'available';
             const nextMap = { ...prev, [channel]: next };
             if (setTvChannelStates) setTvChannelStates(nextMap);
@@ -1226,8 +1178,85 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
         if (setTvChannelStates) setTvChannelStates(next);
     };
 
+    const handleLookup = async (lat: number, lng: number) => {
+        if (isNaN(lat) || isNaN(lng)) {
+            alert("Please enter valid coordinates.");
+            return;
+        }
+        setIsLocating(true);
+        try {
+            const endpoint = tvRegion === 'uk' ? '/api/lookup/uk-tv' : '/api/lookup/us-tv';
+            const res = await fetch(`${endpoint}?lat=${lat}&lng=${lng}`);
+            const data = await res.json();
+            
+            if (data.occupied) {
+                setActiveTransmitters(data.transmitters || []);
+                setTvChannelErpData(data.occupied);
+                const next = { ...tvStates };
+                // Clear existing blocked states and set new ones from lookup
+                Object.keys(next).forEach(ch => {
+                    if (next[Number(ch)] === 'blocked') {
+                        next[Number(ch)] = 'available';
+                    }
+                });
+                
+                Object.keys(data.occupied).forEach((ch: string) => {
+                    next[Number(ch)] = 'blocked';
+                });
+                
+                setTvStates(next);
+                if (setTvChannelStates) setTvChannelStates(next);
+            }
+        } catch (err) {
+            console.error("Lookup error:", err);
+            alert("Failed to lookup TV transmitters for this location.");
+        } finally {
+            setIsLocating(false);
+        }
+    };
+
+    const handleManualLookup = () => {
+        let lat = 0, lng = 0;
+        if (coordType === 'latlng') {
+            lat = parseFloat(latInput);
+            lng = parseFloat(lngInput);
+        } else if (coordType === 'osgb') {
+            const result = osgbToWgs84(parseFloat(osgbEasting), parseFloat(osgbNorthing));
+            lat = result.lat;
+            lng = result.lng;
+        } else if (coordType === 'gridref') {
+            const result = gridRefToWgs84(gridRefInput);
+            if (!result) {
+                alert("Invalid Grid Reference format. Example: TQ 300 800");
+                return;
+            }
+            lat = result.lat;
+            lng = result.lng;
+        }
+        handleLookup(lat, lng);
+    };
+
+    const handleLocateMe = () => {
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                handleLookup(position.coords.latitude, position.coords.longitude);
+            },
+            (err) => {
+                console.error("Geolocation error:", err);
+                alert("Failed to get your location. Please check permissions.");
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    };
+
     const handleClearTv = () => {
         setTvStates({});
+        setActiveTransmitters([]);
         if (setTvChannelStates) setTvChannelStates({});
     };
 
@@ -1591,44 +1620,17 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                             <CardTitle className="!mb-0 text-base">📺 Quad-State TV Grid</CardTitle>
                             <p className="text-[10px] text-slate-500 uppercase font-bold tracking-tighter mt-1">Define protected whitespace. Click to cycle states.</p>
                         </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <div className="flex gap-2 text-xs font-black uppercase">
-                                <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-emerald-500/10 border border-emerald-500/30" /> <span>Avail</span></div>
-                                <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-sky-400 border border-sky-300" /> <span>Mic</span></div>
-                                <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-amber-500 border border-amber-400" /> <span>IEM</span></div>
-                                <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-rose-600 border border-rose-500" /> <span>Off</span></div>
-                            </div>
-                            <div className="flex gap-1.5">
-                                <button onClick={handleBlockAllTvChannels} className="text-xs font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded hover:bg-rose-600 hover:text-white transition-all">Block All</button>
-                                <button onClick={handleClearTv} className="text-xs font-black uppercase bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded hover:bg-slate-700 hover:text-white transition-all">Clear</button>
-                            </div>
-                            <select value={tvRegion} onChange={e => setTvRegion(e.target.value as any)} className="bg-slate-800 text-xs border border-slate-700 rounded px-2 py-1 text-slate-200 font-bold uppercase">
-                                <option value="uk">UK</option>
-                                <option value="us">US</option>
-                            </select>
-                        </div>
                     </div>
-                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-4 lg:grid-cols-6 gap-3 p-4 bg-slate-950/30 rounded-xl">
-                        {Object.entries(tvRegion === 'uk' ? UK_TV_CHANNELS : US_TV_CHANNELS).map(([chStr, [start, end]]) => {
-                            const ch = parseInt(chStr);
-                            const state = tvStates[ch] || 'available';
-                            
-                            let channelClasses = 'py-4 px-2 text-center rounded border transition-all cursor-pointer select-none ';
-                            if (state === 'blocked') channelClasses += 'bg-rose-600 border-rose-500 hover:bg-rose-500 shadow-lg';
-                            else if (state === 'mic-only') channelClasses += 'bg-sky-400 border-sky-300 hover:bg-sky-300 shadow-lg';
-                            else if (state === 'iem-only') channelClasses += 'bg-amber-500 border-amber-400 hover:bg-amber-400 shadow-lg';
-                            else channelClasses += 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/50';
-
-                            return (
-                                <button key={ch} onClick={() => handleTvChannelCycle(ch)} className={channelClasses}>
-                                    <div className={`text-sm font-black ${state === 'available' ? 'text-emerald-400' : 'text-slate-900'}`}>{ch}</div>
-                                    <div className={`text-[10px] font-mono font-bold tracking-tighter ${state === 'available' ? 'text-slate-500' : 'text-white/60'}`}>
-                                        {start}-{end}
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <TvGrid 
+                        tvRegion={tvRegion}
+                        setTvRegion={setTvRegion}
+                        tvStates={tvStates}
+                        setTvStates={setTvStates}
+                        tvChannelErpData={tvChannelErpData}
+                        handleTvChannelCycle={handleTvChannelCycle}
+                        handleBlockAllTvChannels={handleBlockAllTvChannels}
+                        handleClearTv={handleClearTv}
+                    />
                 </Card>
                 
                 <Card className="bg-indigo-600/10 border-indigo-500/30 !p-4">
@@ -1840,24 +1842,13 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                         <div className="flex flex-wrap gap-2 px-1">
                             <button 
                                 onClick={() => handleGenerate()} 
-                                disabled={isGenerating || isShadowGenerating} 
+                                disabled={isGenerating} 
                                 className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-yellow-500 text-slate-900 border-yellow-700 hover:bg-yellow-400 shadow-lg shadow-yellow-500/10 ring-1 ring-yellow-400/30 min-w-[150px]"
                             >
                                 {isGenerating ? (
                                     <><span className="w-3 h-3 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></span>COORDINATING...</>
                                 ) : (
                                     <><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> GENERATE PLAN</>
-                                )}
-                            </button>
-                            <button 
-                                onClick={handleShadowCoordination} 
-                                disabled={isGenerating || isShadowGenerating} 
-                                className="flex-1 py-3 rounded-xl font-semibold uppercase tracking-wide text-[10px] transition-all border-b-4 active:translate-y-0.5 flex items-center justify-center gap-2 bg-indigo-600 text-white border-indigo-800 hover:bg-indigo-500 shadow-lg shadow-indigo-500/10 min-w-[150px]"
-                            >
-                                {isShadowGenerating ? (
-                                    <><span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></span> ANALYZING...</>
-                                ) : (
-                                    <><span>👻</span> SHADOW DRY-RUN</>
                                 )}
                             </button>
                             <button 
@@ -2261,63 +2252,6 @@ const FestivalCoordinationTab: React.FC<FestivalCoordinationTabProps> = ({
                                 Report Generated: {new Date().toLocaleTimeString()}
                             </div>
                             <button onClick={() => setHasAnalyzed(false)} className={`${primaryButton} !px-8 !py-3`}>Close Ledger</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {shadowCoordinationProposal && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-slate-900 border-2 border-indigo-500/40 shadow-[0_40px_120px_rgba(0,0,0,0.8)] rounded-3xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-indigo-500/10">
-                            <h5 className="text-lg font-black uppercase tracking-widest text-indigo-400">Shadow Coordination Proposal</h5>
-                        </div>
-                        <div className="p-6 text-slate-300">
-                            {shadowCoordinationProposal.strategy && (
-                                <div className="mb-4 px-3 py-1 bg-indigo-500/20 border border-indigo-500/30 rounded-full inline-flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                                    <span className="text-[10px] font-black uppercase tracking-tighter text-indigo-300">Optimization Strategy: {shadowCoordinationProposal.strategy}</span>
-                                </div>
-                            )}
-                            {Object.keys(shadowCoordinationProposal.overrides).length > 0 ? (
-                                <>
-                                    <p className="mb-4">I have found a solution to meet your frequency requirements by applying the following parameter adjustments:</p>
-                                    <ul className="space-y-3 mb-6">
-                                        {Object.entries(shadowCoordinationProposal.overrides).map(([key, val]) => {
-                                            const profile = EQUIPMENT_DATABASE[key] || { name: key };
-                                            return (
-                                                <li key={key} className="bg-white/5 p-3 rounded-xl border border-white/10">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-indigo-300 font-black uppercase tracking-widest text-[10px]">{profile.name}</span>
-                                                        <span className="text-[9px] text-slate-500 font-mono">{key}</span>
-                                                    </div>
-                                                    <div className="flex gap-4 text-xs font-mono text-slate-400">
-                                                        {val.twoTone !== undefined && (
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[9px] uppercase font-black text-slate-600">2-Tone</span>
-                                                                <span className="text-emerald-400">{val.twoTone} MHz</span>
-                                                            </div>
-                                                        )}
-                                                        {val.threeTone !== undefined && (
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[9px] uppercase font-black text-slate-600">3-Tone</span>
-                                                                <span className="text-emerald-400">{val.threeTone} MHz</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
-                                </>
-                            ) : (
-                                <p className="mb-6">I have found a solution that meets your frequency requirements using standard parameters. This can happen due to the randomized nature of the coordination engine.</p>
-                            )}
-                            <p className="text-sm italic text-slate-400">Would you like to apply these changes and re-run the coordination?</p>
-                        </div>
-                        <div className="p-6 bg-slate-950 border-t border-white/10 flex justify-end gap-4">
-                            <button onClick={() => setShadowCoordinationProposal(null)} className="px-6 py-3 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700">Cancel</button>
-                            <button onClick={handleApplyShadowProposal} className={`${primaryButton} !px-8 !py-3`}>Apply Changes</button>
                         </div>
                     </div>
                 </div>
